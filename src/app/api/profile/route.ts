@@ -50,10 +50,10 @@ export async function PUT(request: NextRequest) {
         updatedProfile.heightIn,
         updatedProfile.weightLb,
         updatedProfile.age || 27,
-        updatedProfile.sex,
-        updatedProfile.goal,
+        updatedProfile.sex as 'male' | 'female' | 'other',
+        updatedProfile.goal as 'recomp' | 'lean_bulk' | 'cut',
         updatedProfile.liftingDays,
-        updatedProfile.stepsLevel
+        updatedProfile.stepsLevel as 'low' | 'med' | 'high'
       )
 
       // Update today's targets

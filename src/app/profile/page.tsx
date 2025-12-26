@@ -80,10 +80,10 @@ export default function ProfilePage() {
             profileData.heightIn,
             profileData.weightLb,
             profileData.age || 27, // Default to 27 if age is null
-            profileData.sex,
-            profileData.goal,
+            profileData.sex as 'male' | 'female' | 'other',
+            profileData.goal as 'recomp' | 'lean_bulk' | 'cut',
             profileData.liftingDays,
-            profileData.stepsLevel
+            profileData.stepsLevel as 'low' | 'med' | 'high'
           )
           setTargets(calculatedTargets)
         }

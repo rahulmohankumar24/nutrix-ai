@@ -40,10 +40,10 @@ export async function POST(request: NextRequest) {
       totalHeightIn,
       validatedData.weightLb,
       validatedData.age || 27,
-      validatedData.sex,
-      validatedData.goal,
+      validatedData.sex as 'male' | 'female' | 'other',
+      validatedData.goal as 'recomp' | 'lean_bulk' | 'cut',
       validatedData.liftingDays,
-      validatedData.stepsLevel
+      validatedData.stepsLevel as 'low' | 'med' | 'high'
     )
 
     // Save today's targets
