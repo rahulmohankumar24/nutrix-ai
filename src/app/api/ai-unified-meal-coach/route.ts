@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { cache, generateAIMealCacheKey } from '@/lib/cache'
+import { parseAIResponse } from '@/lib/ai-utils'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+// Force rebuild to apply AI utils fix
 
 // Efficient scoring for pre-filtering
 function quickScore(meal: any, targets: any, timeOfDay: string): number {
@@ -98,7 +101,9 @@ export async function POST(request: NextRequest) {
       `${i + 1}. ${meal.title} (${meal.calories}cal, ${meal.protein}p, ${meal.carbs}cb, ${meal.fat}f)`
     ).join('\n')
 
-    const prompt = `${restaurantBrand} ${timeOfDay} meal analysis. User needs: ${remainingMacros}. Goal: ${userProfile?.goal || 'balance'}.
+    const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
+
+${restaurantBrand} ${timeOfDay} meal analysis. User needs: ${remainingMacros}. Goal: ${userProfile?.goal || 'balance'}.
 
 CRITICAL COACHING INSTRUCTIONS:
 - If meals are too low in calories/protein, AGGRESSIVELY suggest add-ons and modifications
@@ -131,13 +136,7 @@ Analyze & return JSON with ENHANCED meal recommendations:
     }
 
     try {
-      // Clean the AI response - remove markdown code blocks if present
-      const cleanedResponse = aiResponse
-        .replace(/```json\s*/g, '')
-        .replace(/```\s*$/g, '')
-        .trim()
-
-      const parsedResponse = JSON.parse(cleanedResponse)
+      const parsedResponse = parseAIResponse(aiResponse)
 
       // Enhance approved meals with AI insights
       const approvedMeals = parsedResponse.approvedMeals?.map((approved: any) => {

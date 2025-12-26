@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { cache } from '@/lib/cache'
+import { parseAIResponse } from '@/lib/ai-utils'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -87,12 +88,7 @@ Return this exact JSON structure with 3-5 estimated meals:
     }
 
     try {
-      const cleanedResponse = aiResponse
-        .replace(/```json\s*/g, '')
-        .replace(/```\s*$/g, '')
-        .trim()
-
-      const parsedResponse = JSON.parse(cleanedResponse)
+      const parsedResponse = parseAIResponse(aiResponse)
 
       const result = {
         success: true,

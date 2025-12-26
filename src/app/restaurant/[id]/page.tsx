@@ -35,6 +35,9 @@ interface MealTemplate {
   customizations?: string[]
   aiScore?: number
   aiReasoning?: string
+  isEstimated?: boolean
+  confidence?: string
+  orderingTips?: string
 }
 
 interface DailyTargets {
@@ -56,6 +59,10 @@ export default function RestaurantPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [coachingData, setCoachingData] = useState<any>(null)
   const [showCoaching, setShowCoaching] = useState(false)
+  const [isEstimatedData, setIsEstimatedData] = useState(false)
+  const [estimationDisclaimer, setEstimationDisclaimer] = useState<string | null>(null)
+  const [showContributeForm, setShowContributeForm] = useState(false)
+  const [userKnowledge, setUserKnowledge] = useState('')
 
   useEffect(() => {
     if (params.id && session?.user?.id) {
@@ -132,6 +139,22 @@ export default function RestaurantPage() {
       // Check if this is a customizable restaurant
       const isCustomizable = isCustomizableRestaurant(restaurant.name)
 
+      // First try to get existing meal data to determine if we need estimation
+      let hasExistingData = false
+
+      if (!isCustomizable) {
+        // Check if restaurant has existing meal data
+        try {
+          const existingMealsResponse = await fetch(`/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurant.name)}`)
+          if (existingMealsResponse.ok) {
+            const existingData = await existingMealsResponse.json()
+            hasExistingData = existingData.meals && existingData.meals.length > 0
+          }
+        } catch (error) {
+          console.log('No existing meal data found, will use estimation')
+        }
+      }
+
       let response
       if (isCustomizable) {
         // Use enhanced AI meal builder with smart ingredient categorization
@@ -141,7 +164,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
-            userId: session.user.id,
+            userId: session?.user?.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -176,7 +199,7 @@ export default function RestaurantPage() {
           }
           setShowCoaching(true)
         }
-      } else {
+      } else if (hasExistingData) {
         // Use unified AI coach for fixed-menu restaurants with faster processing
         response = await fetch('/api/ai-unified-meal-coach', {
           method: 'POST',
@@ -184,7 +207,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
-            userId: session.user.id,
+            userId: session?.user?.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -208,12 +231,88 @@ export default function RestaurantPage() {
             setMeals(aiApprovedMeals)
           }
           setShowCoaching(true)
+          setIsEstimatedData(false)
+        }
+      } else {
+        // Use AI estimation for unknown restaurants
+        response = await fetch('/api/estimate-restaurant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantName: restaurant.name,
+            restaurantType: restaurant.tags?.cuisine || restaurant.tags?.amenity || 'restaurant',
+            userTargets: macroProgress,
+            timeOfDay,
+            userKnowledge: userKnowledge || undefined
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.meals && data.meals.length > 0) {
+            const estimatedMeals = data.meals.map((meal: any) => ({
+              id: meal.id,
+              title: meal.title,
+              description: meal.description,
+              calories: meal.calories,
+              protein: meal.protein,
+              carbs: meal.carbs,
+              fat: meal.fat,
+              tags: meal.ingredients ? [meal.ingredients] : [],
+              reasoning: meal.reasoning,
+              isEstimated: true,
+              confidence: meal.confidence,
+              orderingTips: meal.orderingTips
+            }))
+            setMeals(estimatedMeals)
+            setIsEstimatedData(true)
+            setEstimationDisclaimer(data.disclaimer || 'These are AI-estimated macros. Actual values may vary.')
+          }
+        } else {
+          console.error('Failed to get restaurant estimation')
         }
       }
     } catch (error) {
       console.error('Failed to generate AI insights:', error)
     } finally {
       setAiLoading(false)
+    }
+  }
+
+  const submitRestaurantContribution = async () => {
+    if (!session?.user?.id || !restaurant?.name || !userKnowledge.trim()) return
+
+    try {
+      const response = await fetch('/api/contribute-restaurant-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: session.user.id,
+          restaurantName: restaurant.name,
+          restaurantType: restaurant.tags?.cuisine || restaurant.tags?.amenity || 'restaurant',
+          mealData: {
+            name: 'User Knowledge',
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0
+          },
+          contributionType: 'user_input',
+          notes: userKnowledge
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(data.message)
+        setUserKnowledge('')
+        setShowContributeForm(false)
+        // Re-generate insights with user knowledge
+        generateAIInsights()
+      }
+    } catch (error) {
+      console.error('Failed to submit contribution:', error)
+      alert('Failed to submit knowledge. Please try again.')
     }
   }
 
@@ -463,17 +562,103 @@ export default function RestaurantPage() {
           </div>
         )}
 
+        {/* Restaurant Knowledge Contribution */}
+        {isEstimatedData && (
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm">💡</span>
+                </div>
+                <h2 className="text-xl font-bold text-white">Help Improve This Restaurant's Data</h2>
+              </div>
+              {!showContributeForm && (
+                <button
+                  onClick={() => setShowContributeForm(true)}
+                  className="bg-gradient-to-r from-yellow-600 to-orange-600 text-white px-4 py-2 rounded-lg hover:from-yellow-700 hover:to-orange-700 transition-all text-sm"
+                >
+                  Share Knowledge
+                </button>
+              )}
+            </div>
+
+            {showContributeForm ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    What do you know about {restaurant?.name}?
+                  </label>
+                  <textarea
+                    value={userKnowledge}
+                    onChange={(e) => setUserKnowledge(e.target.value)}
+                    placeholder="Share any information about their menu, portion sizes, ingredients, or nutrition facts..."
+                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg p-4 text-gray-300 placeholder-gray-500 focus:border-yellow-500/50 focus:outline-none resize-none"
+                    rows={4}
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={submitRestaurantContribution}
+                    disabled={!userKnowledge.trim()}
+                    className="bg-gradient-to-r from-yellow-600 to-orange-600 text-white px-6 py-2 rounded-lg hover:from-yellow-700 hover:to-orange-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Submit Knowledge
+                  </button>
+                  <button
+                    onClick={() => setShowContributeForm(false)}
+                    className="bg-gray-700/50 text-gray-300 px-6 py-2 rounded-lg hover:bg-gray-700 transition-all text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 border border-yellow-500/30">
+                <p className="text-yellow-200 text-sm">
+                  Know something about this restaurant? Share your knowledge to help improve recommendations for everyone!
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Estimation Disclaimer */}
+        {isEstimatedData && estimationDisclaimer && (
+          <div className="glass rounded-2xl p-6 mb-8 border-l-4 border-orange-500">
+            <div className="flex items-start space-x-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-sm">⚠️</span>
+              </div>
+              <div>
+                <h3 className="text-orange-300 font-semibold mb-2">AI Estimation Notice</h3>
+                <p className="text-orange-200 text-sm leading-relaxed mb-3">{estimationDisclaimer}</p>
+                <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-500/30">
+                  <p className="text-orange-300 text-xs">
+                    💡 <strong>Pro tip:</strong> These estimates are based on typical restaurant portions and ingredients.
+                    For better accuracy, you can contribute real menu data or nutrition facts!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Meals */}
         <div>
           <div className="flex items-center space-x-3 mb-8">
             <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">🍔</span>
+              <span className="text-white text-sm">{isEstimatedData ? '🤖' : '🍔'}</span>
             </div>
             <h2 className="text-2xl font-bold text-white">
-              {aiLoading ? 'AI Analyzing Meals...' : 'Available Meals'}
+              {aiLoading ? 'AI Analyzing Meals...' : isEstimatedData ? 'AI Estimated Meals' : 'Available Meals'}
             </h2>
             {aiLoading && (
               <div className="animate-spin rounded-full h-6 w-6 border-2 border-green-500 border-t-transparent"></div>
+            )}
+            {isEstimatedData && (
+              <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-900/30 text-orange-300 border border-orange-500/30">
+                Estimated
+              </span>
             )}
           </div>
 
@@ -513,6 +698,24 @@ export default function RestaurantPage() {
                     </div>
 
                     <p className="text-gray-400 text-sm mb-6 leading-relaxed">{meal.description}</p>
+
+                    {/* Estimation Badge for Individual Meals */}
+                    {meal.isEstimated && (
+                      <div className="bg-gradient-to-r from-orange-900/30 to-yellow-900/30 rounded-lg p-3 mb-4 border border-orange-500/30">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-5 h-5 bg-gradient-to-r from-orange-500 to-yellow-500 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-white text-xs">⚠️</span>
+                          </div>
+                          <div>
+                            <p className="text-orange-300 text-xs font-medium mb-1">AI Estimated</p>
+                            <p className="text-orange-200 text-xs">This meal's nutrition is estimated by AI. Confidence: {meal.confidence || 'medium'}</p>
+                            {meal.orderingTips && (
+                              <p className="text-yellow-300 text-xs mt-1">💡 {meal.orderingTips}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {meal.aiDescription && (
                       <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 mb-4 border border-purple-500/30">
@@ -617,9 +820,14 @@ export default function RestaurantPage() {
             </div>
           ) : (
             <div className="glass rounded-2xl p-16 text-center">
-              <div className="text-gray-600 text-6xl mb-6">🍽️</div>
-              <h3 className="text-xl font-semibold text-white mb-3">No meals found</h3>
-              <p className="text-gray-400">We don't have nutrition data for this restaurant yet.</p>
+              <div className="text-gray-600 text-6xl mb-6">🤖</div>
+              <h3 className="text-xl font-semibold text-white mb-3">Generating AI Estimates...</h3>
+              <p className="text-gray-400 mb-6">We don't have data for this restaurant yet, so our AI is creating meal estimates for you.</p>
+              <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-xl p-4 border border-blue-500/30 max-w-md mx-auto">
+                <p className="text-blue-300 text-sm">
+                  💡 Know this restaurant? Click "Share Knowledge" above to help us improve our recommendations!
+                </p>
+              </div>
             </div>
           )}
         </div>
