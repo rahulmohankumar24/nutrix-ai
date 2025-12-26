@@ -115,6 +115,64 @@ export default function RestaurantPage() {
     }
   }
 
+  const expandMealOptions = async () => {
+    if (!restaurant?.name || aiLoading) return
+
+    setAiLoading(true)
+    try {
+      // First try rule-based expansion
+      const expandResponse = await fetch('/api/expand-meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantBrand: restaurant.name
+        })
+      })
+
+      // Then try AI-powered generation
+      const aiResponse = await fetch('/api/ai-meal-generator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantBrand: restaurant.name
+        })
+      })
+
+      if (expandResponse.ok || aiResponse.ok) {
+        // Reload meals to show new options
+        loadRestaurantData()
+      }
+    } catch (error) {
+      console.error('Failed to expand meal options:', error)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const addMealToLog = async (meal: MealTemplate) => {
+    if (!session?.user?.id) return
+
+    try {
+      const response = await fetch('/api/log-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: session.user.id,
+          orderTemplateId: meal.id,
+          servings: 1
+        })
+      })
+
+      if (response.ok) {
+        // Show success message or refresh macro progress
+        loadUserTargets() // Refresh the remaining targets
+        // Could add a toast notification here
+      }
+    } catch (error) {
+      console.error('Failed to log meal:', error)
+    }
+  }
+
   const openDeliveryApp = (mealTitle: string, keywords: string) => {
     const searchQuery = encodeURIComponent(`${restaurant?.name} ${keywords}`)
     const doordashUrl = `https://www.doordash.com/store-search/?query=${searchQuery}`
@@ -193,14 +251,24 @@ export default function RestaurantPage() {
                   <p className="text-gray-400 text-sm">{restaurant.distance.toFixed(1)} miles away</p>
                 </div>
               </div>
-              <button
-                onClick={generateAIInsights}
-                disabled={aiLoading}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center space-x-2"
-              >
-                <span>🤖</span>
-                <span>{aiLoading ? 'Analyzing...' : 'Get AI Insights'}</span>
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  onClick={generateAIInsights}
+                  disabled={aiLoading}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center space-x-2"
+                >
+                  <span>🤖</span>
+                  <span>{aiLoading ? 'Analyzing...' : 'Get AI Insights'}</span>
+                </button>
+                <button
+                  onClick={expandMealOptions}
+                  disabled={aiLoading}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 transition-all flex items-center space-x-2"
+                >
+                  <span>✨</span>
+                  <span>{aiLoading ? 'Generating...' : 'More Options'}</span>
+                </button>
+              </div>
             </div>
 
             {userTargets && (
@@ -307,7 +375,10 @@ export default function RestaurantPage() {
                     )}
 
                     <div className="flex space-x-3">
-                      <button className="flex-1 bg-gray-700/50 text-gray-300 text-sm py-3 rounded-lg hover:bg-gray-700 transition-all">
+                      <button
+                        onClick={() => addMealToLog(meal)}
+                        className="flex-1 bg-gray-700/50 text-gray-300 text-sm py-3 rounded-lg hover:bg-gray-700 transition-all"
+                      >
                         Add to Log
                       </button>
                       <button
