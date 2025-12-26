@@ -141,6 +141,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
+            userId: session.user.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -183,6 +184,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
+            userId: session.user.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',

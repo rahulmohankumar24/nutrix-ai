@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
+import { cache, generateAIMealCacheKey } from '@/lib/cache'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
@@ -24,6 +25,25 @@ export async function POST(request: NextRequest) {
         error: 'userTargets must include remaining, current, and targets properties',
         received: Object.keys(userTargets || {})
       }, { status: 400 })
+    }
+
+    // Check cache first
+    const cacheKey = generateAIMealCacheKey(
+      restaurantBrand,
+      userId || 'anonymous',
+      timeOfDay,
+      userTargets.remaining.calories,
+      userTargets.remaining.protein
+    )
+
+    const cachedResult = cache.get(cacheKey)
+    if (cachedResult) {
+      console.log('🚀 AI meal cache hit:', cacheKey)
+      return NextResponse.json({
+        ...cachedResult,
+        cached: true,
+        cacheKey
+      })
     }
 
     // Get available ingredients for this restaurant
@@ -137,14 +157,20 @@ Return this exact JSON structure with 3 meals that ACTUALLY hit the calorie targ
 
       const parsedResponse = JSON.parse(cleanedResponse)
 
-      return NextResponse.json({
+      const result = {
         success: true,
         customMeals: parsedResponse.customMeals || [],
         coaching: parsedResponse,
         restaurantBrand,
         availableIngredients: ingredients.length,
         mealCount: parsedResponse.customMeals?.length || 0
-      })
+      }
+
+      // Cache the result for 2 hours
+      cache.set(cacheKey, result, 120)
+      console.log('💾 AI meal cached:', cacheKey)
+
+      return NextResponse.json(result)
     } catch (parseError) {
       console.error('Failed to parse AI meal builder response:', parseError)
       console.error('Raw AI response:', aiResponse)

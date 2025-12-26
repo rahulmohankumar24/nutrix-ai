@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { calculateDistance } from '@/lib/calculations'
 import { isKnownChain } from '@/lib/chains'
 import { Restaurant } from '@/lib/types'
+import { cache, generateRestaurantCacheKey } from '@/lib/cache'
 
 function consolidateRestaurants(restaurants: Restaurant[]): Restaurant[] {
   const restaurantMap = new Map<string, Restaurant>()
@@ -28,6 +29,17 @@ export async function POST(request: NextRequest) {
         { error: 'Latitude and longitude are required' },
         { status: 400 }
       )
+    }
+
+    // Check cache first
+    const cacheKey = generateRestaurantCacheKey(lat, lng)
+    const cachedResult = cache.get(cacheKey)
+    if (cachedResult) {
+      console.log('🚀 Restaurant cache hit:', cacheKey)
+      return NextResponse.json({
+        ...cachedResult,
+        cached: true
+      })
     }
 
     // Query Overpass API for restaurants within 2km
@@ -104,10 +116,16 @@ export async function POST(request: NextRequest) {
     const knownChains = consolidatedRestaurants.filter(r => r.isKnown).slice(0, 10)
     const unknownRestaurants = consolidatedRestaurants.filter(r => !r.isKnown).slice(0, 15)
 
-    return NextResponse.json({
+    const result = {
       restaurants: [...knownChains, ...unknownRestaurants],
       userLocation: { lat, lng }
-    })
+    }
+
+    // Cache the result for 30 minutes (restaurants don't change often)
+    cache.set(cacheKey, result, 30)
+    console.log('💾 Restaurant data cached:', cacheKey)
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Nearby restaurants error:', error)
     return NextResponse.json(

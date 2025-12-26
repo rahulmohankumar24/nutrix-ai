@@ -21,6 +21,7 @@ model User {
   dailyTargets DailyTarget[]
   mealLogs     MealLog[]
   reminders    Reminder[]
+  restaurantContributions RestaurantContribution[]
   accounts     Account[]
   sessions     Session[]
 
@@ -175,4 +176,31 @@ model Reminder {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reminders")
+}
+
+model RestaurantContribution {
+  id               String   @id @default(cuid())
+  userId           String
+  restaurantName   String
+  restaurantType   String?
+  mealName         String
+  calories         Int
+  protein          Int
+  carbs            Int?
+  fat              Int?
+  contributionType String   @default("user_input") // user_input, menu_photo, receipt_scan
+  notes            String?
+  confidence       String   @default("medium") // low, medium, high
+  source           String   @default("user_reported") // user_reported, menu_verified, receipt_scanned
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  verifiedAt       DateTime?
+  verifiedBy       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantName])
+  @@index([verified])
+  @@index([createdAt])
+  @@map("restaurant_contributions")
 }

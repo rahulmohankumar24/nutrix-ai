@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
+import { cache, generateAIMealCacheKey } from '@/lib/cache'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -34,10 +35,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, useAI = true } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, useAI = true, userId } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
+    }
+
+    // Check cache first for AI-enhanced results
+    if (useAI && userId) {
+      const cacheKey = `unified_${generateAIMealCacheKey(
+        restaurantBrand,
+        userId,
+        timeOfDay,
+        userTargets.remaining?.calories || 0,
+        userTargets.remaining?.protein || 0
+      )}`
+
+      const cachedResult = cache.get(cacheKey)
+      if (cachedResult) {
+        console.log('🚀 Unified meal coach cache hit:', cacheKey)
+        return NextResponse.json({
+          ...cachedResult,
+          cached: true
+        })
+      }
     }
 
     // Get available meals for this restaurant brand
@@ -131,7 +152,7 @@ Analyze & return JSON with ENHANCED meal recommendations:
         }
       }) || []
 
-      return NextResponse.json({
+      const result = {
         success: true,
         meals: approvedMeals,
         coaching: parsedResponse,
@@ -139,7 +160,22 @@ Analyze & return JSON with ENHANCED meal recommendations:
         analysedCount: scoredMeals.length,
         approvedCount: approvedMeals.length,
         aiEnhanced: true
-      })
+      }
+
+      // Cache the AI result for 2 hours
+      if (useAI && userId) {
+        const cacheKey = `unified_${generateAIMealCacheKey(
+          restaurantBrand,
+          userId,
+          timeOfDay,
+          userTargets.remaining?.calories || 0,
+          userTargets.remaining?.protein || 0
+        )}`
+        cache.set(cacheKey, result, 120)
+        console.log('💾 Unified meal coach cached:', cacheKey)
+      }
+
+      return NextResponse.json(result)
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError)
 
