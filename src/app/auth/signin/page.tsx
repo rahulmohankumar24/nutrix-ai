@@ -24,28 +24,33 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Nutrix AI</h1>
-          <p className="text-gray-600 mb-8">Your personalized nutrition coach</p>
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-lg">M</span>
+            </div>
+            <h1 className="text-4xl font-bold text-white">Mootra AI</h1>
+          </div>
+          <p className="text-gray-400 text-lg">Your AI-powered nutrition coach</p>
         </div>
 
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="glass py-8 px-6 rounded-2xl">
           <div className="space-y-6">
-            <div>
-              <h2 className="text-center text-3xl font-extrabold text-gray-900">
-                Sign in to your account
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white mb-3">
+                Welcome back
               </h2>
-              <p className="mt-2 text-center text-sm text-gray-600">
-                Get personalized meal recommendations and track your nutrition goals
+              <p className="text-gray-400 text-sm">
+                Get personalized meal recommendations powered by AI
               </p>
             </div>
 
             <div>
               <button
                 onClick={handleGoogleSignIn}
-                className="w-full flex justify-center items-center px-4 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex justify-center items-center px-6 py-4 bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-xl text-white font-medium transition-all group"
               >
                 <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -57,23 +62,32 @@ export default function SignIn() {
               </button>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-8">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
+                  <div className="w-full border-t border-gray-700" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Why Google?</span>
+                  <span className="px-3 bg-gray-900 text-gray-400">Why Google?</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 text-center text-sm text-gray-600">
-              <ul className="space-y-2">
-                <li>✓ Secure authentication</li>
-                <li>✓ No password to remember</li>
-                <li>✓ Quick and easy setup</li>
-              </ul>
+            <div className="mt-6 text-center">
+              <div className="grid grid-cols-1 gap-3 text-sm text-gray-400">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>Secure authentication</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span>No password to remember</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span>Quick and easy setup</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

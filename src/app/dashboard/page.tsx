@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
+import Link from 'next/link'
 import { Restaurant, MacroProgress, OrderRecommendation } from '@/lib/types'
 
 export default function DashboardPage() {
@@ -16,7 +17,6 @@ export default function DashboardPage() {
   const [recommendations, setRecommendations] = useState<OrderRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
-  const [selectedRestaurant, setSelectedRestaurant] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -130,86 +130,108 @@ export default function DashboardPage() {
     window.open(doordashUrl, '_blank')
   }
 
+  const navigateToRestaurant = (restaurant: Restaurant) => {
+    // Store restaurant data in localStorage for the restaurant page
+    localStorage.setItem(`restaurant_${restaurant.id}`, JSON.stringify(restaurant))
+    router.push(`/restaurant/${restaurant.id}`)
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your nutrition dashboard...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-2 border-blue-500 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-gray-400 text-sm">Loading your nutrition dashboard...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-black">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+      <header className="glass border-b border-gray-800/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Nutrix AI</h1>
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">M</span>
+              </div>
+              <h1 className="text-xl font-semibold text-white">Mootra AI</h1>
+            </div>
             <nav className="flex items-center space-x-6">
-              <a href="/profile" className="text-gray-600 hover:text-gray-900">Profile</a>
-              <a href="/meals" className="text-gray-600 hover:text-gray-900">Meals</a>
-              <a href="/reminders" className="text-gray-600 hover:text-gray-900">Reminders</a>
+              <a href="/profile" className="text-gray-400 hover:text-white transition-colors text-sm">Profile</a>
+              <a href="/meals" className="text-gray-400 hover:text-white transition-colors text-sm">Meals</a>
+              <a href="/reminders" className="text-gray-400 hover:text-white transition-colors text-sm">Reminders</a>
               {session?.user && (
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">Hello, {session.user.name}</span>
-                  <button
-                    onClick={() => signOut({ callbackUrl: '/auth/signin' })}
-                    className="text-sm text-gray-600 hover:text-gray-900"
-                  >
-                    Sign out
-                  </button>
-                </div>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  Sign out
+                </button>
               )}
             </nav>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Macro Progress */}
         {macros && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Today's Progress</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {(['calories', 'protein', 'carbs', 'fat'] as const).map(macro => (
-                <div key={macro} className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {macros.remaining[macro]}
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
+            <h2 className="text-2xl font-bold text-white mb-6">Today's Progress</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {(['calories', 'protein', 'carbs', 'fat'] as const).map((macro, index) => {
+                const colors = ['blue', 'green', 'yellow', 'purple']
+                const color = colors[index]
+                const percentage = Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
+
+                return (
+                  <div key={macro} className="relative">
+                    <div className="text-center">
+                      <div className={`text-3xl font-bold text-${color}-400 mb-1`}>
+                        {macros.remaining[macro]}
+                      </div>
+                      <div className="text-sm text-gray-400 capitalize mb-3">
+                        remaining {macro} {macro === 'calories' ? '' : '(g)'}
+                      </div>
+                      <div className="relative">
+                        <div className="w-full bg-gray-800 rounded-full h-2">
+                          <div
+                            className={`bg-gradient-to-r from-${color}-500 to-${color}-400 h-2 rounded-full transition-all duration-700 ease-out`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 mt-2">
+                          {macros.current[macro]} / {macros.targets[macro]}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    remaining {macro} {macro === 'calories' ? '' : '(g)'}
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)}%`
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
 
         {/* Location Status */}
         {locationPermission === 'pending' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
-            <p className="text-blue-800">Requesting location access to find nearby restaurants...</p>
+          <div className="glass rounded-xl p-4 mb-6 border border-blue-500/30">
+            <div className="flex items-center space-x-3">
+              <div className="animate-pulse w-3 h-3 bg-blue-500 rounded-full"></div>
+              <p className="text-blue-300 text-sm">Requesting location access to find nearby restaurants...</p>
+            </div>
           </div>
         )}
 
         {locationPermission === 'denied' && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
+          <div className="glass rounded-xl p-4 mb-6 border border-yellow-500/30">
             <div className="flex items-center justify-between">
-              <p className="text-yellow-800">Location access needed to find nearby restaurants.</p>
+              <p className="text-yellow-300 text-sm">Location access needed to find nearby restaurants.</p>
               <button
                 onClick={requestLocation}
-                className="bg-yellow-600 text-white px-4 py-2 rounded-md text-sm hover:bg-yellow-700"
+                className="bg-gradient-to-r from-yellow-600 to-yellow-500 text-white px-4 py-2 rounded-lg text-sm hover:from-yellow-700 hover:to-yellow-600 transition-all"
               >
                 Enable Location
               </button>
@@ -219,43 +241,51 @@ export default function DashboardPage() {
 
         {/* Best Orders Right Now */}
         {recommendations.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">🎯 Best Orders Near You Right Now</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">🎯</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white">AI Recommendations</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recommendations.slice(0, 6).map((rec, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">{rec.restaurant.name}</h3>
-                    <span className="text-sm text-gray-500">{rec.restaurant.distance} mi</span>
+                <div key={index} className="bg-gray-900/50 rounded-xl p-5 border border-gray-800/50 hover:border-gray-700/50 transition-all card-hover">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-white text-sm">{rec.restaurant.name}</h3>
+                    <span className="text-xs text-gray-400">{rec.restaurant.distance.toFixed(1)} mi</span>
                   </div>
-                  <p className="text-sm font-medium text-blue-600 mb-2">{rec.template.title}</p>
-                  <p className="text-xs text-gray-600 mb-3">{rec.template.description}</p>
-                  <div className="grid grid-cols-4 gap-2 text-xs text-center mb-3">
-                    <div>
-                      <div className="font-medium">{rec.template.calories}</div>
+                  <p className="text-sm font-medium text-blue-400 mb-2">{rec.template.title}</p>
+                  <p className="text-xs text-gray-400 mb-4 line-clamp-2">{rec.template.description}</p>
+                  <div className="grid grid-cols-4 gap-3 text-xs text-center mb-4">
+                    <div className="bg-gray-800/50 rounded-lg py-2">
+                      <div className="font-semibold text-white">{rec.template.calories}</div>
                       <div className="text-gray-500">cal</div>
                     </div>
-                    <div>
-                      <div className="font-medium">{rec.template.protein}g</div>
+                    <div className="bg-gray-800/50 rounded-lg py-2">
+                      <div className="font-semibold text-green-400">{rec.template.protein}g</div>
                       <div className="text-gray-500">protein</div>
                     </div>
-                    <div>
-                      <div className="font-medium">{rec.template.carbs}g</div>
+                    <div className="bg-gray-800/50 rounded-lg py-2">
+                      <div className="font-semibold text-yellow-400">{rec.template.carbs}g</div>
                       <div className="text-gray-500">carbs</div>
                     </div>
-                    <div>
-                      <div className="font-medium">{rec.template.fat}g</div>
+                    <div className="bg-gray-800/50 rounded-lg py-2">
+                      <div className="font-semibold text-purple-400">{rec.template.fat}g</div>
                       <div className="text-gray-500">fat</div>
                     </div>
                   </div>
-                  <p className="text-xs text-green-600 mb-3">✓ {rec.explanation}</p>
-                  <div className="flex space-x-2">
-                    <button className="flex-1 bg-gray-100 text-gray-700 text-xs py-2 rounded hover:bg-gray-200">
-                      Log Meal
+                  <div className="flex items-center space-x-2 mb-4">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <p className="text-xs text-green-400">{rec.explanation}</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button className="flex-1 bg-gray-700/50 text-gray-300 text-xs py-2.5 rounded-lg hover:bg-gray-700 transition-all">
+                      Add to Log
                     </button>
                     <button
                       onClick={() => openDeliveryApp(rec.restaurant.name, rec.template.keywordsForDeliverySearch)}
-                      className="flex-1 bg-blue-600 text-white text-xs py-2 rounded hover:bg-blue-700"
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all"
                     >
                       Order Now
                     </button>
@@ -268,71 +298,43 @@ export default function DashboardPage() {
 
         {/* Restaurants Nearby */}
         {(knownRestaurants.length > 0 || unknownRestaurants.length > 0) && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">🍽️ Restaurants Nearby</h2>
+          <div className="glass rounded-2xl p-8">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">🍽️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white">Restaurants Nearby</h2>
+            </div>
 
             {/* Known Chains */}
             {knownRestaurants.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-green-700 mb-3">
-                  ✅ Macro-Known Restaurants (Recommended)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="mb-8">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-green-400">
+                    AI-Enhanced Restaurants
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {knownRestaurants.map(restaurant => {
                     const restaurantRecommendations = recommendations.filter(rec => rec.restaurant.id === restaurant.id)
                     return (
-                      <div key={restaurant.id} className="border border-green-200 bg-green-50 rounded-lg p-3 cursor-pointer hover:bg-green-100 transition-colors"
-                           onClick={() => setSelectedRestaurant(restaurant.id === selectedRestaurant ? null : restaurant.id)}>
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-green-900">{restaurant.name}</h4>
-                          <span className="text-sm text-green-600">{restaurant.distance} mi</span>
+                      <div
+                        key={restaurant.id}
+                        className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-xl p-5 border border-green-500/30 cursor-pointer hover:border-green-500/50 transition-all card-hover group"
+                        onClick={() => navigateToRestaurant(restaurant)}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-white group-hover:text-green-300 transition-colors">{restaurant.name}</h4>
+                          <span className="text-xs text-gray-400">{restaurant.distance.toFixed(1)} mi</span>
                         </div>
-                        <p className="text-xs text-green-700 mt-1">
-                          {restaurantRecommendations.length} meal option{restaurantRecommendations.length !== 1 ? 's' : ''} available
+                        <p className="text-xs text-green-400 mb-3">
+                          {restaurantRecommendations.length} AI-analyzed meal{restaurantRecommendations.length !== 1 ? 's' : ''}
                         </p>
-                        {selectedRestaurant === restaurant.id && (
-                          <div className="mt-3 space-y-2">
-                            {restaurantRecommendations.map((rec, index) => (
-                              <div key={index} className="bg-white rounded-md p-3 border border-green-300">
-                                <h5 className="font-medium text-green-900 text-sm">{rec.template.title}</h5>
-                                <p className="text-xs text-green-700 mt-1">{rec.template.description}</p>
-                                <div className="grid grid-cols-4 gap-1 text-xs text-center mt-2">
-                                  <div>
-                                    <div className="font-medium">{rec.template.calories}</div>
-                                    <div className="text-green-600">cal</div>
-                                  </div>
-                                  <div>
-                                    <div className="font-medium">{rec.template.protein}g</div>
-                                    <div className="text-green-600">protein</div>
-                                  </div>
-                                  <div>
-                                    <div className="font-medium">{rec.template.carbs}g</div>
-                                    <div className="text-green-600">carbs</div>
-                                  </div>
-                                  <div>
-                                    <div className="font-medium">{rec.template.fat}g</div>
-                                    <div className="text-green-600">fat</div>
-                                  </div>
-                                </div>
-                                <p className="text-xs text-green-600 mt-2">✓ {rec.explanation}</p>
-                                <div className="flex space-x-2 mt-2">
-                                  <button className="flex-1 bg-green-200 text-green-800 text-xs py-1 rounded hover:bg-green-300">
-                                    Log Meal
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openDeliveryApp(rec.restaurant.name, rec.template.keywordsForDeliverySearch)
-                                    }}
-                                    className="flex-1 bg-green-600 text-white text-xs py-1 rounded hover:bg-green-700"
-                                  >
-                                    Order Now
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">Click for insights</span>
+                          <div className="text-green-400 group-hover:translate-x-1 transition-transform">→</div>
+                        </div>
                       </div>
                     )
                   })}
@@ -343,17 +345,20 @@ export default function DashboardPage() {
             {/* Unknown Restaurants */}
             {unknownRestaurants.length > 0 && (
               <div>
-                <h3 className="text-lg font-medium text-gray-700 mb-3">
-                  ❓ Other Restaurants (Macros Unknown)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {unknownRestaurants.slice(0, 12).map(restaurant => (
-                    <div key={restaurant.id} className="border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-gray-400">
+                    Other Restaurants
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {unknownRestaurants.slice(0, 8).map(restaurant => (
+                    <div key={restaurant.id} className="bg-gray-900/30 rounded-lg p-4 border border-gray-800/50">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-gray-900">{restaurant.name}</h4>
-                        <span className="text-sm text-gray-500">{restaurant.distance} mi</span>
+                        <h4 className="font-medium text-gray-300 text-sm">{restaurant.name}</h4>
+                        <span className="text-xs text-gray-500">{restaurant.distance.toFixed(1)} mi</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">Use estimates for macros</p>
+                      <p className="text-xs text-gray-500 mt-2">Limited nutrition data</p>
                     </div>
                   ))}
                 </div>
@@ -364,10 +369,10 @@ export default function DashboardPage() {
 
         {/* Empty State */}
         {locationPermission === 'granted' && knownRestaurants.length === 0 && unknownRestaurants.length === 0 && (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <div className="text-gray-400 text-6xl mb-4">🍽️</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No restaurants found nearby</h3>
-            <p className="text-gray-500">Try expanding your search radius or check your location.</p>
+          <div className="glass rounded-2xl p-16 text-center">
+            <div className="text-gray-600 text-6xl mb-6">🍽️</div>
+            <h3 className="text-xl font-semibold text-white mb-3">No restaurants found nearby</h3>
+            <p className="text-gray-400">Try expanding your search radius or check your location.</p>
           </div>
         )}
       </div>

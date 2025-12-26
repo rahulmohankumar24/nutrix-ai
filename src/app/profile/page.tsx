@@ -188,11 +188,6 @@ export default function ProfilePage() {
               <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Dashboard</a>
               <a href="/meals" className="text-gray-600 hover:text-gray-900">Meals</a>
               <a href="/reminders" className="text-gray-600 hover:text-gray-900">Reminders</a>
-              {session?.user && (
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">Hello, {session.user.name}</span>
-                </div>
-              )}
             </nav>
           </div>
         </div>
