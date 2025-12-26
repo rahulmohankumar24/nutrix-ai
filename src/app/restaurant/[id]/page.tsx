@@ -44,6 +44,8 @@ export default function RestaurantPage() {
   const [userTargets, setUserTargets] = useState<DailyTargets | null>(null)
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
+  const [coachingData, setCoachingData] = useState<any>(null)
+  const [showCoaching, setShowCoaching] = useState(false)
 
   useEffect(() => {
     if (params.id && session?.user?.id) {
@@ -113,6 +115,44 @@ export default function RestaurantPage() {
     } finally {
       setAiLoading(false)
     }
+  }
+
+  const getAICoaching = async () => {
+    if (!restaurant?.name || !userTargets || aiLoading) return
+
+    setAiLoading(true)
+    try {
+      const response = await fetch('/api/ai-menu-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantBrand: restaurant.name,
+          userTargets,
+          timeOfDay: getCurrentTimeOfDay(),
+          userProfile: {
+            goal: 'recomp' // Could get this from user profile
+          }
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCoachingData(data.coaching)
+        setShowCoaching(true)
+      }
+    } catch (error) {
+      console.error('Failed to get AI coaching:', error)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const getCurrentTimeOfDay = () => {
+    const hour = new Date().getHours()
+    if (hour < 11) return 'breakfast'
+    if (hour < 15) return 'lunch'
+    if (hour < 19) return 'dinner'
+    return 'snack'
   }
 
   const expandMealOptions = async () => {
@@ -253,12 +293,20 @@ export default function RestaurantPage() {
               </div>
               <div className="flex space-x-3">
                 <button
-                  onClick={generateAIInsights}
+                  onClick={getAICoaching}
                   disabled={aiLoading}
                   className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center space-x-2"
                 >
+                  <span>🧠</span>
+                  <span>{aiLoading ? 'Analyzing...' : 'AI Coach'}</span>
+                </button>
+                <button
+                  onClick={generateAIInsights}
+                  disabled={aiLoading}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 transition-all flex items-center space-x-2"
+                >
                   <span>🤖</span>
-                  <span>{aiLoading ? 'Analyzing...' : 'Get AI Insights'}</span>
+                  <span>{aiLoading ? 'Analyzing...' : 'Meal Insights'}</span>
                 </button>
                 <button
                   onClick={expandMealOptions}
@@ -292,6 +340,106 @@ export default function RestaurantPage() {
                     <div className="text-xs text-gray-400 uppercase tracking-wide">fat</div>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI Coaching Section */}
+        {showCoaching && coachingData && (
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm">🧠</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white">AI Coach Recommendations</h2>
+              </div>
+              <button
+                onClick={() => setShowCoaching(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Overall Advice */}
+            {coachingData.overallAdvice && (
+              <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-xl p-4 mb-6 border border-purple-500/30">
+                <p className="text-purple-200 text-sm">{coachingData.overallAdvice}</p>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            <div className="space-y-6">
+              {coachingData.recommendations?.map((rec: any, index: number) => (
+                <div key={index} className="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50">
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="font-semibold text-white text-lg">{rec.title}</h3>
+                    <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-900/30 text-green-300 border border-green-500/30">
+                      {rec.macroFitScore}% fit
+                    </span>
+                  </div>
+
+                  <p className="text-gray-300 text-sm mb-4 leading-relaxed">{rec.reasoning}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-500/30">
+                      <p className="text-blue-300 text-xs font-medium mb-1">Macro Impact</p>
+                      <p className="text-blue-200 text-sm">{rec.macroImpact}</p>
+                    </div>
+                    <div className="bg-green-900/20 rounded-lg p-3 border border-green-500/30">
+                      <p className="text-green-300 text-xs font-medium mb-1">Goal Alignment</p>
+                      <p className="text-green-200 text-sm">{rec.goalAlignment}</p>
+                    </div>
+                  </div>
+
+                  {rec.customizations && rec.customizations.length > 0 && (
+                    <div className="bg-orange-900/20 rounded-lg p-4 border border-orange-500/30">
+                      <h4 className="text-orange-300 font-medium mb-2">🎯 Suggested Customizations</h4>
+                      <div className="space-y-2">
+                        {rec.customizations.map((custom: any, i: number) => (
+                          <div key={i} className="flex items-start space-x-2">
+                            <span className="text-orange-400 text-xs mt-1">•</span>
+                            <div>
+                              <p className="text-orange-200 text-sm font-medium">{custom.suggestion}</p>
+                              <p className="text-orange-300 text-xs">{custom.reason}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex space-x-3 mt-4">
+                    <button
+                      onClick={() => {
+                        const meal = meals.find(m => m.id === rec.mealId)
+                        if (meal) addMealToLog(meal)
+                      }}
+                      className="flex-1 bg-purple-600/20 text-purple-300 border border-purple-500/30 py-2 px-4 rounded-lg hover:bg-purple-600/30 transition-all text-sm"
+                    >
+                      Add to Log
+                    </button>
+                    <button
+                      onClick={() => {
+                        const meal = meals.find(m => m.id === rec.mealId)
+                        if (meal) openDeliveryApp(meal.title, meal.keywordsForDeliverySearch)
+                      }}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-2 px-4 rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all text-sm"
+                    >
+                      Order Now
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Restaurant Tips */}
+            {coachingData.restaurantTips && (
+              <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 mt-6 border border-yellow-500/30">
+                <h4 className="text-yellow-300 font-medium mb-2">💡 Restaurant Tips</h4>
+                <p className="text-yellow-200 text-sm">{coachingData.restaurantTips}</p>
               </div>
             )}
           </div>

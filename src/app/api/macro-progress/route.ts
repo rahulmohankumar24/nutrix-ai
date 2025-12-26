@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { MacroProgress } from '@/lib/types'
+import { calculateTargets } from '@/lib/calculations'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,11 +27,43 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    let dailyTargetToUse = dailyTarget
+
     if (!dailyTarget) {
-      return NextResponse.json(
-        { error: 'No targets found for today' },
-        { status: 404 }
+      // Get user profile to calculate targets
+      const profile = await prisma.profile.findUnique({
+        where: { userId }
+      })
+
+      if (!profile) {
+        return NextResponse.json(
+          { error: 'User profile not found' },
+          { status: 404 }
+        )
+      }
+
+      // Calculate targets based on profile
+      const calculatedTargets = calculateTargets(
+        profile.heightIn,
+        profile.weightLb,
+        profile.age || 27,
+        profile.sex as 'male' | 'female' | 'other',
+        profile.goal as 'recomp' | 'lean_bulk' | 'cut',
+        profile.liftingDays,
+        profile.stepsLevel as 'low' | 'med' | 'high'
       )
+
+      // Create today's targets
+      dailyTargetToUse = await prisma.dailyTarget.create({
+        data: {
+          userId,
+          date: today,
+          calories: calculatedTargets.calories,
+          protein: calculatedTargets.protein,
+          carbs: calculatedTargets.carbs,
+          fat: calculatedTargets.fat
+        }
+      })
     }
 
     // Get today's logged meals
@@ -67,10 +100,10 @@ export async function GET(request: NextRequest) {
 
     const macroProgress: MacroProgress = {
       targets: {
-        calories: dailyTarget.calories,
-        protein: dailyTarget.protein,
-        carbs: dailyTarget.carbs,
-        fat: dailyTarget.fat
+        calories: dailyTargetToUse?.calories || 0,
+        protein: dailyTargetToUse?.protein || 0,
+        carbs: dailyTargetToUse?.carbs || 0,
+        fat: dailyTargetToUse?.fat || 0
       },
       current: {
         calories: Math.round(currentCalories),
@@ -79,10 +112,10 @@ export async function GET(request: NextRequest) {
         fat: Math.round(currentFat)
       },
       remaining: {
-        calories: Math.max(0, dailyTarget.calories - Math.round(currentCalories)),
-        protein: Math.max(0, dailyTarget.protein - Math.round(currentProtein)),
-        carbs: Math.max(0, dailyTarget.carbs - Math.round(currentCarbs)),
-        fat: Math.max(0, dailyTarget.fat - Math.round(currentFat))
+        calories: Math.max(0, (dailyTargetToUse?.calories || 0) - Math.round(currentCalories)),
+        protein: Math.max(0, (dailyTargetToUse?.protein || 0) - Math.round(currentProtein)),
+        carbs: Math.max(0, (dailyTargetToUse?.carbs || 0) - Math.round(currentCarbs)),
+        fat: Math.max(0, (dailyTargetToUse?.fat || 0) - Math.round(currentFat))
       }
     }
 
