@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
     }
 
+    // Validate userTargets structure
+    if (!userTargets.remaining || !userTargets.current || !userTargets.targets) {
+      return NextResponse.json({
+        error: 'userTargets must include remaining, current, and targets properties',
+        received: Object.keys(userTargets || {})
+      }, { status: 400 })
+    }
+
     // Get available ingredients for this restaurant
     const ingredients = await prisma.foodCatalogItem.findMany({
       where: {
@@ -39,17 +47,17 @@ export async function POST(request: NextRequest) {
     const categorizedIngredients = categorizeIngredients(ingredients)
 
     const remainingMacros = {
-      calories: userTargets.remaining.calories,
-      protein: userTargets.remaining.protein,
-      carbs: userTargets.remaining.carbs,
-      fat: userTargets.remaining.fat
+      calories: userTargets.remaining?.calories || 0,
+      protein: userTargets.remaining?.protein || 0,
+      carbs: userTargets.remaining?.carbs || 0,
+      fat: userTargets.remaining?.fat || 0
     }
 
     const currentProgress = {
-      calories: `${userTargets.current.calories}/${userTargets.targets.calories}`,
-      protein: `${userTargets.current.protein}g/${userTargets.targets.protein}g`,
-      carbs: `${userTargets.current.carbs}g/${userTargets.targets.carbs}g`,
-      fat: `${userTargets.current.fat}g/${userTargets.targets.fat}g`
+      calories: `${userTargets.current?.calories || 0}/${userTargets.targets?.calories || 0}`,
+      protein: `${userTargets.current?.protein || 0}g/${userTargets.targets?.protein || 0}g`,
+      carbs: `${userTargets.current?.carbs || 0}g/${userTargets.targets?.carbs || 0}g`,
+      fat: `${userTargets.current?.fat || 0}g/${userTargets.targets?.fat || 0}g`
     }
 
     const timeContext: Record<string, string> = {

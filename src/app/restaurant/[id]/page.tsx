@@ -51,6 +51,7 @@ export default function RestaurantPage() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
   const [meals, setMeals] = useState<MealTemplate[]>([])
   const [userTargets, setUserTargets] = useState<DailyTargets | null>(null)
+  const [macroProgress, setMacroProgress] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
   const [coachingData, setCoachingData] = useState<any>(null)
@@ -70,10 +71,10 @@ export default function RestaurantPage() {
 
   // Automatically generate AI insights when restaurant and user targets are loaded
   useEffect(() => {
-    if (restaurant?.name && userTargets && !aiLoading) {
+    if (restaurant?.name && macroProgress && !aiLoading) {
       generateAIInsights()
     }
-  }, [restaurant, userTargets])
+  }, [restaurant, macroProgress])
 
   const getCurrentTimeOfDay = () => {
     const hour = new Date().getHours()
@@ -112,6 +113,7 @@ export default function RestaurantPage() {
       if (response.ok) {
         const data = await response.json()
         setUserTargets(data.remaining)
+        setMacroProgress(data) // Store complete macro progress for AI calls
       }
     } catch (error) {
       console.error('Failed to load user targets:', error)
@@ -121,7 +123,7 @@ export default function RestaurantPage() {
   }
 
   const generateAIInsights = async () => {
-    if (!userTargets || aiLoading || !restaurant?.name) return
+    if (!macroProgress || aiLoading || !restaurant?.name) return
 
     setAiLoading(true)
     try {
@@ -138,7 +140,7 @@ export default function RestaurantPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
-            userTargets,
+            userTargets: macroProgress,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -180,7 +182,7 @@ export default function RestaurantPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
-            userTargets,
+            userTargets: macroProgress,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
