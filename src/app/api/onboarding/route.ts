@@ -61,32 +61,24 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Parse preferences using OpenAI
-    if (process.env.OPENAI_API_KEY) {
+    // Parse preferences using OpenAI (skip for now to avoid fetch issues)
+    if (process.env.OPENAI_API_KEY && validatedData.freeText) {
       try {
-        const preferencesResponse = await fetch('/api/parse-preferences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ freeText: validatedData.freeText })
+        // Create basic preferences without OpenAI parsing for now
+        await prisma.preferences.create({
+          data: {
+            userId: user.id,
+            eatingPattern: 'mixed',
+            dislikesDetected: JSON.stringify([]),
+            preferredCuisines: JSON.stringify([]),
+            timeToCook: '30min+',
+            budget: 'medium',
+            coachingNotes: validatedData.freeText || ''
+          }
         })
-
-        if (preferencesResponse.ok) {
-          const preferences = await preferencesResponse.json()
-          await prisma.preferences.create({
-            data: {
-              userId: user.id,
-              eatingPattern: preferences.eating_pattern,
-              dislikesDetected: JSON.stringify(preferences.dislikes_detected),
-              preferredCuisines: JSON.stringify(preferences.preferred_cuisines),
-              timeToCook: preferences.time_to_cook,
-              budget: preferences.budget,
-              coachingNotes: preferences.coaching_notes
-            }
-          })
-        }
       } catch (error) {
-        console.error('Failed to parse preferences:', error)
-        // Continue without preferences if OpenAI fails
+        console.error('Failed to create preferences:', error)
+        // Continue without preferences if creation fails
       }
     }
 
@@ -98,18 +90,17 @@ export async function POST(request: NextRequest) {
       { name: 'Daily Close-out', timeOfDay: '21:00' }
     ]
 
-    await Promise.all(
-      defaultReminders.map(reminder =>
-        prisma.reminder.create({
-          data: {
-            userId: user.id,
-            name: reminder.name,
-            timeOfDay: reminder.timeOfDay,
-            enabled: true
-          }
-        })
-      )
-    )
+    // Create reminders sequentially to avoid database connection issues
+    for (const reminder of defaultReminders) {
+      await prisma.reminder.create({
+        data: {
+          userId: user.id,
+          name: reminder.name,
+          timeOfDay: reminder.timeOfDay,
+          enabled: true
+        }
+      })
+    }
 
     return NextResponse.json({
       success: true,

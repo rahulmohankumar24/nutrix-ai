@@ -72,6 +72,10 @@ export default function DashboardPage() {
       if (macroResponse.ok) {
         const macroData = await macroResponse.json()
         setMacros(macroData)
+      } else if (macroResponse.status === 404) {
+        // User hasn't completed onboarding - redirect them
+        router.push('/onboarding')
+        return
       }
 
       if (mealLogResponse.ok) {
