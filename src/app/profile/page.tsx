@@ -183,11 +183,11 @@ export default function ProfilePage() {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Your Profile</h1>
+            <h1 className="text-2xl font-bold text-white">Your Profile</h1>
             <nav className="flex items-center space-x-6">
-              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Dashboard</a>
-              <a href="/meals" className="text-gray-600 hover:text-gray-900">Meals</a>
-              <a href="/reminders" className="text-gray-600 hover:text-gray-900">Reminders</a>
+              <a href="/dashboard" className="text-gray-600 hover:text-white">Dashboard</a>
+              <a href="/meals" className="text-gray-600 hover:text-white">Meals</a>
+              <a href="/reminders" className="text-gray-600 hover:text-white">Reminders</a>
             </nav>
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Profile Overview */}
         {profile && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">Profile Information</h2>
               {editing ? (
@@ -207,14 +207,14 @@ export default function ProfilePage() {
                       setEditForm({})
                     }}
                     disabled={saving}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="px-4 py-2 border border-gray-700 rounded-xl text-gray-300 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => updateProfile(editForm)}
                     disabled={saving}
-                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                    className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 disabled:opacity-50"
                   >
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -225,7 +225,7 @@ export default function ProfilePage() {
                     setEditing(true)
                     setEditForm(profile)
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700"
                 >
                   Edit Profile
                 </button>
@@ -237,11 +237,11 @@ export default function ProfilePage() {
                 {/* Basic Info - Editable */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Sex</label>
+                    <label className="block text-sm font-medium text-gray-300">Sex</label>
                     <select
                       value={editForm.sex || profile.sex}
                       onChange={(e) => setEditForm(prev => ({ ...prev, sex: e.target.value }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="male">Male</option>
                       <option value="female">Female</option>
@@ -249,34 +249,34 @@ export default function ProfilePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Age</label>
+                    <label className="block text-sm font-medium text-gray-300">Age</label>
                     <input
                       type="number"
                       value={editForm.age ?? profile.age ?? ''}
                       onChange={(e) => setEditForm(prev => ({ ...prev, age: e.target.value ? parseInt(e.target.value) : null }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                       min="13"
                       max="100"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Height (inches)</label>
+                    <label className="block text-sm font-medium text-gray-300">Height (inches)</label>
                     <input
                       type="number"
                       value={editForm.heightIn ?? profile.heightIn}
                       onChange={(e) => setEditForm(prev => ({ ...prev, heightIn: parseInt(e.target.value) }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                       min="36"
                       max="96"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Weight (lbs)</label>
+                    <label className="block text-sm font-medium text-gray-300">Weight (lbs)</label>
                     <input
                       type="number"
                       value={editForm.weightLb ?? profile.weightLb}
                       onChange={(e) => setEditForm(prev => ({ ...prev, weightLb: parseInt(e.target.value) }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                       min="50"
                       max="500"
                     />
@@ -286,11 +286,11 @@ export default function ProfilePage() {
                 {/* Goals & Activity - Editable */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Goal</label>
+                    <label className="block text-sm font-medium text-gray-300">Goal</label>
                     <select
                       value={editForm.goal || profile.goal}
                       onChange={(e) => setEditForm(prev => ({ ...prev, goal: e.target.value }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="cut">Fat Loss (-300 calories/day)</option>
                       <option value="recomp">Body Recomposition (+100 calories/day)</option>
@@ -298,22 +298,22 @@ export default function ProfilePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Lifting Days</label>
+                    <label className="block text-sm font-medium text-gray-300">Lifting Days</label>
                     <input
                       type="number"
                       value={editForm.liftingDays ?? profile.liftingDays}
                       onChange={(e) => setEditForm(prev => ({ ...prev, liftingDays: parseInt(e.target.value) }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                       min="0"
                       max="7"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Daily Steps</label>
+                    <label className="block text-sm font-medium text-gray-300">Daily Steps</label>
                     <select
                       value={editForm.stepsLevel || profile.stepsLevel}
                       onChange={(e) => setEditForm(prev => ({ ...prev, stepsLevel: e.target.value }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800/50 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="low">Low (&lt; 5,000 steps/day)</option>
                       <option value="med">Medium (5,000-10,000 steps/day)</option>
@@ -327,36 +327,36 @@ export default function ProfilePage() {
                 {/* Basic Info - Display */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Sex</label>
-                    <p className="mt-1 text-sm text-gray-900 capitalize">{profile.sex}</p>
+                    <label className="block text-sm font-medium text-gray-300">Sex</label>
+                    <p className="mt-1 text-sm text-white capitalize">{profile.sex}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Age</label>
-                    <p className="mt-1 text-sm text-gray-900">{profile.age || 'Not specified'} years old</p>
+                    <label className="block text-sm font-medium text-gray-300">Age</label>
+                    <p className="mt-1 text-sm text-white">{profile.age || 'Not specified'} years old</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Height</label>
-                    <p className="mt-1 text-sm text-gray-900">{formatHeight(profile.heightIn)}</p>
+                    <label className="block text-sm font-medium text-gray-300">Height</label>
+                    <p className="mt-1 text-sm text-white">{formatHeight(profile.heightIn)}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Weight</label>
-                    <p className="mt-1 text-sm text-gray-900">{profile.weightLb} lbs</p>
+                    <label className="block text-sm font-medium text-gray-300">Weight</label>
+                    <p className="mt-1 text-sm text-white">{profile.weightLb} lbs</p>
                   </div>
                 </div>
 
                 {/* Goals & Activity - Display */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Goal</label>
-                    <p className="mt-1 text-sm text-gray-900">{getGoalDescription(profile.goal)}</p>
+                    <label className="block text-sm font-medium text-gray-300">Goal</label>
+                    <p className="mt-1 text-sm text-white">{getGoalDescription(profile.goal)}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Lifting Days</label>
-                    <p className="mt-1 text-sm text-gray-900">{profile.liftingDays} days per week</p>
+                    <label className="block text-sm font-medium text-gray-300">Lifting Days</label>
+                    <p className="mt-1 text-sm text-white">{profile.liftingDays} days per week</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Daily Steps</label>
-                    <p className="mt-1 text-sm text-gray-900">{getStepsDescription(profile.stepsLevel)}</p>
+                    <label className="block text-sm font-medium text-gray-300">Daily Steps</label>
+                    <p className="mt-1 text-sm text-white">{getStepsDescription(profile.stepsLevel)}</p>
                   </div>
                 </div>
               </div>
@@ -364,15 +364,15 @@ export default function ProfilePage() {
 
             {/* Dietary Info */}
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Dietary Information</h3>
+              <h3 className="text-lg font-medium text-white mb-4">Dietary Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Dietary Constraints</label>
+                  <label className="block text-sm font-medium text-gray-300">Dietary Constraints</label>
                   <div className="mt-1">
                     {parseConstraints(profile.constraints).length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {parseConstraints(profile.constraints).map((constraint, index) => (
-                          <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-300 border border-blue-500/30">
                             {constraint}
                           </span>
                         ))}
@@ -383,27 +383,27 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Dislikes</label>
-                  <p className="mt-1 text-sm text-gray-900">{profile.dislikes || 'None specified'}</p>
+                  <label className="block text-sm font-medium text-gray-300">Dislikes</label>
+                  <p className="mt-1 text-sm text-white">{profile.dislikes || 'None specified'}</p>
                 </div>
               </div>
             </div>
 
             {/* Meal Times */}
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Meal Schedule</h3>
+              <h3 className="text-lg font-medium text-white mb-4">Meal Schedule</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Wake Time</label>
-                  <p className="mt-1 text-sm text-gray-900">{profile.wakeTime}</p>
+                  <label className="block text-sm font-medium text-gray-300">Wake Time</label>
+                  <p className="mt-1 text-sm text-white">{profile.wakeTime}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Lunch Time</label>
-                  <p className="mt-1 text-sm text-gray-900">{profile.lunchTime}</p>
+                  <label className="block text-sm font-medium text-gray-300">Lunch Time</label>
+                  <p className="mt-1 text-sm text-white">{profile.lunchTime}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Dinner Time</label>
-                  <p className="mt-1 text-sm text-gray-900">{profile.dinnerTime}</p>
+                  <label className="block text-sm font-medium text-gray-300">Dinner Time</label>
+                  <p className="mt-1 text-sm text-white">{profile.dinnerTime}</p>
                 </div>
               </div>
             </div>
@@ -412,7 +412,7 @@ export default function ProfilePage() {
 
         {/* Nutrition Plan */}
         {targets && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="glass rounded-2xl p-8 mb-8 card-hover">
             <h2 className="text-xl font-semibold mb-4">Your Personalized Nutrition Plan</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -435,7 +435,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="font-medium text-gray-900 mb-2">How we calculated your plan:</h3>
+              <h3 className="font-medium text-white mb-2">How we calculated your plan:</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>• Based on Mifflin-St Jeor equation for metabolic rate</li>
                 <li>• Adjusted for your activity level and lifting frequency</li>
@@ -454,24 +454,24 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Eating Pattern</label>
-                <p className="mt-1 text-sm text-gray-900 capitalize">{preferences.eatingPattern.replace('_', ' ')}</p>
+                <label className="block text-sm font-medium text-gray-300">Eating Pattern</label>
+                <p className="mt-1 text-sm text-white capitalize">{preferences.eatingPattern.replace('_', ' ')}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Time to Cook</label>
-                <p className="mt-1 text-sm text-gray-900">{preferences.timeToCook}</p>
+                <label className="block text-sm font-medium text-gray-300">Time to Cook</label>
+                <p className="mt-1 text-sm text-white">{preferences.timeToCook}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Budget</label>
-                <p className="mt-1 text-sm text-gray-900 capitalize">{preferences.budget || 'Not specified'}</p>
+                <label className="block text-sm font-medium text-gray-300">Budget</label>
+                <p className="mt-1 text-sm text-white capitalize">{preferences.budget || 'Not specified'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Preferred Cuisines</label>
+                <label className="block text-sm font-medium text-gray-300">Preferred Cuisines</label>
                 <div className="mt-1">
                   {parsePreferencesList(preferences.preferredCuisines).length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {parsePreferencesList(preferences.preferredCuisines).map((cuisine, index) => (
-                        <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/30 text-green-300 border border-green-500/30">
                           {cuisine}
                         </span>
                       ))}
@@ -485,8 +485,8 @@ export default function ProfilePage() {
 
             {preferences.coachingNotes && (
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <label className="block text-sm font-medium text-gray-700">AI Coaching Notes</label>
-                <p className="mt-1 text-sm text-gray-900">{preferences.coachingNotes}</p>
+                <label className="block text-sm font-medium text-gray-300">AI Coaching Notes</label>
+                <p className="mt-1 text-sm text-white">{preferences.coachingNotes}</p>
               </div>
             )}
           </div>

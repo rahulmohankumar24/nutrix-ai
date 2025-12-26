@@ -56,15 +56,19 @@ export default function RestaurantPage() {
     try {
       // Get restaurant info from localStorage (passed from dashboard)
       const restaurantData = localStorage.getItem(`restaurant_${params.id}`)
+      let restaurantInfo = null
       if (restaurantData) {
-        setRestaurant(JSON.parse(restaurantData))
+        restaurantInfo = JSON.parse(restaurantData)
+        setRestaurant(restaurantInfo)
       }
 
       // Load meals for this restaurant
-      const mealsResponse = await fetch(`/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurant?.name || '')}`)
-      if (mealsResponse.ok) {
-        const mealsData = await mealsResponse.json()
-        setMeals(mealsData.meals || [])
+      if (restaurantInfo?.name) {
+        const mealsResponse = await fetch(`/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurantInfo.name)}`)
+        if (mealsResponse.ok) {
+          const mealsData = await mealsResponse.json()
+          setMeals(mealsData.meals || [])
+        }
       }
     } catch (error) {
       console.error('Failed to load restaurant data:', error)

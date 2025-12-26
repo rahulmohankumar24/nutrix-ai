@@ -1,6 +1,16 @@
 import { PrismaClient } from '@prisma/client'
+import { config } from 'dotenv'
 
-const prisma = new PrismaClient()
+// Load from .env.production
+config({ path: '.env.production' })
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.POSTGRES_URL
+    }
+  }
+})
 
 async function main() {
   console.log('🌱 Starting seed...')

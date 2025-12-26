@@ -62,19 +62,28 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Set Up Your Nutrition Profile</h1>
+    <div className="min-h-screen bg-black py-12 px-4">
+      <div className="max-w-2xl mx-auto glass rounded-2xl p-8">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-lg">M</span>
+            </div>
+            <h1 className="text-3xl font-bold text-white">Mootra AI</h1>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Set Up Your Nutrition Profile</h2>
+          <p className="text-gray-400">Tell us about yourself to get personalized meal recommendations</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Sex</label>
               <select
                 value={formData.sex}
                 onChange={(e) => setFormData(prev => ({ ...prev, sex: e.target.value as any }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               >
                 <option value="male">Male</option>
                 <option value="female">Female</option>
@@ -83,7 +92,7 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Age (optional)</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Age (optional)</label>
               <input
                 type="number"
                 min="13"
@@ -93,7 +102,7 @@ export default function OnboardingPage() {
                   ...prev,
                   age: e.target.value ? parseInt(e.target.value) : undefined
                 }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
                 placeholder="27"
               />
             </div>
@@ -101,13 +110,13 @@ export default function OnboardingPage() {
 
           {/* Height */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Height</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Height</label>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <select
                   value={formData.heightFt}
                   onChange={(e) => setFormData(prev => ({ ...prev, heightFt: parseInt(e.target.value) }))}
-                  className="w-full p-3 border border-gray-300 rounded-md"
+                  className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
                 >
                   {[3, 4, 5, 6, 7, 8].map(ft => (
                     <option key={ft} value={ft}>{ft} ft</option>
@@ -118,7 +127,7 @@ export default function OnboardingPage() {
                 <select
                   value={formData.heightIn}
                   onChange={(e) => setFormData(prev => ({ ...prev, heightIn: parseInt(e.target.value) }))}
-                  className="w-full p-3 border border-gray-300 rounded-md"
+                  className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
                 >
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(inches => (
                     <option key={inches} value={inches}>{inches} in</option>
@@ -130,21 +139,21 @@ export default function OnboardingPage() {
 
           {/* Weight */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Weight (lbs)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Weight (lbs)</label>
             <input
               type="number"
               min="50"
               max="500"
               value={formData.weightLb}
               onChange={(e) => setFormData(prev => ({ ...prev, weightLb: parseInt(e.target.value) }))}
-              className="w-full p-3 border border-gray-300 rounded-md"
+              className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               required
             />
           </div>
 
           {/* Goal */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Primary Goal</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Primary Goal</label>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { value: 'cut', label: 'Cut (Fat Loss)', desc: 'Lose fat while maintaining muscle' },
@@ -162,11 +171,11 @@ export default function OnboardingPage() {
                   />
                   <div className={`p-3 border rounded-md text-center ${
                     formData.goal === goal.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300'
+                      ? 'border-blue-500 bg-blue-900/30 text-blue-300'
+                      : 'border-gray-700 bg-gray-800/30 text-gray-300 hover:border-gray-600'
                   }`}>
                     <div className="font-medium">{goal.label}</div>
-                    <div className="text-sm text-gray-500">{goal.desc}</div>
+                    <div className={`text-sm ${formData.goal === goal.value ? 'text-blue-400' : 'text-gray-500'}`}>{goal.desc}</div>
                   </div>
                 </label>
               ))}
@@ -176,13 +185,13 @@ export default function OnboardingPage() {
           {/* Activity */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Lifting Days Per Week
               </label>
               <select
                 value={formData.liftingDays}
                 onChange={(e) => setFormData(prev => ({ ...prev, liftingDays: parseInt(e.target.value) }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               >
                 {[0, 1, 2, 3, 4, 5, 6, 7].map(days => (
                   <option key={days} value={days}>{days} days</option>
@@ -191,13 +200,13 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Daily Steps
               </label>
               <select
                 value={formData.stepsLevel}
                 onChange={(e) => setFormData(prev => ({ ...prev, stepsLevel: e.target.value as any }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               >
                 <option value="low">Low (&lt;5k steps)</option>
                 <option value="med">Medium (5k-10k steps)</option>
@@ -208,7 +217,7 @@ export default function OnboardingPage() {
 
           {/* Dietary Constraints */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Dietary Constraints
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -218,9 +227,9 @@ export default function OnboardingPage() {
                     type="checkbox"
                     checked={(formData.constraints || []).includes(constraint)}
                     onChange={(e) => handleConstraintChange(constraint, e.target.checked)}
-                    className="mr-2"
+                    className="mr-2 accent-blue-500"
                   />
-                  <span className="capitalize">{constraint}</span>
+                  <span className="capitalize text-gray-300">{constraint}</span>
                 </label>
               ))}
             </div>
@@ -228,14 +237,14 @@ export default function OnboardingPage() {
 
           {/* Dislikes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Foods You Dislike (comma-separated)
             </label>
             <input
               type="text"
               value={formData.dislikes}
               onChange={(e) => setFormData(prev => ({ ...prev, dislikes: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-md"
+              className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none placeholder-gray-500"
               placeholder="mushrooms, tomatoes, seafood"
             />
           </div>
@@ -243,50 +252,50 @@ export default function OnboardingPage() {
           {/* Schedule */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Wake Time</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Wake Time</label>
               <input
                 type="time"
                 value={formData.wakeTime}
                 onChange={(e) => setFormData(prev => ({ ...prev, wakeTime: e.target.value }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Lunch Time</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Lunch Time</label>
               <input
                 type="time"
                 value={formData.lunchTime}
                 onChange={(e) => setFormData(prev => ({ ...prev, lunchTime: e.target.value }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Dinner Time</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Dinner Time</label>
               <input
                 type="time"
                 value={formData.dinnerTime}
                 onChange={(e) => setFormData(prev => ({ ...prev, dinnerTime: e.target.value }))}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Free Text */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Describe Your Body Situation & Goals
             </label>
             <textarea
               value={formData.freeText}
               onChange={(e) => setFormData(prev => ({ ...prev, freeText: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-md h-32"
+              className="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:border-blue-500 focus:outline-none placeholder-gray-500 h-32"
               placeholder="I work a desk job and want to build muscle while losing some belly fat. I eat out for lunch most days and prefer quick meals..."
               required
             />
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700">
+            <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 text-red-400">
               {error}
             </div>
           )}
@@ -294,7 +303,7 @@ export default function OnboardingPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-all"
           >
             {loading ? 'Creating Profile...' : 'Create My Nutrition Plan'}
           </button>
