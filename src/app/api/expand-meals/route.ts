@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Restaurant brand required' }, { status: 400 })
     }
 
-    const customizations = restaurantCustomizations[restaurantBrand.toLowerCase()]
+    const customizations = restaurantCustomizations[restaurantBrand.toLowerCase() as keyof typeof restaurantCustomizations]
     if (!customizations) {
       return NextResponse.json({ error: 'No customizations available for this restaurant' }, { status: 400 })
     }
@@ -104,25 +104,25 @@ export async function POST(request: NextRequest) {
           if (!addOnCombo) continue
 
           // Calculate nutrition
-          const totalCalories = protein.calories + base.calories + addOnCombo.reduce((sum, item) => sum + item.calories, 0)
-          const totalProtein = protein.protein + base.protein + addOnCombo.reduce((sum, item) => sum + item.protein, 0)
-          const totalCarbs = protein.carbs + base.carbs + addOnCombo.reduce((sum, item) => sum + item.carbs, 0)
-          const totalFat = protein.fat + base.fat + addOnCombo.reduce((sum, item) => sum + item.fat, 0)
+          const totalCalories = protein.calories + base.calories + addOnCombo.reduce((sum, item) => sum + (item?.calories || 0), 0)
+          const totalProtein = protein.protein + base.protein + addOnCombo.reduce((sum, item) => sum + (item?.protein || 0), 0)
+          const totalCarbs = protein.carbs + base.carbs + addOnCombo.reduce((sum, item) => sum + (item?.carbs || 0), 0)
+          const totalFat = protein.fat + base.fat + addOnCombo.reduce((sum, item) => sum + (item?.fat || 0), 0)
 
           // Create meal title and description
-          const addOnNames = addOnCombo.map(item => item.name).join(', ')
+          const addOnNames = addOnCombo.map(item => item?.name || '').filter(Boolean).join(', ')
           const title = `${protein.name} ${base.name}${addOnNames ? ` with ${addOnNames}` : ''}`
           const description = `${protein.name}, ${base.name}${addOnNames ? `, ${addOnNames}` : ''}`
 
           // Create keywords for delivery search
-          const keywords = [protein.name, base.keywords, ...addOnCombo.map(item => item.keywords)].join(' ')
+          const keywords = [protein.name, base.keywords, ...addOnCombo.map(item => item?.keywords || '').filter(Boolean)].join(' ')
 
           // Generate appropriate tags
           const tags = []
           if (totalProtein >= 30) tags.push('high-protein')
           if (totalCarbs <= 20) tags.push('low-carb')
           if (protein.name.includes('double')) tags.push('extra-protein')
-          if (addOnCombo.some(item => item.name.includes('guac') || item.name.includes('avocado'))) tags.push('healthy-fats')
+          if (addOnCombo.some(item => item?.name?.includes('guac') || item?.name?.includes('avocado'))) tags.push('healthy-fats')
           if (!addOnCombo.length) tags.push('simple')
 
           const meal = {
