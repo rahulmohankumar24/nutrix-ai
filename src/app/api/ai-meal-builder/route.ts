@@ -144,7 +144,7 @@ Return this exact JSON structure with 3 meals:
         success: false,
         error: 'Invalid AI response format',
         rawResponse: aiResponse,
-        parseError: parseError.message
+        parseError: parseError instanceof Error ? parseError.message : String(parseError)
       }, { status: 500 })
     }
 
