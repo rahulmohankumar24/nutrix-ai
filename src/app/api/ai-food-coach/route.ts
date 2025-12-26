@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       'restaurant': 'Restaurant foods - dining out options'
     }
 
-    const prompt = `You are Mootra AI, an expert nutrition coach analyzing ${source || 'food'} options for a user.
+    const prompt = `You are Rovia, an expert nutrition coach analyzing ${source || 'food'} options for a user.
 
 USER'S SITUATION:
 - Time of meal: ${timeOfDay} (${timeContext[timeOfDay] || 'nutrition timing'})

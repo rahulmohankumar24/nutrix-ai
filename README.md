@@ -1,4 +1,4 @@
-# Nutrix AI - Personalized Nutrition Coach MVP
+# Rovia - Personalized Nutrition Coach MVP
 
 A full-stack nutrition coaching app that calculates personalized daily targets, finds nearby restaurants, and recommends specific meals to hit your macros.
 

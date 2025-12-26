@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useUser } from '@clerk/nextjs'
 import { OnboardingData, OnboardingSchema } from '@/lib/types'
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { user, isLoaded, isSignedIn } = useUser()
   const [formData, setFormData] = useState<Partial<OnboardingData>>({
     sex: 'male',
     heightFt: 5,
@@ -28,22 +28,22 @@ export default function OnboardingPage() {
   const [checkingProfile, setCheckingProfile] = useState(true)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (!isLoaded) return
 
-    if (status === 'unauthenticated') {
+    if (!isSignedIn) {
       router.push('/auth/signin')
       return
     }
 
     // Check if user already has a profile
-    if (session?.user?.id) {
+    if (user?.id) {
       checkExistingProfile()
     }
-  }, [status, session?.user?.id, router])
+  }, [isLoaded, isSignedIn, user?.id, router])
 
   const checkExistingProfile = async () => {
     try {
-      const response = await fetch(`/api/profile?userId=${session?.user?.id}`)
+      const response = await fetch(`/api/profile?userId=${user?.id}`)
 
       if (response.ok) {
         const result = await response.json()
@@ -65,7 +65,7 @@ export default function OnboardingPage() {
     setError('')
 
     try {
-      if (!session?.user?.id) {
+      if (!user?.id) {
         throw new Error('Please sign in to continue')
       }
 
@@ -76,7 +76,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...validatedData,
-          userId: session.user.id
+          userId: user.id
         })
       })
 
@@ -119,9 +119,9 @@ export default function OnboardingPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-3 mb-6">
             <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">M</span>
+              <span className="text-white font-bold text-lg">R</span>
             </div>
-            <h1 className="text-3xl font-bold text-white">Mootra AI</h1>
+            <h1 className="text-3xl font-bold text-white">Rovia</h1>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Set Up Your Nutrition Profile</h2>
           <p className="text-gray-400">Tell us about yourself to get personalized meal recommendations</p>

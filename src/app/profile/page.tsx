@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { calculateTargets } from '@/lib/calculations'
 
@@ -39,7 +39,7 @@ interface DailyTargets {
 }
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession()
+  const { user, isLoaded, isSignedIn } = useUser()
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [preferences, setPreferences] = useState<Preferences | null>(null)
@@ -50,17 +50,17 @@ export default function ProfilePage() {
   const [editForm, setEditForm] = useState<Partial<Profile>>({})
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (!isLoaded) return
 
-    if (status === 'unauthenticated') {
+    if (!isSignedIn) {
       router.push('/auth/signin')
       return
     }
 
-    if (session?.user?.id) {
-      loadProfile(session.user.id)
+    if (user?.id) {
+      loadProfile(user.id)
     }
-  }, [session, status, router])
+  }, [user, isLoaded, isSignedIn, router])
 
   const loadProfile = async (userId: string) => {
     try {
@@ -102,7 +102,7 @@ export default function ProfilePage() {
   }
 
   const updateProfile = async (updatedProfile: Partial<Profile>) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     setSaving(true)
     try {
@@ -110,13 +110,13 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: session.user.id,
+          userId: user.id,
           ...updatedProfile
         })
       })
 
       if (response.ok) {
-        await loadProfile(session.user.id)
+        await loadProfile(user.id)
         setEditing(false)
       }
     } catch (error) {

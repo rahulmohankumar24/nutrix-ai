@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession, signOut } from 'next-auth/react'
+import { useUser, useClerk } from '@clerk/nextjs'
 import Link from 'next/link'
 import { MacroProgress } from '@/lib/types'
 
@@ -41,7 +41,8 @@ interface DailyMealLogs {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { user, isLoaded, isSignedIn } = useUser()
+  const { signOut } = useClerk()
   const [macros, setMacros] = useState<MacroProgress | null>(null)
   const [mealLogs, setMealLogs] = useState<DailyMealLogs | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,19 +50,19 @@ export default function DashboardPage() {
   const [editServings, setEditServings] = useState<number>(1)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (!isLoaded) return
 
-    if (status === 'unauthenticated') {
+    if (!isSignedIn) {
       router.push('/auth/signin')
       return
     }
 
-    if (session?.user?.id) {
-      loadDashboardData(session.user.id)
+    if (user?.id) {
+      loadDashboardData(user.id)
     }
 
     setLoading(false)
-  }, [session, status, router])
+  }, [user, isLoaded, isSignedIn, router])
 
   const loadDashboardData = async (userId: string) => {
     try {
@@ -100,7 +101,7 @@ export default function DashboardPage() {
 
   const getGreeting = () => {
     const timeOfDay = getTimeOfDay()
-    const name = session?.user?.name?.split(' ')[0] || 'there'
+    const name = user?.firstName || user?.fullName?.split(' ')[0] || 'there'
     return `Good ${timeOfDay}, ${name}!`
   }
 
@@ -113,16 +114,16 @@ export default function DashboardPage() {
   }
 
   const deleteMeal = async (mealLogId: string) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     try {
-      const response = await fetch(`/api/log-meal?mealLogId=${mealLogId}&userId=${session.user.id}`, {
+      const response = await fetch(`/api/log-meal?mealLogId=${mealLogId}&userId=${user.id}`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
         // Reload dashboard data
-        await loadDashboardData(session.user.id)
+        await loadDashboardData(user.id)
       }
     } catch (error) {
       console.error('Failed to delete meal:', error)
@@ -130,7 +131,7 @@ export default function DashboardPage() {
   }
 
   const updateMealServings = async (mealLogId: string, servings: number) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     try {
       const response = await fetch('/api/log-meal', {
@@ -138,14 +139,14 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mealLogId,
-          userId: session.user.id,
+          userId: user.id,
           servings
         })
       })
 
       if (response.ok) {
         // Reload dashboard data
-        await loadDashboardData(session.user.id)
+        await loadDashboardData(user.id)
         setEditingMeal(null)
       }
     } catch (error) {
@@ -154,7 +155,7 @@ export default function DashboardPage() {
   }
 
   const clearAllMeals = async () => {
-    if (!session?.user?.id || !mealLogs?.mealLogs.length) return
+    if (!user?.id || !mealLogs?.mealLogs.length) return
 
     const confirmClear = confirm('Are you sure you want to delete all meals for today? This cannot be undone.')
     if (!confirmClear) return
@@ -163,14 +164,14 @@ export default function DashboardPage() {
       // Delete all meals for today
       await Promise.all(
         mealLogs.mealLogs.map(log =>
-          fetch(`/api/log-meal?mealLogId=${log.id}&userId=${session.user.id}`, {
+          fetch(`/api/log-meal?mealLogId=${log.id}&userId=${user.id}`, {
             method: 'DELETE'
           })
         )
       )
 
       // Reload dashboard data
-      await loadDashboardData(session.user.id)
+      await loadDashboardData(user.id)
     } catch (error) {
       console.error('Failed to clear all meals:', error)
     }
@@ -203,10 +204,10 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">M</span>
+                <span className="text-white font-bold text-lg">R</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Mootra AI</h1>
+                <h1 className="text-xl font-bold text-white">Rovia</h1>
                 <p className="text-gray-400 text-sm">Your AI nutrition coach</p>
               </div>
             </div>

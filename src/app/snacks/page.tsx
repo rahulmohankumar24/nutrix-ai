@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 
 interface Food {
@@ -28,7 +28,7 @@ interface MacroTargets {
 
 export default function SnacksPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { user, isLoaded, isSignedIn } = useUser()
   const [foods, setFoods] = useState<Food[]>([])
   const [userTargets, setUserTargets] = useState<MacroTargets | null>(null)
   const [loading, setLoading] = useState(true)
@@ -37,17 +37,17 @@ export default function SnacksPage() {
   const [coachingData, setCoachingData] = useState<any>(null)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (!isLoaded) return
 
-    if (status === 'unauthenticated') {
+    if (!isSignedIn) {
       router.push('/auth/signin')
       return
     }
 
-    if (session?.user?.id) {
+    if (user?.id) {
       loadUserTargets()
     }
-  }, [session, status, router])
+  }, [user, isLoaded, isSignedIn, router])
 
   useEffect(() => {
     if (userTargets) {
@@ -66,7 +66,7 @@ export default function SnacksPage() {
 
   const loadUserTargets = async () => {
     try {
-      const response = await fetch(`/api/macro-progress?userId=${session?.user?.id}`)
+      const response = await fetch(`/api/macro-progress?userId=${user?.id}`)
       if (response.ok) {
         const data = await response.json()
         setUserTargets(data)
@@ -145,14 +145,14 @@ export default function SnacksPage() {
   }
 
   const logFood = async (food: Food) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     try {
       const response = await fetch('/api/log-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: session.user.id,
+          userId: user.id,
           foodCatalogItemId: food.id,
           servings: 1
         })

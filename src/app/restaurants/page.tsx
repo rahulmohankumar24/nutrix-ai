@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { Restaurant } from '@/lib/types'
 
 export default function RestaurantsPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { user, isLoaded, isSignedIn } = useUser()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [knownRestaurants, setKnownRestaurants] = useState<Restaurant[]>([])
   const [unknownRestaurants, setUnknownRestaurants] = useState<Restaurant[]>([])
@@ -16,16 +16,16 @@ export default function RestaurantsPage() {
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
 
   useEffect(() => {
-    console.log('RestaurantsPage useEffect - status:', status, 'session:', !!session?.user?.id)
+    console.log('RestaurantsPage useEffect - isLoaded:', isLoaded, 'user:', !!user?.id)
 
-    if (status === 'loading') return
+    if (!isLoaded) return
 
-    if (status === 'unauthenticated') {
+    if (!isSignedIn) {
       router.push('/auth/signin')
       return
     }
 
-    if (session?.user?.id) {
+    if (user?.id) {
       // Check for stored location
       const storedLat = localStorage.getItem('userLat')
       const storedLng = localStorage.getItem('userLng')
@@ -41,10 +41,10 @@ export default function RestaurantsPage() {
         requestLocation()
       }
     } else {
-      console.log('No session user ID, setting loading false')
+      console.log('No user ID, setting loading false')
       setLoading(false)
     }
-  }, [session, status, router])
+  }, [user, isLoaded, isSignedIn, router])
 
   const requestLocation = () => {
     if (!navigator.geolocation) {

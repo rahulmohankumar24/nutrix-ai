@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useUser } from '@clerk/nextjs'
 
 interface Restaurant {
   id: string
@@ -50,7 +50,7 @@ interface DailyTargets {
 export default function RestaurantPage() {
   const params = useParams()
   const router = useRouter()
-  const { data: session } = useSession()
+  const { user } = useUser()
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
   const [meals, setMeals] = useState<MealTemplate[]>([])
   const [userTargets, setUserTargets] = useState<DailyTargets | null>(null)
@@ -65,10 +65,10 @@ export default function RestaurantPage() {
   const [userKnowledge, setUserKnowledge] = useState('')
 
   useEffect(() => {
-    if (params.id && session?.user?.id) {
+    if (params.id && user?.id) {
       loadUserTargets()
     }
-  }, [params.id, session?.user?.id])
+  }, [params.id, user?.id])
 
   useEffect(() => {
     if (params.id && userTargets) {
@@ -116,7 +116,7 @@ export default function RestaurantPage() {
 
   const loadUserTargets = async () => {
     try {
-      const response = await fetch(`/api/macro-progress?userId=${session?.user?.id}`)
+      const response = await fetch(`/api/macro-progress?userId=${user?.id}`)
       if (response.ok) {
         const data = await response.json()
         setUserTargets(data.remaining)
@@ -164,7 +164,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
-            userId: session?.user?.id,
+            userId: user?.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -207,7 +207,7 @@ export default function RestaurantPage() {
           body: JSON.stringify({
             restaurantBrand: restaurant.name,
             userTargets: macroProgress,
-            userId: session?.user?.id,
+            userId: user?.id,
             timeOfDay,
             userProfile: {
               goal: 'recomp',
@@ -280,14 +280,14 @@ export default function RestaurantPage() {
   }
 
   const submitRestaurantContribution = async () => {
-    if (!session?.user?.id || !restaurant?.name || !userKnowledge.trim()) return
+    if (!user?.id || !restaurant?.name || !userKnowledge.trim()) return
 
     try {
       const response = await fetch('/api/contribute-restaurant-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: session.user.id,
+          userId: user.id,
           restaurantName: restaurant.name,
           restaurantType: restaurant.tags?.cuisine || restaurant.tags?.amenity || 'restaurant',
           mealData: {
@@ -318,7 +318,7 @@ export default function RestaurantPage() {
 
 
   const addMealToLog = async (meal: MealTemplate) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     try {
       // Check if this is an AI-generated custom meal (synthetic ID)
@@ -336,7 +336,7 @@ export default function RestaurantPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: session.user.id,
+          userId: user.id,
           orderTemplateId: meal.id,
           servings: 1
         })
@@ -374,10 +374,21 @@ export default function RestaurantPage() {
     const targetCalories = userTargets.calories * 0.35 // 35% of remaining
     const targetProtein = userTargets.protein * 0.35
 
+    // Avoid division by zero
+    if (targetCalories === 0 || targetProtein === 0) return 50
+
     const caloriesDiff = Math.abs(meal.calories - targetCalories) / targetCalories
     const proteinDiff = Math.abs(meal.protein - targetProtein) / targetProtein
 
-    return Math.max(0, 100 - (caloriesDiff * 50) - (proteinDiff * 30))
+    // More forgiving formula - won't drop to 0% as easily
+    const calorieScore = Math.max(0, 100 - (caloriesDiff * 40))
+    const proteinScore = Math.max(0, 100 - (proteinDiff * 40))
+
+    // Weighted average: protein 60%, calories 40%
+    const finalScore = (proteinScore * 0.6) + (calorieScore * 0.4)
+
+    // Ensure minimum score of 10% for any valid meal
+    return Math.max(10, Math.min(100, finalScore))
   }
 
   if (loading) {
@@ -684,9 +695,10 @@ export default function RestaurantPage() {
             </div>
           ) : meals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {meals.map((meal) => {
-                const fitScore = calculateFitScore(meal)
-                return (
+              {meals
+                .map(meal => ({ meal, fitScore: calculateFitScore(meal) }))
+                .sort((a, b) => b.fitScore - a.fitScore) // Sort by fit score, high to low
+                .map(({ meal, fitScore }) => (
                   <div key={meal.id} className="glass rounded-xl p-6 card-hover">
                     <div className="flex items-start justify-between mb-4">
                       <h3 className="font-semibold text-white text-lg">{meal.title}</h3>
@@ -815,8 +827,8 @@ export default function RestaurantPage() {
                       </button>
                     </div>
                   </div>
-                )
-              })}
+                ))
+              }
             </div>
           ) : (
             <div className="glass rounded-2xl p-16 text-center">
