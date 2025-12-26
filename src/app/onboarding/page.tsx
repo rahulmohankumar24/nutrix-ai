@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [checkingProfile, setCheckingProfile] = useState(true)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -33,7 +34,30 @@ export default function OnboardingPage() {
       router.push('/auth/signin')
       return
     }
-  }, [status, router])
+
+    // Check if user already has a profile
+    if (session?.user?.id) {
+      checkExistingProfile()
+    }
+  }, [status, session?.user?.id, router])
+
+  const checkExistingProfile = async () => {
+    try {
+      const response = await fetch(`/api/profile?userId=${session?.user?.id}`)
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.profile) {
+          // User already has a profile, redirect to dashboard
+          router.push('/dashboard')
+          return
+        }
+      }
+    } catch (error) {
+      console.error('Error checking existing profile:', error)
+    }
+    setCheckingProfile(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,6 +100,17 @@ export default function OnboardingPage() {
         ? [...(prev.constraints || []), constraint]
         : (prev.constraints || []).filter(c => c !== constraint)
     }))
+  }
+
+  if (checkingProfile) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-2 border-blue-500 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-gray-400 text-sm">Checking your profile...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
