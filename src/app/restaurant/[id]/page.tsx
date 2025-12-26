@@ -26,6 +26,15 @@ interface MealTemplate {
   aiDescription?: string
   macroFitScore?: number
   personalizedNote?: string
+  buildInstructions?: string
+  ingredients?: any[]
+  isCustomMeal?: boolean
+  reasoning?: string
+  macroImpact?: string
+  aiApproved?: boolean
+  customizations?: string[]
+  aiScore?: number
+  aiReasoning?: string
 }
 
 interface DailyTargets {
@@ -73,6 +82,11 @@ export default function RestaurantPage() {
     if (hour >= 15 && hour < 18) return 'snack'
     if (hour >= 18 && hour < 22) return 'dinner'
     return 'snack'
+  }
+
+  const isCustomizableRestaurant = (restaurantName: string) => {
+    const customizable = ['cava', 'chipotle', 'subway', 'sweetgreen', 'qdoba', 'moe\'s', 'blaze pizza', 'mod pizza']
+    return customizable.some(name => restaurantName.toLowerCase().includes(name.toLowerCase()))
   }
 
   const loadRestaurantData = async () => {
@@ -131,104 +145,87 @@ export default function RestaurantPage() {
     try {
       const timeOfDay = getCurrentTimeOfDay()
 
-      const response = await fetch('/api/ai-menu-coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantBrand: restaurant.name,
-          userTargets,
-          timeOfDay,
-          userProfile: {
-            goal: 'recomp', // You might want to get this from user data
-            liftingDays: 4,
-            stepsLevel: 'med'
+      // Check if this is a customizable restaurant
+      const isCustomizable = isCustomizableRestaurant(restaurant.name)
+
+      let response
+      if (isCustomizable) {
+        // Use enhanced AI meal builder with smart ingredient categorization
+        response = await fetch('/api/ai-meal-builder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantBrand: restaurant.name,
+            userTargets,
+            timeOfDay,
+            userProfile: {
+              goal: 'recomp',
+              liftingDays: 4,
+              stepsLevel: 'med'
+            },
+            useEnhancedAI: true // Enable AI-powered categorization
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setCoachingData(data.coaching)
+          // Convert custom meals to meal format
+          if (data.customMeals) {
+            const convertedMeals = data.customMeals.map((meal: any) => ({
+              id: meal.id,
+              title: meal.title,
+              description: meal.description,
+              calories: meal.totalCalories,
+              protein: meal.totalProtein,
+              carbs: meal.totalCarbs,
+              fat: meal.totalFat,
+              tags: [],
+              reasoning: meal.reasoning,
+              macroImpact: meal.macroImpact,
+              buildInstructions: meal.buildInstructions,
+              ingredients: meal.ingredients,
+              isCustomMeal: true
+            }))
+            setMeals(convertedMeals)
           }
+          setShowCoaching(true)
+        }
+      } else {
+        // Use unified AI coach for fixed-menu restaurants with faster processing
+        response = await fetch('/api/ai-unified-meal-coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantBrand: restaurant.name,
+            userTargets,
+            timeOfDay,
+            userProfile: {
+              goal: 'recomp',
+              liftingDays: 4,
+              stepsLevel: 'med'
+            },
+            useAI: true // Enable AI analysis with algorithmic pre-filtering
+          })
         })
-      })
 
-      if (response.ok) {
-        const data = await response.json()
-        setCoachingData(data.coaching)
-        setShowCoaching(true)
-      }
-    } catch (error) {
-      console.error('Failed to generate AI coaching:', error)
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  const getAICoaching = async () => {
-    if (!restaurant?.name || !userTargets || aiLoading) return
-
-    setAiLoading(true)
-    try {
-      const response = await fetch('/api/ai-menu-coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantBrand: restaurant.name,
-          userTargets,
-          timeOfDay: getCurrentTimeOfDay(),
-          userProfile: {
-            goal: 'recomp' // Could get this from user profile
+        if (response.ok) {
+          const data = await response.json()
+          setCoachingData(data.coaching)
+          // Replace meals with AI-analyzed meals (either approved or scored)
+          if (data.meals) {
+            setMeals(data.meals)
           }
-        })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setCoachingData(data.coaching)
-        setShowCoaching(true)
+          setShowCoaching(true)
+        }
       }
     } catch (error) {
-      console.error('Failed to get AI coaching:', error)
+      console.error('Failed to generate AI insights:', error)
     } finally {
       setAiLoading(false)
     }
   }
 
-  const getCurrentTimeOfDay = () => {
-    const hour = new Date().getHours()
-    if (hour < 11) return 'breakfast'
-    if (hour < 15) return 'lunch'
-    if (hour < 19) return 'dinner'
-    return 'snack'
-  }
-
-  const expandMealOptions = async () => {
-    if (!restaurant?.name || aiLoading) return
-
-    setAiLoading(true)
-    try {
-      // First try rule-based expansion
-      const expandResponse = await fetch('/api/expand-meals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantBrand: restaurant.name
-        })
-      })
-
-      // Then try AI-powered generation
-      const aiResponse = await fetch('/api/ai-meal-generator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantBrand: restaurant.name
-        })
-      })
-
-      if (expandResponse.ok || aiResponse.ok) {
-        // Reload meals to show new options
-        loadRestaurantData()
-      }
-    } catch (error) {
-      console.error('Failed to expand meal options:', error)
-    } finally {
-      setAiLoading(false)
-    }
-  }
 
   const addMealToLog = async (meal: MealTemplate) => {
     if (!session?.user?.id) return
@@ -331,24 +328,6 @@ export default function RestaurantPage() {
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   <p className="text-gray-400 text-sm">{restaurant.distance.toFixed(1)} miles away</p>
                 </div>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={getAICoaching}
-                  disabled={aiLoading}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all flex items-center space-x-2"
-                >
-                  <span>🧠</span>
-                  <span>{aiLoading ? 'Analyzing...' : 'AI Coach'}</span>
-                </button>
-                <button
-                  onClick={expandMealOptions}
-                  disabled={aiLoading}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 transition-all flex items-center space-x-2"
-                >
-                  <span>✨</span>
-                  <span>{aiLoading ? 'Generating...' : 'More Options'}</span>
-                </button>
               </div>
             </div>
 
@@ -522,6 +501,38 @@ export default function RestaurantPage() {
                             <span className="text-white text-xs">💡</span>
                           </div>
                           <p className="text-green-300 text-sm leading-relaxed">{meal.personalizedNote}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Meal Build Instructions */}
+                    {meal.buildInstructions && (
+                      <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-lg p-4 mb-4 border border-orange-500/30">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-white text-xs">🔧</span>
+                          </div>
+                          <div>
+                            <h4 className="text-orange-300 font-medium text-sm mb-2">How to Build:</h4>
+                            <p className="text-orange-200 text-sm leading-relaxed">{meal.buildInstructions}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Meal Ingredients */}
+                    {meal.ingredients && meal.ingredients.length > 0 && (
+                      <div className="bg-gray-800/30 rounded-lg p-4 mb-4 border border-gray-600/30">
+                        <h4 className="text-gray-300 font-medium text-sm mb-3">Ingredients:</h4>
+                        <div className="space-y-2">
+                          {meal.ingredients.map((ingredient: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-300">{ingredient.name}</span>
+                              <span className="text-gray-500">
+                                {ingredient.calories}cal · {ingredient.protein}p · {ingredient.carbs}c · {ingredient.fat}f
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

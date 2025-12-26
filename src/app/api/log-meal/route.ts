@@ -3,20 +3,29 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, orderTemplateId, servings = 1 } = await request.json()
+    const { userId, orderTemplateId, foodCatalogItemId, servings = 1 } = await request.json()
 
-    if (!userId || !orderTemplateId) {
-      return NextResponse.json({ error: 'User ID and meal template required' }, { status: 400 })
+    if (!userId || (!orderTemplateId && !foodCatalogItemId)) {
+      return NextResponse.json({ error: 'User ID and either meal template or food catalog item required' }, { status: 400 })
     }
 
-    // Create meal log entry linking to the order template
+    // Create meal log entry linking to either order template or food catalog item
+    const data: any = {
+      userId,
+      servings: parseFloat(servings),
+      datetime: new Date()
+    }
+
+    if (orderTemplateId) {
+      data.orderTemplateId = orderTemplateId
+    }
+
+    if (foodCatalogItemId) {
+      data.foodCatalogItemId = foodCatalogItemId
+    }
+
     const mealLog = await prisma.mealLog.create({
-      data: {
-        userId,
-        orderTemplateId,
-        servings: parseFloat(servings),
-        datetime: new Date()
-      }
+      data
     })
 
     return NextResponse.json({ success: true, mealLog })

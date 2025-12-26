@@ -212,7 +212,10 @@ export default function DashboardPage() {
             </div>
             <nav className="flex items-center space-x-6">
               <Link href="/restaurants" className="text-gray-400 hover:text-white transition-colors text-sm">
-                Find Food
+                Restaurants
+              </Link>
+              <Link href="/snacks" className="text-gray-400 hover:text-white transition-colors text-sm">
+                Snacks & Food
               </Link>
               <Link href="/profile" className="text-gray-400 hover:text-white transition-colors text-sm">
                 Profile

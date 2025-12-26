@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { Restaurant, OrderRecommendation } from '@/lib/types'
+import { Restaurant } from '@/lib/types'
 
 export default function RestaurantsPage() {
   const router = useRouter()
@@ -12,7 +12,6 @@ export default function RestaurantsPage() {
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [knownRestaurants, setKnownRestaurants] = useState<Restaurant[]>([])
   const [unknownRestaurants, setUnknownRestaurants] = useState<Restaurant[]>([])
-  const [recommendations, setRecommendations] = useState<OrderRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
 
@@ -93,10 +92,6 @@ export default function RestaurantsPage() {
         setKnownRestaurants(known)
         setUnknownRestaurants(unknown)
 
-        // Load recommendations
-        if (session?.user?.id) {
-          loadRecommendations(session.user.id)
-        }
       }
     } catch (error) {
       console.error('Failed to load restaurants:', error)
@@ -105,17 +100,6 @@ export default function RestaurantsPage() {
     }
   }
 
-  const loadRecommendations = async (userId: string) => {
-    try {
-      const response = await fetch(`/api/recommendations?userId=${userId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setRecommendations(data.recommendations || [])
-      }
-    } catch (error) {
-      console.error('Failed to load recommendations:', error)
-    }
-  }
 
   const handleRestaurantClick = (restaurant: Restaurant) => {
     localStorage.setItem(`restaurant_${restaurant.id}`, JSON.stringify(restaurant))
@@ -182,43 +166,6 @@ export default function RestaurantsPage() {
           </div>
         )}
 
-        {/* AI Recommendations */}
-        {recommendations.length > 0 && (
-          <div className="glass rounded-2xl p-8 mb-8 card-hover">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">🎯</span>
-              </div>
-              <h2 className="text-2xl font-bold text-white">AI Recommendations</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {recommendations.slice(0, 4).map((rec, index) => (
-                <div key={index} className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 rounded-xl p-6 border border-green-500/30">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-white text-lg">{rec.template.title}</h3>
-                      <p className="text-green-300 text-sm capitalize">{rec.template.restaurantBrand}</p>
-                    </div>
-                    <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-900/50 text-green-300 border border-green-500/30">
-                      {rec.fitScore}% fit
-                    </span>
-                  </div>
-
-                  <p className="text-green-200 text-sm mb-4 leading-relaxed">{rec.explanation}</p>
-
-                  <div className="flex items-center justify-between text-xs text-green-300">
-                    <div className="flex space-x-4">
-                      <span>{rec.template.calories} cal</span>
-                      <span>{rec.template.protein}g protein</span>
-                    </div>
-                    <span>{rec.restaurant.distance.toFixed(1)} miles</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Restaurant Categories */}
         {knownRestaurants.length > 0 && (
