@@ -75,14 +75,16 @@ export async function POST(request: NextRequest) {
     }
 
     // More efficient, focused prompt for faster AI response
-    const prompt = `Build ${restaurantBrand} meals. User needs: ${remainingMacros.calories}cal, ${remainingMacros.protein}g protein remaining for ${timeOfDay}.
+    const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
+
+Build ${restaurantBrand} meals for ${timeOfDay}. User needs: ${remainingMacros.calories}cal, ${remainingMacros.protein}g protein.
 
 INGREDIENTS:
 ${Object.entries(categorizedIngredients).map(([cat, items]) =>
   `${cat.toUpperCase()}: ${(items as any[]).map(i => `${i.name}(${i.calories}c,${i.protein}p,${i.carbs}cb,${i.fat}f)`).join(', ')}`
 ).join('\n')}
 
-Create 3 meal combos hitting targets. Return JSON:
+Return this exact JSON structure with 3 meals:
 {
   "customMeals": [
     {
@@ -98,15 +100,13 @@ Create 3 meal combos hitting targets. Return JSON:
         {"name": "Grilled Chicken", "id": "ing_1", "calories": 180, "protein": 35, "carbs": 0, "fat": 4, "category": "protein"},
         {"name": "Brown Rice", "id": "ing_2", "calories": 220, "protein": 5, "carbs": 45, "fat": 2, "category": "base"}
       ],
-      "reasoning": "High protein, good carbs",
+      "reasoning": "High protein match",
       "buildInstructions": "Order: base + protein + veggies + sauce"
     }
   ],
-  "overallAdvice": "Quick tip",
+  "overallAdvice": "Quick nutrition tip",
   "restaurantTips": "Ordering tip"
-}
-
-Requirements: Use exact ingredient names, sum macros correctly, realistic portions, fit remaining targets.`
+}`
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -139,10 +139,12 @@ Requirements: Use exact ingredient names, sum macros correctly, realistic portio
       })
     } catch (parseError) {
       console.error('Failed to parse AI meal builder response:', parseError)
+      console.error('Raw AI response:', aiResponse)
       return NextResponse.json({
         success: false,
         error: 'Invalid AI response format',
-        rawResponse: aiResponse
+        rawResponse: aiResponse,
+        parseError: parseError.message
       }, { status: 500 })
     }
 
