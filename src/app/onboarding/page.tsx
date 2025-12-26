@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { OnboardingData, OnboardingSchema } from '@/lib/types'
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [formData, setFormData] = useState<Partial<OnboardingData>>({
     sex: 'male',
     heightFt: 5,
@@ -24,18 +26,34 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    if (status === 'loading') return
+
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin')
+      return
+    }
+  }, [status, router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
+      if (!session?.user?.id) {
+        throw new Error('Please sign in to continue')
+      }
+
       const validatedData = OnboardingSchema.parse(formData)
 
       const response = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validatedData)
+        body: JSON.stringify({
+          ...validatedData,
+          userId: session.user.id
+        })
       })
 
       if (!response.ok) {
@@ -43,7 +61,6 @@ export default function OnboardingPage() {
       }
 
       const result = await response.json()
-      localStorage.setItem('userId', result.userId)
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')

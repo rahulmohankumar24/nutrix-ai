@@ -6,12 +6,27 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const validatedData = OnboardingSchema.parse(body)
+    const { userId, ...onboardingData } = body
+    const validatedData = OnboardingSchema.parse(onboardingData)
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {}
+    // Check if user exists
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId }
     })
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
 
     // Calculate total height in inches
     const totalHeightIn = validatedData.heightFt * 12 + validatedData.heightIn
@@ -19,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Create profile
     const profile = await prisma.profile.create({
       data: {
-        userId: user.id,
+        userId: userId,
         sex: validatedData.sex,
         age: validatedData.age,
         heightIn: totalHeightIn,
@@ -52,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.dailyTarget.create({
       data: {
-        userId: user.id,
+        userId: userId,
         date: today,
         calories: targets.calories,
         protein: targets.protein,
@@ -67,7 +82,7 @@ export async function POST(request: NextRequest) {
         // Create basic preferences without OpenAI parsing for now
         await prisma.preferences.create({
           data: {
-            userId: user.id,
+            userId: userId,
             eatingPattern: 'mixed',
             dislikesDetected: JSON.stringify([]),
             preferredCuisines: JSON.stringify([]),
@@ -94,7 +109,7 @@ export async function POST(request: NextRequest) {
     for (const reminder of defaultReminders) {
       await prisma.reminder.create({
         data: {
-          userId: user.id,
+          userId: userId,
           name: reminder.name,
           timeOfDay: reminder.timeOfDay,
           enabled: true
@@ -104,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      userId: user.id,
+      userId: userId,
       targets
     })
   } catch (error) {
