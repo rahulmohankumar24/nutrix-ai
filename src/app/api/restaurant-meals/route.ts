@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 
 // Nutrition scoring algorithm
 function calculateNutritionScore(meal: any, targets: any, timeOfDay: string) {
@@ -58,13 +59,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Restaurant brand required' }, { status: 400 })
     }
 
+    // Normalize restaurant name to match database brand names
+    const normalizedBrand = normalizeRestaurantName(restaurantBrand)
+    console.log(`🏪 Restaurant name normalized: "${restaurantBrand}" -> "${normalizedBrand}"`)
+
     // Get meals for this restaurant brand
     const meals = await prisma.orderTemplate.findMany({
       where: {
-        restaurantBrand: {
-          contains: restaurantBrand,
-          mode: 'insensitive'
-        }
+        restaurantBrand: normalizedBrand
       },
       orderBy: {
         title: 'asc'

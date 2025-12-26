@@ -4,6 +4,7 @@ import OpenAI from 'openai'
 import { cache, generateAIMealCacheKey } from '@/lib/cache'
 import { parseAIResponse } from '@/lib/ai-utils'
 import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
+import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -77,10 +78,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Normalize restaurant name to match database brand names
+    const normalizedBrand = normalizeRestaurantName(restaurantBrand)
+    console.log(`🏪 Restaurant name normalized: "${restaurantBrand}" -> "${normalizedBrand}"`)
+
     // Get available meals for this restaurant brand
     const availableMeals = await prisma.orderTemplate.findMany({
       where: {
-        restaurantBrand: restaurantBrand.toLowerCase()
+        restaurantBrand: normalizedBrand
       },
       orderBy: {
         title: 'asc'
