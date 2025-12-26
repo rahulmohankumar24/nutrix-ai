@@ -3,11 +3,10 @@ import { calculateDistance } from '@/lib/calculations'
 import { isKnownChain } from '@/lib/chains'
 import { Restaurant } from '@/lib/types'
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const lat = parseFloat(searchParams.get('lat') || '0')
-    const lng = parseFloat(searchParams.get('lng') || '0')
+    const body = await request.json()
+    const { lat, lng } = body
 
     if (!lat || !lng) {
       return NextResponse.json(
@@ -88,8 +87,7 @@ export async function GET(request: NextRequest) {
     const unknownRestaurants = restaurants.filter(r => !r.isKnown).slice(0, 15)
 
     return NextResponse.json({
-      knownChains,
-      unknownRestaurants,
+      restaurants: [...knownChains, ...unknownRestaurants],
       userLocation: { lat, lng }
     })
   } catch (error) {

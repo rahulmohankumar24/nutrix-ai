@@ -165,44 +165,104 @@ export default function DashboardPage() {
           <p className="text-gray-400">Here's how your nutrition is tracking today</p>
         </div>
 
-        {/* Today's Progress */}
+        {/* Daily Goals Overview */}
         {macros && (
           <div className="glass rounded-2xl p-8 mb-8 card-hover">
-            <h2 className="text-2xl font-bold text-white mb-6">Today's Progress</h2>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Today's Nutrition Goals</h2>
+              <p className="text-gray-400">Track your daily targets and see how you're progressing</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {(['calories', 'protein', 'carbs', 'fat'] as const).map((macro, index) => {
                 const colors = ['blue', 'green', 'yellow', 'purple']
                 const color = colors[index]
                 const percentage = Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
                 const isOver = macros.current[macro] > macros.targets[macro]
+                const isComplete = percentage >= 100
 
                 return (
-                  <div key={macro} className="relative">
-                    <div className="text-center">
-                      <div className={`text-3xl font-bold text-${color}-400 mb-1`}>
-                        {macros.current[macro]}
-                        <span className="text-lg text-gray-500">/{macros.targets[macro]}</span>
+                  <div key={macro} className={`bg-${color}-900/20 rounded-xl p-6 border border-${color}-500/30 relative overflow-hidden`}>
+                    <div className="text-center relative z-10">
+                      <div className={`text-2xl font-bold text-${color}-400 mb-1`}>
+                        {macros.targets[macro]}
+                        <span className="text-sm text-gray-400 ml-1">{macro === 'calories' ? '' : 'g'}</span>
                       </div>
-                      <div className="text-sm text-gray-400 capitalize mb-3">
-                        {macro} {macro === 'calories' ? '' : '(g)'}
+                      <div className="text-xs text-gray-300 uppercase tracking-wide mb-4">
+                        Daily {macro} Goal
                       </div>
-                      <div className="relative">
-                        <div className="w-full bg-gray-800 rounded-full h-3">
-                          <div
-                            className={`bg-gradient-to-r from-${color}-500 to-${color}-400 h-3 rounded-full transition-all duration-700 ease-out ${
-                              isOver ? 'bg-red-500' : ''
-                            }`}
-                            style={{ width: `${Math.min(100, percentage)}%` }}
-                          />
+
+                      {/* Progress Circle */}
+                      <div className="relative w-20 h-20 mx-auto mb-4">
+                        <div className={`absolute inset-0 rounded-full border-4 border-${color}-900/30`}></div>
+                        <div
+                          className={`absolute inset-0 rounded-full border-4 border-${color}-400 transition-all duration-700`}
+                          style={{
+                            clipPath: `polygon(0 0, 0 ${100 - percentage}%, 100% ${100 - percentage}%, 100% 100%, 0 100%)`
+                          }}
+                        ></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className={`text-lg font-bold text-${color}-300`}>
+                            {Math.round(percentage)}%
+                          </span>
                         </div>
-                        <div className="text-xs text-gray-500 mt-2">
-                          {isOver ? 'Over target' : `${macros.remaining[macro]} remaining`}
-                        </div>
+                      </div>
+
+                      {/* Current Progress */}
+                      <div className={`text-lg font-semibold text-${color}-300 mb-1`}>
+                        {macros.current[macro]} / {macros.targets[macro]}
+                      </div>
+
+                      {/* Status */}
+                      <div className="text-xs">
+                        {isComplete ? (
+                          <span className="text-green-400">✓ Goal achieved!</span>
+                        ) : isOver ? (
+                          <span className="text-red-400">Over by {macros.current[macro] - macros.targets[macro]}</span>
+                        ) : (
+                          <span className="text-gray-400">{macros.remaining[macro]} to go</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Background progress bar */}
+                    <div className="absolute bottom-0 left-0 right-0 h-2">
+                      <div className="w-full bg-gray-800 h-full">
+                        <div
+                          className={`h-full transition-all duration-700 ease-out ${
+                            isComplete ? `bg-green-500` : `bg-gradient-to-r from-${color}-500 to-${color}-400`
+                          }`}
+                          style={{ width: `${Math.min(100, percentage)}%` }}
+                        />
                       </div>
                     </div>
                   </div>
                 )
               })}
+            </div>
+
+            {/* Overall Progress Summary */}
+            <div className="mt-6 pt-6 border-t border-gray-700/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-medium">Overall Progress</h3>
+                  <p className="text-gray-400 text-sm">
+                    {(['calories', 'protein', 'carbs', 'fat'] as const).filter(macro =>
+                      (macros.current[macro] / macros.targets[macro]) >= 1
+                    ).length} of 4 goals completed
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-white">
+                    {Math.round(
+                      (['calories', 'protein', 'carbs', 'fat'] as const).reduce((sum, macro) =>
+                        sum + Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
+                      , 0) / 4
+                    )}%
+                  </div>
+                  <p className="text-gray-400 text-xs">Average completion</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
