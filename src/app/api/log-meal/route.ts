@@ -83,3 +83,81 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to get meal logs' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const mealLogId = searchParams.get('mealLogId')
+    const userId = searchParams.get('userId')
+
+    if (!mealLogId || !userId) {
+      return NextResponse.json({ error: 'Meal log ID and user ID required' }, { status: 400 })
+    }
+
+    // Verify the meal log belongs to the user before deleting
+    const mealLog = await prisma.mealLog.findFirst({
+      where: {
+        id: mealLogId,
+        userId: userId
+      }
+    })
+
+    if (!mealLog) {
+      return NextResponse.json({ error: 'Meal log not found' }, { status: 404 })
+    }
+
+    // Delete the meal log
+    await prisma.mealLog.delete({
+      where: {
+        id: mealLogId
+      }
+    })
+
+    return NextResponse.json({ success: true, message: 'Meal log deleted' })
+  } catch (error) {
+    console.error('Failed to delete meal log:', error)
+    return NextResponse.json({ error: 'Failed to delete meal log' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { mealLogId, userId, servings } = body
+
+    if (!mealLogId || !userId || servings === undefined) {
+      return NextResponse.json({ error: 'Meal log ID, user ID, and servings required' }, { status: 400 })
+    }
+
+    // Verify the meal log belongs to the user before updating
+    const existingMealLog = await prisma.mealLog.findFirst({
+      where: {
+        id: mealLogId,
+        userId: userId
+      }
+    })
+
+    if (!existingMealLog) {
+      return NextResponse.json({ error: 'Meal log not found' }, { status: 404 })
+    }
+
+    // Update the meal log servings
+    const updatedMealLog = await prisma.mealLog.update({
+      where: {
+        id: mealLogId
+      },
+      data: {
+        servings: parseFloat(servings)
+      },
+      include: {
+        orderTemplate: true,
+        foodCatalogItem: true
+      }
+    })
+
+    return NextResponse.json({ success: true, mealLog: updatedMealLog })
+  } catch (error) {
+    console.error('Failed to update meal log:', error)
+    return NextResponse.json({ error: 'Failed to update meal log' }, { status: 500 })
+  }
+}

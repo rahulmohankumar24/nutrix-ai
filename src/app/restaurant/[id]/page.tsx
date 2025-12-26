@@ -49,10 +49,15 @@ export default function RestaurantPage() {
 
   useEffect(() => {
     if (params.id && session?.user?.id) {
-      loadRestaurantData()
       loadUserTargets()
     }
   }, [params.id, session?.user?.id])
+
+  useEffect(() => {
+    if (params.id && userTargets) {
+      loadRestaurantData()
+    }
+  }, [params.id, userTargets])
 
   // Automatically generate AI insights when meals and user targets are loaded
   useEffect(() => {
@@ -60,6 +65,15 @@ export default function RestaurantPage() {
       generateAIInsights()
     }
   }, [meals, userTargets])
+
+  const getCurrentTimeOfDay = () => {
+    const hour = new Date().getHours()
+    if (hour >= 5 && hour < 11) return 'breakfast'
+    if (hour >= 11 && hour < 15) return 'lunch'
+    if (hour >= 15 && hour < 18) return 'snack'
+    if (hour >= 18 && hour < 22) return 'dinner'
+    return 'snack'
+  }
 
   const loadRestaurantData = async () => {
     try {
@@ -71,8 +85,20 @@ export default function RestaurantPage() {
         setRestaurant(restaurantInfo)
       }
 
-      // Load meals for this restaurant
-      if (restaurantInfo?.name) {
+      // Load meals for this restaurant with smart filtering
+      if (restaurantInfo?.name && userTargets) {
+        const timeOfDay = getCurrentTimeOfDay()
+        const userTargetsString = encodeURIComponent(JSON.stringify(userTargets))
+
+        const mealsResponse = await fetch(
+          `/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurantInfo.name)}&userTargets=${userTargetsString}&timeOfDay=${timeOfDay}`
+        )
+        if (mealsResponse.ok) {
+          const mealsData = await mealsResponse.json()
+          setMeals(mealsData.meals || [])
+        }
+      } else if (restaurantInfo?.name) {
+        // Fallback without filtering if no user targets
         const mealsResponse = await fetch(`/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurantInfo.name)}`)
         if (mealsResponse.ok) {
           const mealsData = await mealsResponse.json()
@@ -99,26 +125,34 @@ export default function RestaurantPage() {
   }
 
   const generateAIInsights = async () => {
-    if (!userTargets || aiLoading) return
+    if (!userTargets || aiLoading || !restaurant?.name) return
 
     setAiLoading(true)
     try {
-      const response = await fetch('/api/ai-meal-insights', {
+      const timeOfDay = getCurrentTimeOfDay()
+
+      const response = await fetch('/api/ai-menu-coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          meals,
+          restaurantBrand: restaurant.name,
           userTargets,
-          restaurantName: restaurant?.name
+          timeOfDay,
+          userProfile: {
+            goal: 'recomp', // You might want to get this from user data
+            liftingDays: 4,
+            stepsLevel: 'med'
+          }
         })
       })
 
       if (response.ok) {
         const data = await response.json()
-        setMeals(data.enhancedMeals)
+        setCoachingData(data.coaching)
+        setShowCoaching(true)
       }
     } catch (error) {
-      console.error('Failed to generate AI insights:', error)
+      console.error('Failed to generate AI coaching:', error)
     } finally {
       setAiLoading(false)
     }

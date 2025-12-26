@@ -75,11 +75,13 @@ USER'S SITUATION:
 - User goal: ${userProfile?.goal || 'balance nutrition'}
 - Activity level: ${userProfile?.liftingDays || 3} lifting days/week, ${userProfile?.stepsLevel || 'medium'} daily steps
 
-AVAILABLE MEALS AT ${restaurantBrand.toUpperCase()}:
+TOP RECOMMENDED MEALS AT ${restaurantBrand.toUpperCase()}:
 ${mealsList.map((meal, i) => `${i + 1}. ${meal.title} - ${meal.calories} cal, ${meal.protein}g protein, ${meal.carbs}g carbs, ${meal.fat}g fat
    Description: ${meal.description}`).join('\n')}
 
-TASK: Analyze these meals and provide 3 SMART recommendations with detailed reasoning.
+NOTE: These ${mealsList.length} meals have been pre-filtered from the full menu based on your nutrition targets and current time of day. They represent the best nutritional matches for your needs.
+
+TASK: Analyze these TOP meals and provide 3 BEST recommendations with detailed reasoning.
 
 For each recommendation, consider:
 1. How well it fits their remaining macro targets

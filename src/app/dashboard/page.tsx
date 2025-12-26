@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const [macros, setMacros] = useState<MacroProgress | null>(null)
   const [mealLogs, setMealLogs] = useState<DailyMealLogs | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editingMeal, setEditingMeal] = useState<string | null>(null)
+  const [editServings, setEditServings] = useState<number>(1)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -108,6 +110,70 @@ export default function DashboardPage() {
       minute: '2-digit',
       hour12: true
     })
+  }
+
+  const deleteMeal = async (mealLogId: string) => {
+    if (!session?.user?.id) return
+
+    try {
+      const response = await fetch(`/api/log-meal?mealLogId=${mealLogId}&userId=${session.user.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Reload dashboard data
+        await loadDashboardData(session.user.id)
+      }
+    } catch (error) {
+      console.error('Failed to delete meal:', error)
+    }
+  }
+
+  const updateMealServings = async (mealLogId: string, servings: number) => {
+    if (!session?.user?.id) return
+
+    try {
+      const response = await fetch('/api/log-meal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealLogId,
+          userId: session.user.id,
+          servings
+        })
+      })
+
+      if (response.ok) {
+        // Reload dashboard data
+        await loadDashboardData(session.user.id)
+        setEditingMeal(null)
+      }
+    } catch (error) {
+      console.error('Failed to update meal:', error)
+    }
+  }
+
+  const clearAllMeals = async () => {
+    if (!session?.user?.id || !mealLogs?.mealLogs.length) return
+
+    const confirmClear = confirm('Are you sure you want to delete all meals for today? This cannot be undone.')
+    if (!confirmClear) return
+
+    try {
+      // Delete all meals for today
+      await Promise.all(
+        mealLogs.mealLogs.map(log =>
+          fetch(`/api/log-meal?mealLogId=${log.id}&userId=${session.user.id}`, {
+            method: 'DELETE'
+          })
+        )
+      )
+
+      // Reload dashboard data
+      await loadDashboardData(session.user.id)
+    } catch (error) {
+      console.error('Failed to clear all meals:', error)
+    }
   }
 
   const getNextMealSuggestion = () => {
@@ -276,9 +342,19 @@ export default function DashboardPage() {
           <div className="glass rounded-2xl p-8 card-hover">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-white">What You've Eaten Today</h3>
-              <span className="text-sm text-gray-400">
-                {mealLogs?.count || 0} meals logged
-              </span>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-400">
+                  {mealLogs?.count || 0} meals logged
+                </span>
+                {mealLogs && mealLogs.mealLogs.length > 0 && (
+                  <button
+                    onClick={clearAllMeals}
+                    className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500/30 rounded-md hover:border-red-400/50 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
             </div>
 
             {mealLogs && mealLogs.mealLogs.length > 0 ? (
@@ -293,7 +369,7 @@ export default function DashboardPage() {
                   return (
                     <div key={log.id} className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
                       <div className="flex items-start justify-between mb-2">
-                        <div>
+                        <div className="flex-1">
                           <h4 className="font-medium text-white text-sm">
                             {log.orderTemplate ? log.orderTemplate.title : log.foodCatalogItem?.name}
                           </h4>
@@ -303,10 +379,56 @@ export default function DashboardPage() {
                             </p>
                           )}
                         </div>
-                        <span className="text-xs text-gray-400">
-                          {formatTime(log.datetime)}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-400">
+                            {formatTime(log.datetime)}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingMeal(log.id)
+                              setEditServings(log.servings)
+                            }}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteMeal(log.id)}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
+
+                      {editingMeal === log.id ? (
+                        <div className="mb-3 p-3 bg-gray-700/50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <label className="text-xs text-gray-300">Servings:</label>
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              value={editServings}
+                              onChange={(e) => setEditServings(parseFloat(e.target.value))}
+                              className="w-20 px-2 py-1 text-xs bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                            />
+                            <button
+                              onClick={() => updateMealServings(log.id, editServings)}
+                              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingMeal(null)}
+                              className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex space-x-4">
                           <span className="text-blue-400">{totalCals} cal</span>
