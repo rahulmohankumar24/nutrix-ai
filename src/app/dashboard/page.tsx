@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser, useClerk } from '@clerk/nextjs'
-import Link from 'next/link'
+import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
+import { DashboardHeader } from "@/components/dashboard-header"
+import { NutritionStatsCards } from "@/components/nutrition-stats-cards"
+import { PathwayVisualization } from "@/components/pathway-visualization"
+import { FoodSuggestionsCard } from "@/components/action-cards"
+import { WeekSummary } from "@/components/week-summary"
 
 interface MealLogEntry {
   id: string
@@ -42,7 +46,6 @@ interface DailyMealLogs {
 export default function DashboardPage() {
   const router = useRouter()
   const { user, isLoaded, isSignedIn } = useUser()
-  const { signOut } = useClerk()
   const [macros, setMacros] = useState<MacroProgress | null>(null)
   const [mealLogs, setMealLogs] = useState<DailyMealLogs | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,10 +69,7 @@ export default function DashboardPage() {
 
   const syncAndLoadData = async (userId: string) => {
     try {
-      // First, ensure user exists in database
       await fetch('/api/sync-user', { method: 'POST' })
-
-      // Then load dashboard data
       await loadDashboardData(userId)
     } catch (error) {
       console.error('Failed to sync user:', error)
@@ -79,7 +79,6 @@ export default function DashboardPage() {
 
   const loadDashboardData = async (userId: string) => {
     try {
-      // Load macro progress and meal logs in parallel
       const [macroResponse, mealLogResponse] = await Promise.all([
         fetch(`/api/macro-progress?userId=${userId}`),
         fetch(`/api/log-meal?userId=${userId}`)
@@ -89,7 +88,6 @@ export default function DashboardPage() {
         const macroData = await macroResponse.json()
         setMacros(macroData)
       } else if (macroResponse.status === 404) {
-        // User hasn't completed onboarding - redirect them
         router.push('/onboarding')
         return
       }
@@ -112,12 +110,6 @@ export default function DashboardPage() {
     return 'evening'
   }
 
-  const getGreeting = () => {
-    const timeOfDay = getTimeOfDay()
-    const name = user?.firstName || user?.fullName?.split(' ')[0] || 'there'
-    return `Good ${timeOfDay}, ${name}!`
-  }
-
   const formatTime = (datetime: string) => {
     return new Date(datetime).toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -135,7 +127,6 @@ export default function DashboardPage() {
       })
 
       if (response.ok) {
-        // Reload dashboard data
         await loadDashboardData(user.id)
       }
     } catch (error) {
@@ -158,7 +149,6 @@ export default function DashboardPage() {
       })
 
       if (response.ok) {
-        // Reload dashboard data
         await loadDashboardData(user.id)
         setEditingMeal(null)
       }
@@ -174,7 +164,6 @@ export default function DashboardPage() {
     if (!confirmClear) return
 
     try {
-      // Delete all meals for today
       await Promise.all(
         mealLogs.mealLogs.map(log =>
           fetch(`/api/log-meal?mealLogId=${log.id}&userId=${user.id}`, {
@@ -183,19 +172,102 @@ export default function DashboardPage() {
         )
       )
 
-      // Reload dashboard data
       await loadDashboardData(user.id)
     } catch (error) {
       console.error('Failed to clear all meals:', error)
     }
   }
 
-  const getNextMealSuggestion = () => {
-    const hour = new Date().getHours()
-    if (hour < 11) return { meal: 'lunch', time: '12:00 PM' }
-    if (hour < 15) return { meal: 'afternoon snack', time: '3:00 PM' }
-    if (hour < 19) return { meal: 'dinner', time: '7:00 PM' }
-    return { meal: 'tomorrow\'s breakfast', time: '8:00 AM' }
+  // Convert meal logs to pathway visualization format
+  const getDailyMealPath = () => {
+    if (!mealLogs || !macros) return []
+
+    const mealsByTime = {
+      breakfast: [] as MealLogEntry[],
+      lunch: [] as MealLogEntry[],
+      dinner: [] as MealLogEntry[]
+    }
+
+    // Categorize meals by time
+    mealLogs.mealLogs.forEach(log => {
+      const hour = new Date(log.datetime).getHours()
+      if (hour < 11) {
+        mealsByTime.breakfast.push(log)
+      } else if (hour < 16) {
+        mealsByTime.lunch.push(log)
+      } else {
+        mealsByTime.dinner.push(log)
+      }
+    })
+
+    const calculateMealMacros = (meals: MealLogEntry[]) => {
+      return meals.reduce((sum, meal) => {
+        const item = meal.orderTemplate || meal.foodCatalogItem
+        if (!item) return sum
+        return {
+          calories: sum.calories + (item.calories * meal.servings),
+          protein: sum.protein + (item.protein * meal.servings),
+          carbs: sum.carbs + (item.carbs * meal.servings),
+          fat: sum.fat + (item.fat * meal.servings)
+        }
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0 })
+    }
+
+    const currentHour = new Date().getHours()
+
+    return [
+      {
+        time: 'Breakfast',
+        percentage: mealsByTime.breakfast.length > 0
+          ? Math.round((calculateMealMacros(mealsByTime.breakfast).calories / macros.targets.calories) * 100)
+          : 0,
+        isCompleted: mealsByTime.breakfast.length > 0,
+        isCurrent: currentHour < 11 && mealsByTime.breakfast.length === 0,
+        details: {
+          items: mealsByTime.breakfast.map(m =>
+            (m.orderTemplate?.title || m.foodCatalogItem?.name || 'Unknown') +
+            (m.servings > 1 ? ` (${m.servings}x)` : '')
+          ),
+          summary: mealsByTime.breakfast.length > 0
+            ? `${Math.round(calculateMealMacros(mealsByTime.breakfast).protein)}g protein`
+            : 'Not yet logged'
+        }
+      },
+      {
+        time: 'Lunch',
+        percentage: mealsByTime.lunch.length > 0
+          ? Math.round((calculateMealMacros(mealsByTime.lunch).calories / macros.targets.calories) * 100)
+          : 0,
+        isCompleted: mealsByTime.lunch.length > 0,
+        isCurrent: currentHour >= 11 && currentHour < 16 && mealsByTime.lunch.length === 0,
+        details: {
+          items: mealsByTime.lunch.map(m =>
+            (m.orderTemplate?.title || m.foodCatalogItem?.name || 'Unknown') +
+            (m.servings > 1 ? ` (${m.servings}x)` : '')
+          ),
+          summary: mealsByTime.lunch.length > 0
+            ? `${Math.round(calculateMealMacros(mealsByTime.lunch).protein)}g protein`
+            : 'Not yet logged'
+        }
+      },
+      {
+        time: 'Dinner',
+        percentage: mealsByTime.dinner.length > 0
+          ? Math.round((calculateMealMacros(mealsByTime.dinner).calories / macros.targets.calories) * 100)
+          : 0,
+        isCompleted: mealsByTime.dinner.length > 0,
+        isCurrent: currentHour >= 16 && mealsByTime.dinner.length === 0,
+        details: {
+          items: mealsByTime.dinner.map(m =>
+            (m.orderTemplate?.title || m.foodCatalogItem?.name || 'Unknown') +
+            (m.servings > 1 ? ` (${m.servings}x)` : '')
+          ),
+          summary: mealsByTime.dinner.length > 0
+            ? `${Math.round(calculateMealMacros(mealsByTime.dinner).protein)}g protein`
+            : 'Not yet logged'
+        }
+      }
+    ]
   }
 
   if (loading) {
@@ -209,369 +281,133 @@ export default function DashboardPage() {
     )
   }
 
+  const userName = user?.firstName || user?.fullName?.split(' ')[0] || 'there'
+  const overallProgress = macros ? Math.round(
+    (['calories', 'protein', 'carbs', 'fat'] as const).reduce((sum, macro) =>
+      sum + Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
+    , 0) / 4
+  ) : 0
+
   return (
-    <div className="min-h-screen bg-black">
-      {/* Header */}
-      <header className="glass border-b border-gray-800/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">R</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">Rovia</h1>
-                <p className="text-gray-400 text-sm">Your AI nutrition coach</p>
-              </div>
-            </div>
-            <nav className="flex items-center space-x-6">
-              <Link href="/restaurants" className="text-gray-400 hover:text-white transition-colors text-sm">
-                Restaurants
-              </Link>
-              <Link href="/snacks" className="text-gray-400 hover:text-white transition-colors text-sm">
-                Snacks & Food
-              </Link>
-              <Link href="/profile" className="text-gray-400 hover:text-white transition-colors text-sm">
-                Profile
-              </Link>
-              <button
-                onClick={() => signOut()}
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Sign Out
-              </button>
-            </nav>
+    <div className="min-h-screen bg-background">
+      <main>
+        <div className="mx-auto max-w-6xl space-y-6 p-6 sm:p-8 lg:p-12">
+          <DashboardHeader
+            userName={userName}
+            message={`Steady momentum ${getTimeOfDay()}.`}
+            progressPercentage={overallProgress}
+          />
+
+          <FoodSuggestionsCard />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <PathwayVisualization
+              title="Today's Journey"
+              dailyData={getDailyMealPath()}
+            />
+
+            {macros && (
+              <NutritionStatsCards
+                protein={{ label: "Protein", current: macros.current.protein, target: macros.targets.protein, unit: "g" }}
+                fat={{ label: "Fat", current: macros.current.fat, target: macros.targets.fat, unit: "g" }}
+                carbs={{ label: "Carbs", current: macros.current.carbs, target: macros.targets.carbs, unit: "g" }}
+                calories={{ label: "Calories", current: macros.current.calories, target: macros.targets.calories, unit: "" }}
+              />
+            )}
           </div>
-        </div>
-      </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Greeting */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">{getGreeting()}</h2>
-          <p className="text-gray-400">Here's how your nutrition is tracking today</p>
-        </div>
+          <WeekSummary />
 
-        {/* Daily Goals Overview */}
-        {macros && (
-          <div className="glass rounded-2xl p-8 mb-8 card-hover">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Today's Nutrition Goals</h2>
-              <p className="text-gray-400">Track your daily targets and see how you're progressing</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {(['calories', 'protein', 'carbs', 'fat'] as const).map((macro, index) => {
-                const colors = ['blue', 'green', 'yellow', 'purple']
-                const color = colors[index]
-                const percentage = Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
-                const isOver = macros.current[macro] > macros.targets[macro]
-                const isComplete = percentage >= 100
-
-                return (
-                  <div key={macro} className={`bg-${color}-900/20 rounded-xl p-6 border border-${color}-500/30 relative overflow-hidden`}>
-                    <div className="text-center relative z-10">
-                      <div className={`text-2xl font-bold text-${color}-400 mb-1`}>
-                        {macros.targets[macro]}
-                        <span className="text-sm text-gray-400 ml-1">{macro === 'calories' ? '' : 'g'}</span>
-                      </div>
-                      <div className="text-xs text-gray-300 uppercase tracking-wide mb-4">
-                        Daily {macro} Goal
-                      </div>
-
-                      {/* Progress Circle */}
-                      <div className="relative w-20 h-20 mx-auto mb-4">
-                        <div className={`absolute inset-0 rounded-full border-4 border-${color}-900/30`}></div>
-                        <div
-                          className={`absolute inset-0 rounded-full border-4 border-${color}-400 transition-all duration-700`}
-                          style={{
-                            clipPath: `polygon(0 0, 0 ${100 - percentage}%, 100% ${100 - percentage}%, 100% 100%, 0 100%)`
-                          }}
-                        ></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-lg font-bold text-${color}-300`}>
-                            {Math.round(percentage)}%
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Current Progress */}
-                      <div className={`text-lg font-semibold text-${color}-300 mb-1`}>
-                        {macros.current[macro]} / {macros.targets[macro]}
-                      </div>
-
-                      {/* Status */}
-                      <div className="text-xs">
-                        {isComplete ? (
-                          <span className="text-green-400">✓ Goal achieved!</span>
-                        ) : isOver ? (
-                          <span className="text-red-400">Over by {macros.current[macro] - macros.targets[macro]}</span>
-                        ) : (
-                          <span className="text-gray-400">{macros.remaining[macro]} to go</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Background progress bar */}
-                    <div className="absolute bottom-0 left-0 right-0 h-2">
-                      <div className="w-full bg-gray-800 h-full">
-                        <div
-                          className={`h-full transition-all duration-700 ease-out ${
-                            isComplete ? `bg-green-500` : `bg-gradient-to-r from-${color}-500 to-${color}-400`
-                          }`}
-                          style={{ width: `${Math.min(100, percentage)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Overall Progress Summary */}
-            <div className="mt-6 pt-6 border-t border-gray-700/50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-white font-medium">Overall Progress</h3>
-                  <p className="text-gray-400 text-sm">
-                    {(['calories', 'protein', 'carbs', 'fat'] as const).filter(macro =>
-                      (macros.current[macro] / macros.targets[macro]) >= 1
-                    ).length} of 4 goals completed
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-white">
-                    {Math.round(
-                      (['calories', 'protein', 'carbs', 'fat'] as const).reduce((sum, macro) =>
-                        sum + Math.min(100, (macros.current[macro] / macros.targets[macro]) * 100)
-                      , 0) / 4
-                    )}%
-                  </div>
-                  <p className="text-gray-400 text-xs">Average completion</p>
-                </div>
+          {/* Meal Log Details */}
+          {mealLogs && mealLogs.mealLogs.length > 0 && (
+            <div className="glass rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Today's Meals</h2>
+                <button
+                  onClick={clearAllMeals}
+                  className="text-red-400 hover:text-red-300 text-sm transition-colors"
+                >
+                  Clear All
+                </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* What You've Eaten Today */}
-          <div className="glass rounded-2xl p-8 card-hover">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">What You've Eaten Today</h3>
-              <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-400">
-                  {mealLogs?.count || 0} meals logged
-                </span>
-                {mealLogs && mealLogs.mealLogs.length > 0 && (
-                  <button
-                    onClick={clearAllMeals}
-                    className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500/30 rounded-md hover:border-red-400/50 transition-colors"
-                  >
-                    Clear All
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {mealLogs && mealLogs.mealLogs.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {mealLogs.mealLogs.map((log) => {
-                  const item = log.orderTemplate || log.foodCatalogItem
-                  if (!item) return null
-
-                  const totalCals = Math.round(item.calories * log.servings)
-                  const totalProtein = Math.round(item.protein * log.servings)
+                  const meal = log.orderTemplate || log.foodCatalogItem
+                  if (!meal) return null
 
                   return (
-                    <div key={log.id} className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-white text-sm">
-                            {log.orderTemplate ? log.orderTemplate.title : log.foodCatalogItem?.name}
-                          </h4>
+                    <div key={log.id} className="bg-gray-800/50 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-gray-400 text-sm">{formatTime(log.datetime)}</span>
+                          <h3 className="text-white font-medium">
+                            {log.orderTemplate?.title || log.foodCatalogItem?.name}
+                          </h3>
                           {log.orderTemplate && (
-                            <p className="text-gray-400 text-xs capitalize">
+                            <span className="text-xs bg-blue-900/30 text-blue-400 px-2 py-1 rounded">
                               {log.orderTemplate.restaurantBrand}
-                            </p>
+                            </span>
                           )}
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-400">
-                            {formatTime(log.datetime)}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setEditingMeal(log.id)
-                              setEditServings(log.servings)
-                            }}
-                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteMeal(log.id)}
-                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                          >
-                            Delete
-                          </button>
+                        <div className="mt-2 text-sm text-gray-400 space-x-4">
+                          <span>{Math.round(meal.calories * log.servings)} cal</span>
+                          <span>{Math.round(meal.protein * log.servings)}g protein</span>
+                          <span>{Math.round(meal.carbs * log.servings)}g carbs</span>
+                          <span>{Math.round(meal.fat * log.servings)}g fat</span>
                         </div>
                       </div>
-
-                      {editingMeal === log.id ? (
-                        <div className="mb-3 p-3 bg-gray-700/50 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <label className="text-xs text-gray-300">Servings:</label>
+                      <div className="flex items-center space-x-3">
+                        {editingMeal === log.id ? (
+                          <>
                             <input
                               type="number"
-                              min="0.1"
-                              step="0.1"
+                              min="0.5"
+                              step="0.5"
                               value={editServings}
                               onChange={(e) => setEditServings(parseFloat(e.target.value))}
-                              className="w-20 px-2 py-1 text-xs bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                              className="w-20 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
                             />
                             <button
                               onClick={() => updateMealServings(log.id, editServings)}
-                              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm"
                             >
                               Save
                             </button>
                             <button
                               onClick={() => setEditingMeal(null)}
-                              className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                              className="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-white text-sm"
                             >
                               Cancel
                             </button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex space-x-4">
-                          <span className="text-blue-400">{totalCals} cal</span>
-                          <span className="text-green-400">{totalProtein}g protein</span>
-                        </div>
-                        {log.servings !== 1 && (
-                          <span className="text-gray-500">{log.servings}x servings</span>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingMeal(log.id)
+                                setEditServings(log.servings)
+                              }}
+                              className="text-blue-400 hover:text-blue-300 text-sm"
+                            >
+                              {log.servings}x servings
+                            </button>
+                            <button
+                              onClick={() => deleteMeal(log.id)}
+                              className="text-red-400 hover:text-red-300 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
                   )
                 })}
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="text-gray-600 text-4xl mb-4">🍽️</div>
-                <h4 className="text-lg font-medium text-white mb-2">No meals logged yet</h4>
-                <p className="text-gray-400 text-sm mb-4">Start tracking your nutrition by logging your first meal</p>
-                <Link
-                  href="/restaurants"
-                  className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all text-sm"
-                >
-                  Find Food to Log
-                </Link>
-              </div>
-            )}
-          </div>
-
-          {/* What You Need */}
-          <div className="glass rounded-2xl p-8 card-hover">
-            <h3 className="text-xl font-bold text-white mb-6">What You Still Need</h3>
-
-            {macros && (
-              <div className="space-y-4">
-                {(['calories', 'protein', 'carbs', 'fat'] as const).map((macro) => {
-                  const remaining = macros.remaining[macro]
-                  const isOver = macros.current[macro] > macros.targets[macro]
-                  const colors = {
-                    calories: 'blue',
-                    protein: 'green',
-                    carbs: 'yellow',
-                    fat: 'purple'
-                  }
-                  const color = colors[macro]
-
-                  return (
-                    <div key={macro} className={`bg-${color}-900/20 rounded-lg p-4 border border-${color}-500/30`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-${color}-300 font-medium capitalize`}>{macro}</p>
-                          <p className="text-xs text-gray-400">
-                            {isOver
-                              ? `${Math.abs(remaining)} over target`
-                              : remaining > 0
-                                ? `${remaining}${macro === 'calories' ? '' : 'g'} remaining`
-                                : 'Target reached!'
-                            }
-                          </p>
-                        </div>
-                        <div className={`text-2xl font-bold text-${color}-400`}>
-                          {isOver ? '+' : ''}{isOver ? Math.abs(remaining) : remaining}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <div className="mt-6 pt-6 border-t border-gray-700/50">
-              <h4 className="text-white font-medium mb-3">Next Meal Suggestion</h4>
-              <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/30">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-300 font-medium capitalize">
-                      {getNextMealSuggestion().meal}
-                    </p>
-                    <p className="text-xs text-purple-400">
-                      Suggested time: {getNextMealSuggestion().time}
-                    </p>
-                  </div>
-                  <Link
-                    href="/restaurants"
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
-                  >
-                    Find Food
-                  </Link>
-                </div>
-              </div>
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Quick Actions */}
-        <div className="glass rounded-2xl p-8 mt-8 card-hover">
-          <h3 className="text-xl font-bold text-white mb-6">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              href="/restaurants"
-              className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all text-center group"
-            >
-              <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">🍽️</div>
-              <h4 className="font-semibold mb-2">Find Restaurants</h4>
-              <p className="text-blue-100 text-sm">Discover nearby options</p>
-            </Link>
-
-            <Link
-              href="/meals"
-              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all text-center group"
-            >
-              <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">🥗</div>
-              <h4 className="font-semibold mb-2">Log Home Meal</h4>
-              <p className="text-green-100 text-sm">Track what you cooked</p>
-            </Link>
-
-            <Link
-              href="/profile"
-              className="bg-gradient-to-r from-purple-600 to-purple-500 text-white p-6 rounded-xl hover:from-purple-700 hover:to-purple-600 transition-all text-center group"
-            >
-              <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">⚙️</div>
-              <h4 className="font-semibold mb-2">Update Goals</h4>
-              <p className="text-purple-100 text-sm">Adjust your targets</p>
-            </Link>
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   )
 }

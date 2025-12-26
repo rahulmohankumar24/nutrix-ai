@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { cache, generateAIMealCacheKey } from '@/lib/cache'
 import { parseAIResponse } from '@/lib/ai-utils'
+import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -38,11 +39,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, useAI = true, userId } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, useAI = true, userId, userSchedule } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
     }
+
+    // Calculate realistic meal target based on time of day and remaining meals
+    const mealDistribution = calculateRealisticMealTarget(
+      timeOfDay,
+      {
+        calories: userTargets.remaining?.calories || 0,
+        protein: userTargets.remaining?.protein || 0,
+        carbs: userTargets.remaining?.carbs || 0,
+        fat: userTargets.remaining?.fat || 0
+      },
+      userSchedule
+    )
 
     // Check cache first for AI-enhanced results
     if (useAI && userId) {
@@ -95,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     // AI analysis of top candidates
-    const remainingMacros = `${userTargets.remaining.calories}cal, ${userTargets.remaining.protein}g protein, ${userTargets.remaining.carbs}g carbs, ${userTargets.remaining.fat}g fat`
+    const remainingMacros = `${userTargets.remaining.calories}cal total remaining, but THIS MEAL should target ~${mealDistribution.targetCalories}cal, ${mealDistribution.targetProtein}g protein (${mealDistribution.reasoning})`
 
     const mealsList = scoredMeals.map((meal, i) =>
       `${i + 1}. ${meal.title} (${meal.calories}cal, ${meal.protein}p, ${meal.carbs}cb, ${meal.fat}f)`
@@ -103,24 +116,25 @@ export async function POST(request: NextRequest) {
 
     const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
 
-${restaurantBrand} ${timeOfDay} meal analysis. User needs: ${remainingMacros}. Goal: ${userProfile?.goal || 'balance'}.
+${restaurantBrand} ${mealDistribution.mealType} meal analysis. User has ${userTargets.remaining.calories}cal remaining for the day, but THIS meal should target ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein since they have ${mealDistribution.mealsRemaining} meals left today. Goal: ${userProfile?.goal || 'balance'}.
 
 CRITICAL COACHING INSTRUCTIONS:
-- If meals are too low in calories/protein, AGGRESSIVELY suggest add-ons and modifications
-- Cost is NOT a concern - prioritize hitting nutrition goals
-- For ${restaurantBrand}: suggest "double protein", "extra chicken", "add guacamole", "add cheese", "extra portions"
-- Don't just approve low-calorie meals - enhance them with high-calorie, high-protein additions
+- TARGET: ~${mealDistribution.targetCalories}cal and ~${mealDistribution.targetProtein}g protein for THIS meal
+- DO NOT recommend meals that use up all remaining daily calories (${userTargets.remaining.calories}cal) - that's unrealistic for one meal
+- If meals are too low, suggest add-ons to reach the MEAL target (~${mealDistribution.targetCalories}cal), not the daily total
+- For ${restaurantBrand}: suggest "double protein", "extra chicken", "add guacamole", "add cheese" to hit THIS MEAL'S target
+- Realistic single meal limit: 1200 calories max
 
 PRE-FILTERED OPTIONS:
 ${mealsList}
 
-Analyze & return JSON with ENHANCED meal recommendations:
+Analyze & return JSON with ENHANCED meal recommendations targeting ${mealDistribution.targetCalories}cal for THIS meal:
 {
   "approvedMeals": [
-    {"mealIndex": 0, "score": 85, "reasoning": "Base meal good, enhanced with double protein", "customizations": ["ADD DOUBLE PROTEIN +360cal +70g protein", "ADD guacamole +230cal", "ADD cheese +100cal"], "macroImpact": "Now hits 80% of protein target with modifications"}
+    {"mealIndex": 0, "score": 85, "reasoning": "Good for ${mealDistribution.mealType}, hits ~${mealDistribution.targetCalories}cal target", "customizations": ["ADD DOUBLE PROTEIN +360cal +70g protein"], "macroImpact": "Perfect for this meal, leaves room for ${mealDistribution.mealsRemaining - 1} more meals today"}
   ],
-  "overallAdvice": "Don't hesitate to add extra protein and high-calorie items to hit your targets",
-  "restaurantTips": "Ask for double protein, extra portions, and calorie-dense add-ons like guac, cheese, nuts. Cost shouldn't limit your nutrition goals."
+  "overallAdvice": "This ${mealDistribution.mealType} should be ~${mealDistribution.targetCalories}cal. You have ${mealDistribution.mealsRemaining} meals remaining today.",
+  "restaurantTips": "Build a ${mealDistribution.targetCalories}cal meal - don't try to eat all ${userTargets.remaining.calories}cal at once!"
 }`
 
     const completion = await openai.chat.completions.create({

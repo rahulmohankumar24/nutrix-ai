@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { cache, generateAIMealCacheKey } from '@/lib/cache'
 import { parseAIResponse } from '@/lib/ai-utils'
+import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId, userSchedule } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
@@ -27,6 +28,18 @@ export async function POST(request: NextRequest) {
         received: Object.keys(userTargets || {})
       }, { status: 400 })
     }
+
+    // Calculate realistic meal target based on time of day and remaining meals
+    const mealDistribution = calculateRealisticMealTarget(
+      timeOfDay,
+      {
+        calories: userTargets.remaining?.calories || 0,
+        protein: userTargets.remaining?.protein || 0,
+        carbs: userTargets.remaining?.carbs || 0,
+        fat: userTargets.remaining?.fat || 0
+      },
+      userSchedule
+    )
 
     // Check cache first
     const cacheKey = generateAIMealCacheKey(
@@ -98,43 +111,43 @@ export async function POST(request: NextRequest) {
     // More efficient, focused prompt for faster AI response
     const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
 
-Build ${restaurantBrand} meals for ${timeOfDay}. User needs: ${remainingMacros.calories}cal, ${remainingMacros.protein}g protein.
+Build ${restaurantBrand} meals for ${mealDistribution.mealType}. User has ${remainingMacros.calories}cal remaining TODAY, but THIS MEAL should target ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein since they have ${mealDistribution.mealsRemaining} meals left today.
 
 CRITICAL INSTRUCTIONS:
-- ALWAYS try to hit the user's calorie target (${remainingMacros.calories}cal) - don't be conservative!
-- If a basic meal is too low in calories/protein, ADD MORE INGREDIENTS and DOUBLE portions
-- Cost is NOT a factor - maximize nutrition goals over price
-- Use multiple proteins, extra portions, add-ons like guacamole, nuts, cheese for calories/protein
-- For ${restaurantBrand.toLowerCase()}: suggest "double protein", "extra chicken", "add guacamole", "add cheese", etc.
+- TARGET: ~${mealDistribution.targetCalories}cal and ~${mealDistribution.targetProtein}g protein for THIS MEAL
+- DO NOT build a meal with all ${remainingMacros.calories}cal - that's unrealistic for one meal!
+- Realistic single meal limit: 1200 calories maximum
+- If a basic meal is too low, ADD ingredients to reach THIS MEAL'S target (~${mealDistribution.targetCalories}cal)
+- For ${restaurantBrand.toLowerCase()}: suggest "double protein", "extra chicken", "add guacamole", "add cheese" to hit THIS MEAL'S target
 
 INGREDIENTS:
 ${Object.entries(categorizedIngredients).map(([cat, items]) =>
   `${cat.toUpperCase()}: ${(items as any[]).map(i => `${i.name}(${i.calories}c,${i.protein}p,${i.carbs}cb,${i.fat}f)`).join(', ')}`
 ).join('\n')}
 
-Return this exact JSON structure with 3 meals that ACTUALLY hit the calorie target:
+Return this exact JSON structure with 3 meals targeting ~${mealDistribution.targetCalories}cal for THIS meal:
 {
   "customMeals": [
     {
       "id": "meal_1",
-      "title": "High-Protein Power Bowl",
-      "description": "Maximized for calorie and protein targets",
-      "totalCalories": ${Math.round(remainingMacros.calories * 0.4)},
-      "totalProtein": ${Math.round(remainingMacros.protein * 0.4)},
-      "totalCarbs": 35,
-      "totalFat": 25,
+      "title": "Balanced ${mealDistribution.mealType} Bowl",
+      "description": "Perfect portion for this ${mealDistribution.mealType}",
+      "totalCalories": ${Math.min(mealDistribution.targetCalories, 1200)},
+      "totalProtein": ${mealDistribution.targetProtein},
+      "totalCarbs": ${mealDistribution.targetCarbs},
+      "totalFat": ${mealDistribution.targetFat},
       "macroFitScore": 95,
       "ingredients": [
-        {"name": "Double Chicken", "id": "ing_1", "calories": 360, "protein": 70, "carbs": 0, "fat": 14, "category": "protein"},
+        {"name": "Chicken", "id": "ing_1", "calories": 180, "protein": 35, "carbs": 0, "fat": 7, "category": "protein"},
         {"name": "Brown Rice", "id": "ing_2", "calories": 220, "protein": 5, "carbs": 45, "fat": 2, "category": "base"},
-        {"name": "Guacamole", "id": "ing_3", "calories": 230, "protein": 3, "carbs": 8, "fat": 22, "category": "sauces"}
+        {"name": "Vegetables", "id": "ing_3", "calories": 50, "protein": 2, "carbs": 10, "fat": 0, "category": "vegetables"}
       ],
-      "reasoning": "Double protein and calorie-dense add-ons to hit targets",
-      "buildInstructions": "Order: base + DOUBLE protein + all veggies + guacamole + cheese"
+      "reasoning": "Right size for ${mealDistribution.mealType} with ${mealDistribution.mealsRemaining} meals remaining today",
+      "buildInstructions": "Order: base + protein + veggies + sauce"
     }
   ],
-  "overallAdvice": "Don't hesitate to add extra protein and calorie-dense items",
-  "restaurantTips": "Ask for double protein, extra portions, and high-calorie add-ons like guacamole, cheese, nuts"
+  "overallAdvice": "This ${mealDistribution.mealType} should be ~${mealDistribution.targetCalories}cal. You have ${mealDistribution.mealsRemaining} meals left today.",
+  "restaurantTips": "Build a ${mealDistribution.targetCalories}cal meal - save calories for your remaining meals!"
 }`
 
     const completion = await openai.chat.completions.create({

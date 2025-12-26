@@ -55,6 +55,7 @@ export default function RestaurantPage() {
   const [meals, setMeals] = useState<MealTemplate[]>([])
   const [userTargets, setUserTargets] = useState<DailyTargets | null>(null)
   const [macroProgress, setMacroProgress] = useState<any>(null)
+  const [userSchedule, setUserSchedule] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
   const [coachingData, setCoachingData] = useState<any>(null)
@@ -122,6 +123,19 @@ export default function RestaurantPage() {
         setUserTargets(data.remaining)
         setMacroProgress(data) // Store complete macro progress for AI calls
       }
+
+      // Also load user profile for schedule information
+      const profileResponse = await fetch(`/api/profile?userId=${user?.id}`)
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        if (profileData.profile) {
+          setUserSchedule({
+            wakeTime: profileData.profile.wakeTime,
+            lunchTime: profileData.profile.lunchTime,
+            dinnerTime: profileData.profile.dinnerTime
+          })
+        }
+      }
     } catch (error) {
       console.error('Failed to load user targets:', error)
     } finally {
@@ -171,7 +185,8 @@ export default function RestaurantPage() {
               liftingDays: 4,
               stepsLevel: 'med'
             },
-            useEnhancedAI: true // Enable AI-powered categorization
+            useEnhancedAI: true, // Enable AI-powered categorization
+            userSchedule
           })
         })
 
@@ -214,7 +229,8 @@ export default function RestaurantPage() {
               liftingDays: 4,
               stepsLevel: 'med'
             },
-            useAI: true // Enable AI analysis with algorithmic pre-filtering
+            useAI: true, // Enable AI analysis with algorithmic pre-filtering
+            userSchedule
           })
         })
 
