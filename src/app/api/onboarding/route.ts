@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const targets = calculateTargets(
       totalHeightIn,
       validatedData.weightLb,
-      validatedData.age,
+      validatedData.age || 27,
       validatedData.sex,
       validatedData.goal,
       validatedData.liftingDays,

@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest) {
       const newTargets = calculateTargets(
         updatedProfile.heightIn,
         updatedProfile.weightLb,
-        updatedProfile.age,
+        updatedProfile.age || 27,
         updatedProfile.sex,
         updatedProfile.goal,
         updatedProfile.liftingDays,

@@ -3,7 +3,7 @@ import { DailyTargets } from './types'
 export function calculateTargets(
   heightIn: number,
   weightLb: number,
-  age: number = 27,
+  age: number | undefined = 27,
   sex: 'male' | 'female' | 'other',
   goal: 'recomp' | 'lean_bulk' | 'cut',
   liftingDays: number,
@@ -14,11 +14,12 @@ export function calculateTargets(
   const heightCm = heightIn * 2.54
 
   // Mifflin-St Jeor BMR calculation
+  const actualAge = age || 27 // Default age if undefined
   let bmr: number
   if (sex === 'male') {
-    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * actualAge + 5
   } else {
-    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * actualAge - 161
   }
 
   // Activity multiplier

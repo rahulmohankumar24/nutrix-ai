@@ -79,7 +79,7 @@ export default function ProfilePage() {
           const calculatedTargets = calculateTargets(
             profileData.heightIn,
             profileData.weightLb,
-            profileData.age,
+            profileData.age || 27, // Default to 27 if age is null
             profileData.sex,
             profileData.goal,
             profileData.liftingDays,
