@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  profile      Profile?
+  preferences  Preferences?
+  dailyTargets DailyTarget[]
+  mealLogs     MealLog[]
+  reminders    Reminder[]
+
+  @@map("users")
+}
+
+model Profile {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  sex           String
+  age           Int?
+  heightIn      Int
+  weightLb      Int
+  goal          String  // recomp | lean_bulk | cut
+  liftingDays   Int
+  stepsLevel    String  // low | med | high
+  constraints   String  @default("[]") // JSON array of dietary constraints
+  dislikes      String  @default("")
+  wakeTime      String
+  lunchTime     String
+  dinnerTime    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Preferences {
+  id              String @id @default(cuid())
+  userId          String @unique
+  eatingPattern   String // mostly_eat_out | mostly_home | mixed
+  dislikesDetected String @default("[]") // JSON array
+  preferredCuisines String @default("[]") // JSON array
+  timeToCook      String // none | 15min | 30min+
+  budget          String? // low | medium | high
+  coachingNotes   String @default("")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("preferences")
+}
+
+model DailyTarget {
+  id       String   @id @default(cuid())
+  userId   String
+  date     DateTime
+  calories Int
+  protein  Int
+  carbs    Int
+  fat      Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_targets")
+}
+
+model FoodCatalogItem {
+  id              String @id @default(cuid())
+  name            String
+  source          String // home | grocery | restaurant
+  tags            String @default("[]") // JSON array
+  calories        Int
+  protein         Int
+  carbs           Int
+  fat             Int
+  ingredientsText String?
+
+  mealLogs MealLog[]
+
+  @@map("food_catalog_items")
+}
+
+model OrderTemplate {
+  id                        String @id @default(cuid())
+  restaurantBrand           String
+  title                     String
+  description               String
+  calories                  Int
+  protein                   Int
+  carbs                     Int
+  fat                       Int
+  tags                      String @default("[]") // JSON array
+  keywordsForDeliverySearch String
+
+  mealLogs MealLog[]
+
+  @@map("order_templates")
+}
+
+model MealLog {
+  id                 String   @id @default(cuid())
+  userId             String
+  datetime           DateTime @default(now())
+  foodCatalogItemId  String?
+  orderTemplateId    String?
+  servings           Float    @default(1.0)
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodCatalogItem  FoodCatalogItem?  @relation(fields: [foodCatalogItemId], references: [id])
+  orderTemplate    OrderTemplate?    @relation(fields: [orderTemplateId], references: [id])
+
+  @@map("meal_logs")
+}
+
+model Reminder {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  timeOfDay String  // HH:MM format
+  enabled   Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}
