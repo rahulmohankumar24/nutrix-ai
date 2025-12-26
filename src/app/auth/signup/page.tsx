@@ -25,7 +25,7 @@ export default function SignUpPage() {
             routing="path"
             path="/auth/signup"
             signInUrl="/auth/signin"
-            afterSignUpUrl="/onboarding"
+            forceRedirectUrl="/onboarding"
           />
         </div>
       </div>

@@ -58,11 +58,24 @@ export default function DashboardPage() {
     }
 
     if (user?.id) {
-      loadDashboardData(user.id)
+      syncAndLoadData(user.id)
     }
 
     setLoading(false)
   }, [user, isLoaded, isSignedIn, router])
+
+  const syncAndLoadData = async (userId: string) => {
+    try {
+      // First, ensure user exists in database
+      await fetch('/api/sync-user', { method: 'POST' })
+
+      // Then load dashboard data
+      await loadDashboardData(userId)
+    } catch (error) {
+      console.error('Failed to sync user:', error)
+      setLoading(false)
+    }
+  }
 
   const loadDashboardData = async (userId: string) => {
     try {

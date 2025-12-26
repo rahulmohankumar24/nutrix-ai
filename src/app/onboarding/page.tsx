@@ -37,9 +37,22 @@ export default function OnboardingPage() {
 
     // Check if user already has a profile
     if (user?.id) {
-      checkExistingProfile()
+      syncAndCheckProfile()
     }
   }, [isLoaded, isSignedIn, user?.id, router])
+
+  const syncAndCheckProfile = async () => {
+    try {
+      // First, ensure user exists in database
+      await fetch('/api/sync-user', { method: 'POST' })
+
+      // Then check for existing profile
+      await checkExistingProfile()
+    } catch (error) {
+      console.error('Failed to sync user:', error)
+      setCheckingProfile(false)
+    }
+  }
 
   const checkExistingProfile = async () => {
     try {
