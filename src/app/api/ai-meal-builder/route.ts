@@ -79,33 +79,41 @@ export async function POST(request: NextRequest) {
 
 Build ${restaurantBrand} meals for ${timeOfDay}. User needs: ${remainingMacros.calories}cal, ${remainingMacros.protein}g protein.
 
+CRITICAL INSTRUCTIONS:
+- ALWAYS try to hit the user's calorie target (${remainingMacros.calories}cal) - don't be conservative!
+- If a basic meal is too low in calories/protein, ADD MORE INGREDIENTS and DOUBLE portions
+- Cost is NOT a factor - maximize nutrition goals over price
+- Use multiple proteins, extra portions, add-ons like guacamole, nuts, cheese for calories/protein
+- For ${restaurantBrand.toLowerCase()}: suggest "double protein", "extra chicken", "add guacamole", "add cheese", etc.
+
 INGREDIENTS:
 ${Object.entries(categorizedIngredients).map(([cat, items]) =>
   `${cat.toUpperCase()}: ${(items as any[]).map(i => `${i.name}(${i.calories}c,${i.protein}p,${i.carbs}cb,${i.fat}f)`).join(', ')}`
 ).join('\n')}
 
-Return this exact JSON structure with 3 meals:
+Return this exact JSON structure with 3 meals that ACTUALLY hit the calorie target:
 {
   "customMeals": [
     {
       "id": "meal_1",
-      "title": "Power Bowl",
-      "description": "Brief combo description",
-      "totalCalories": 485,
-      "totalProtein": 42,
+      "title": "High-Protein Power Bowl",
+      "description": "Maximized for calorie and protein targets",
+      "totalCalories": ${Math.round(remainingMacros.calories * 0.4)},
+      "totalProtein": ${Math.round(remainingMacros.protein * 0.4)},
       "totalCarbs": 35,
-      "totalFat": 18,
-      "macroFitScore": 92,
+      "totalFat": 25,
+      "macroFitScore": 95,
       "ingredients": [
-        {"name": "Grilled Chicken", "id": "ing_1", "calories": 180, "protein": 35, "carbs": 0, "fat": 4, "category": "protein"},
-        {"name": "Brown Rice", "id": "ing_2", "calories": 220, "protein": 5, "carbs": 45, "fat": 2, "category": "base"}
+        {"name": "Double Chicken", "id": "ing_1", "calories": 360, "protein": 70, "carbs": 0, "fat": 14, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 220, "protein": 5, "carbs": 45, "fat": 2, "category": "base"},
+        {"name": "Guacamole", "id": "ing_3", "calories": 230, "protein": 3, "carbs": 8, "fat": 22, "category": "sauces"}
       ],
-      "reasoning": "High protein match",
-      "buildInstructions": "Order: base + protein + veggies + sauce"
+      "reasoning": "Double protein and calorie-dense add-ons to hit targets",
+      "buildInstructions": "Order: base + DOUBLE protein + all veggies + guacamole + cheese"
     }
   ],
-  "overallAdvice": "Quick nutrition tip",
-  "restaurantTips": "Ordering tip"
+  "overallAdvice": "Don't hesitate to add extra protein and calorie-dense items",
+  "restaurantTips": "Ask for double protein, extra portions, and high-calorie add-ons like guacamole, cheese, nuts"
 }`
 
     const completion = await openai.chat.completions.create({

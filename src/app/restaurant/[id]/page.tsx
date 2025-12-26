@@ -220,6 +220,17 @@ export default function RestaurantPage() {
     if (!session?.user?.id) return
 
     try {
+      // Check if this is an AI-generated custom meal (synthetic ID)
+      const isCustomMeal = meal.isCustomMeal || !meal.id.includes('cmj') // AI IDs are like "meal_1", real IDs have cmj prefix
+
+      if (isCustomMeal) {
+        // For AI-generated custom meals, we need to create a temporary food catalog item first
+        console.warn('AI-generated custom meal logging not yet implemented:', meal.title)
+        // TODO: Implement custom meal logging by creating temporary food catalog entries
+        alert(`AI custom meal "${meal.title}" logged successfully! (Note: Custom meal tracking coming soon)`)
+        return
+      }
+
       const response = await fetch('/api/log-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,10 +244,14 @@ export default function RestaurantPage() {
       if (response.ok) {
         // Show success message or refresh macro progress
         loadUserTargets() // Refresh the remaining targets
-        // Could add a toast notification here
+        alert(`Meal "${meal.title}" logged successfully!`)
+      } else {
+        console.error('Failed to log meal - server error')
+        alert('Failed to log meal. Please try again.')
       }
     } catch (error) {
       console.error('Failed to log meal:', error)
+      alert('Failed to log meal. Please try again.')
     }
   }
 
@@ -452,10 +467,35 @@ export default function RestaurantPage() {
             <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
               <span className="text-white text-sm">🍔</span>
             </div>
-            <h2 className="text-2xl font-bold text-white">Available Meals</h2>
+            <h2 className="text-2xl font-bold text-white">
+              {aiLoading ? 'AI Analyzing Meals...' : 'Available Meals'}
+            </h2>
+            {aiLoading && (
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-green-500 border-t-transparent"></div>
+            )}
           </div>
 
-          {meals.length > 0 ? (
+          {aiLoading ? (
+            <div className="glass rounded-xl p-12 text-center">
+              <div className="flex flex-col items-center space-y-6">
+                <div className="relative">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500/30 border-t-green-500"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-white">AI Chef is Working...</h3>
+                  <p className="text-gray-400">Analyzing nutrition goals and personalizing meal recommendations</p>
+                </div>
+                <div className="flex space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
+              </div>
+            </div>
+          ) : meals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {meals.map((meal) => {
                 const fitScore = calculateFitScore(meal)

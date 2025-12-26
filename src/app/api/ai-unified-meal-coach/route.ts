@@ -79,16 +79,22 @@ export async function POST(request: NextRequest) {
 
     const prompt = `${restaurantBrand} ${timeOfDay} meal analysis. User needs: ${remainingMacros}. Goal: ${userProfile?.goal || 'balance'}.
 
+CRITICAL COACHING INSTRUCTIONS:
+- If meals are too low in calories/protein, AGGRESSIVELY suggest add-ons and modifications
+- Cost is NOT a concern - prioritize hitting nutrition goals
+- For ${restaurantBrand}: suggest "double protein", "extra chicken", "add guacamole", "add cheese", "extra portions"
+- Don't just approve low-calorie meals - enhance them with high-calorie, high-protein additions
+
 PRE-FILTERED OPTIONS:
 ${mealsList}
 
-Analyze & return JSON:
+Analyze & return JSON with ENHANCED meal recommendations:
 {
   "approvedMeals": [
-    {"mealIndex": 0, "score": 85, "reasoning": "Perfect protein match", "customizations": ["add avocado for healthy fats"], "macroImpact": "45% of protein target"}
+    {"mealIndex": 0, "score": 85, "reasoning": "Base meal good, enhanced with double protein", "customizations": ["ADD DOUBLE PROTEIN +360cal +70g protein", "ADD guacamole +230cal", "ADD cheese +100cal"], "macroImpact": "Now hits 80% of protein target with modifications"}
   ],
-  "overallAdvice": "Focus on protein to hit targets",
-  "restaurantTips": "Ask for modifications"
+  "overallAdvice": "Don't hesitate to add extra protein and high-calorie items to hit your targets",
+  "restaurantTips": "Ask for double protein, extra portions, and calorie-dense add-ons like guac, cheese, nuts. Cost shouldn't limit your nutrition goals."
 }`
 
     const completion = await openai.chat.completions.create({

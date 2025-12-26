@@ -16,6 +16,8 @@ export default function RestaurantsPage() {
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
 
   useEffect(() => {
+    console.log('RestaurantsPage useEffect - status:', status, 'session:', !!session?.user?.id)
+
     if (status === 'loading') return
 
     if (status === 'unauthenticated') {
@@ -27,6 +29,7 @@ export default function RestaurantsPage() {
       // Check for stored location
       const storedLat = localStorage.getItem('userLat')
       const storedLng = localStorage.getItem('userLng')
+      console.log('Stored location:', { lat: storedLat, lng: storedLng })
 
       if (storedLat && storedLng) {
         const coords = { lat: parseFloat(storedLat), lng: parseFloat(storedLng) }
@@ -34,11 +37,13 @@ export default function RestaurantsPage() {
         setLocationPermission('granted')
         loadNearbyRestaurants(coords)
       } else {
+        console.log('No stored location, requesting location')
         requestLocation()
       }
+    } else {
+      console.log('No session user ID, setting loading false')
+      setLoading(false)
     }
-
-    setLoading(false)
   }, [session, status, router])
 
   const requestLocation = () => {
@@ -72,6 +77,7 @@ export default function RestaurantsPage() {
   }
 
   const loadNearbyRestaurants = async (coords: {lat: number, lng: number}) => {
+    console.log('Loading restaurants for coordinates:', coords)
     try {
       const response = await fetch('/api/nearby', {
         method: 'POST',
@@ -85,13 +91,15 @@ export default function RestaurantsPage() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log('Restaurant data received:', data.restaurants?.length || 0, 'restaurants')
 
         const known = data.restaurants?.filter((r: Restaurant) => r.isKnown) || []
         const unknown = data.restaurants?.filter((r: Restaurant) => !r.isKnown) || []
 
         setKnownRestaurants(known)
         setUnknownRestaurants(unknown)
-
+      } else {
+        console.error('API response not ok:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Failed to load restaurants:', error)
