@@ -113,7 +113,13 @@ Requirements: Use exact ingredient names, sum macros correctly, realistic portio
     }
 
     try {
-      const parsedResponse = JSON.parse(aiResponse)
+      // Clean the AI response - remove markdown code blocks if present
+      const cleanedResponse = aiResponse
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*$/g, '')
+        .trim()
+
+      const parsedResponse = JSON.parse(cleanedResponse)
 
       return NextResponse.json({
         success: true,

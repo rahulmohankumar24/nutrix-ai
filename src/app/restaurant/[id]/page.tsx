@@ -68,12 +68,12 @@ export default function RestaurantPage() {
     }
   }, [params.id, userTargets])
 
-  // Automatically generate AI insights when meals and user targets are loaded
+  // Automatically generate AI insights when restaurant and user targets are loaded
   useEffect(() => {
-    if (meals.length > 0 && userTargets && !aiLoading) {
+    if (restaurant?.name && userTargets && !aiLoading) {
       generateAIInsights()
     }
-  }, [meals, userTargets])
+  }, [restaurant, userTargets])
 
   const getCurrentTimeOfDay = () => {
     const hour = new Date().getHours()
@@ -99,26 +99,8 @@ export default function RestaurantPage() {
         setRestaurant(restaurantInfo)
       }
 
-      // Load meals for this restaurant with smart filtering
-      if (restaurantInfo?.name && userTargets) {
-        const timeOfDay = getCurrentTimeOfDay()
-        const userTargetsString = encodeURIComponent(JSON.stringify(userTargets))
-
-        const mealsResponse = await fetch(
-          `/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurantInfo.name)}&userTargets=${userTargetsString}&timeOfDay=${timeOfDay}`
-        )
-        if (mealsResponse.ok) {
-          const mealsData = await mealsResponse.json()
-          setMeals(mealsData.meals || [])
-        }
-      } else if (restaurantInfo?.name) {
-        // Fallback without filtering if no user targets
-        const mealsResponse = await fetch(`/api/restaurant-meals?restaurantBrand=${encodeURIComponent(restaurantInfo.name)}`)
-        if (mealsResponse.ok) {
-          const mealsData = await mealsResponse.json()
-          setMeals(mealsData.meals || [])
-        }
-      }
+      // Initial load will be handled by generateAIInsights which provides smart filtering
+      // Don't load raw meals here to avoid showing unfiltered results
     } catch (error) {
       console.error('Failed to load restaurant data:', error)
     }
@@ -212,9 +194,14 @@ export default function RestaurantPage() {
         if (response.ok) {
           const data = await response.json()
           setCoachingData(data.coaching)
-          // Replace meals with AI-analyzed meals (either approved or scored)
+          // Replace meals with AI-analyzed meals (only the approved ones)
           if (data.meals) {
-            setMeals(data.meals)
+            const aiApprovedMeals = data.meals.map((meal: any) => ({
+              ...meal,
+              aiApproved: true,
+              aiReasoning: meal.aiReasoning || meal.reasoning || 'AI recommended for your nutrition goals'
+            }))
+            setMeals(aiApprovedMeals)
           }
           setShowCoaching(true)
         }

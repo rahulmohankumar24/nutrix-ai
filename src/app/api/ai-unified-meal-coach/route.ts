@@ -104,7 +104,13 @@ Analyze & return JSON:
     }
 
     try {
-      const parsedResponse = JSON.parse(aiResponse)
+      // Clean the AI response - remove markdown code blocks if present
+      const cleanedResponse = aiResponse
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*$/g, '')
+        .trim()
+
+      const parsedResponse = JSON.parse(cleanedResponse)
 
       // Enhance approved meals with AI insights
       const approvedMeals = parsedResponse.approvedMeals?.map((approved: any) => {

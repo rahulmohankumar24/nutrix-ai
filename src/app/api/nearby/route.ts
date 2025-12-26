@@ -3,6 +3,21 @@ import { calculateDistance } from '@/lib/calculations'
 import { isKnownChain } from '@/lib/chains'
 import { Restaurant } from '@/lib/types'
 
+function consolidateRestaurants(restaurants: Restaurant[]): Restaurant[] {
+  const restaurantMap = new Map<string, Restaurant>()
+
+  restaurants.forEach(restaurant => {
+    const normalizedName = restaurant.name.toLowerCase().trim()
+    const existing = restaurantMap.get(normalizedName)
+
+    if (!existing || restaurant.distance < existing.distance) {
+      restaurantMap.set(normalizedName, restaurant)
+    }
+  })
+
+  return Array.from(restaurantMap.values()).sort((a, b) => a.distance - b.distance)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -79,12 +94,15 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    // Sort by distance and limit results
+    // Sort by distance first
     restaurants.sort((a, b) => a.distance - b.distance)
 
+    // Consolidate duplicate restaurant names, keeping only the closest location
+    const consolidatedRestaurants = consolidateRestaurants(restaurants)
+
     // Split into known and unknown chains
-    const knownChains = restaurants.filter(r => r.isKnown).slice(0, 10)
-    const unknownRestaurants = restaurants.filter(r => !r.isKnown).slice(0, 15)
+    const knownChains = consolidatedRestaurants.filter(r => r.isKnown).slice(0, 10)
+    const unknownRestaurants = consolidatedRestaurants.filter(r => !r.isKnown).slice(0, 15)
 
     return NextResponse.json({
       restaurants: [...knownChains, ...unknownRestaurants],
