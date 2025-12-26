@@ -54,6 +54,13 @@ export default function RestaurantPage() {
     }
   }, [params.id, session?.user?.id])
 
+  // Automatically generate AI insights when meals and user targets are loaded
+  useEffect(() => {
+    if (meals.length > 0 && userTargets && !aiLoading) {
+      generateAIInsights()
+    }
+  }, [meals, userTargets])
+
   const loadRestaurantData = async () => {
     try {
       // Get restaurant info from localStorage (passed from dashboard)
@@ -299,14 +306,6 @@ export default function RestaurantPage() {
                 >
                   <span>🧠</span>
                   <span>{aiLoading ? 'Analyzing...' : 'AI Coach'}</span>
-                </button>
-                <button
-                  onClick={generateAIInsights}
-                  disabled={aiLoading}
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 transition-all flex items-center space-x-2"
-                >
-                  <span>🤖</span>
-                  <span>{aiLoading ? 'Analyzing...' : 'Meal Insights'}</span>
                 </button>
                 <button
                   onClick={expandMealOptions}
