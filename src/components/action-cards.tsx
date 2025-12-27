@@ -1,5 +1,5 @@
 "use client"
-import { ArrowRight, Star } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 
@@ -39,20 +39,29 @@ export function FoodSuggestionsCard({ onRestaurantClick }: FoodSuggestionsCardPr
       // Get location from localStorage or use default
       const storedLat = localStorage.getItem('userLat')
       const storedLng = localStorage.getItem('userLng')
+      const lastLocationUpdate = localStorage.getItem('locationUpdatedAt')
 
       let lat = storedLat ? parseFloat(storedLat) : 37.7749 // Default SF
       let lng = storedLng ? parseFloat(storedLng) : -122.4194
 
-      // Try to get current location if not stored
-      if (!storedLat || !storedLng) {
+      // Refresh location if not stored OR if it's older than 30 minutes
+      const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000)
+      const shouldRefreshLocation = !storedLat || !storedLng || !lastLocationUpdate || parseInt(lastLocationUpdate) < thirtyMinutesAgo
+
+      if (shouldRefreshLocation) {
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject)
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0 // Don't use cached position
+            })
           })
           lat = position.coords.latitude
           lng = position.coords.longitude
           localStorage.setItem('userLat', lat.toString())
           localStorage.setItem('userLng', lng.toString())
+          localStorage.setItem('locationUpdatedAt', Date.now().toString())
         } catch (err) {
           console.log('Using default location')
         }
@@ -61,7 +70,12 @@ export function FoodSuggestionsCard({ onRestaurantClick }: FoodSuggestionsCardPr
       const response = await fetch('/api/nearby', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat, lng, limit: 50 })
+        body: JSON.stringify({
+          lat,
+          lng,
+          radiusMeters: 3218, // 2 miles in meters for dashboard preview
+          limit: 50
+        })
       })
 
       if (!response.ok) throw new Error('Failed to fetch restaurants')
@@ -94,11 +108,24 @@ export function FoodSuggestionsCard({ onRestaurantClick }: FoodSuggestionsCardPr
 
   const getGoalReason = (name: string, cuisine?: string) => {
     const nameLower = name.toLowerCase()
-    if (nameLower.includes('chipotle') || nameLower.includes('cava')) return 'High protein bowls'
-    if (nameLower.includes('sweetgreen') || nameLower.includes('salad')) return 'Fresh salads'
-    if (cuisine?.toLowerCase().includes('mediterranean')) return 'Lean proteins'
-    if (cuisine?.toLowerCase().includes('asian')) return 'Balanced nutrition'
-    return 'Healthy options'
+    const cuisineLower = (cuisine || '').toLowerCase()
+
+    // Chain restaurants
+    if (nameLower.includes('chipotle') || nameLower.includes('qdoba')) return 'Customizable bowls for protein targets'
+    if (nameLower.includes('cava') || nameLower.includes('roti')) return 'Mediterranean bowls with lean proteins'
+    if (nameLower.includes('sweetgreen') || nameLower.includes('salad')) return 'Fresh salads for high-protein meals'
+    if (nameLower.includes('subway') || nameLower.includes('jersey mike')) return 'Customizable subs with lean protein'
+    if (nameLower.includes('panera')) return 'Balanced meals for macro tracking'
+    if (nameLower.includes('poke') || nameLower.includes('poké')) return 'Protein-rich fish bowls'
+
+    // Cuisine-based
+    if (cuisineLower.includes('mediterranean') || cuisineLower.includes('greek')) return 'Lean proteins and healthy fats'
+    if (cuisineLower.includes('mexican')) return 'Protein-packed customizable options'
+    if (cuisineLower.includes('asian') || cuisineLower.includes('chinese')) return 'Balanced proteins and vegetables'
+    if (cuisineLower.includes('japanese') || cuisineLower.includes('sushi')) return 'High-protein sushi options'
+    if (cuisineLower.includes('italian')) return 'Balance carbs and protein'
+
+    return 'Great options for your nutrition goals'
   }
 
   const handleRestaurantClick = (restaurant: Restaurant) => {
@@ -148,17 +175,11 @@ export function FoodSuggestionsCard({ onRestaurantClick }: FoodSuggestionsCardPr
               onClick={() => handleRestaurantClick(restaurant)}
               className="group flex flex-col p-4 rounded-xl border border-border hover:border-primary/30 transition-all text-left"
             >
-              <div className="flex items-center justify-between w-full mb-1.5">
+              <div className="mb-1.5">
                 <h4 className="font-medium text-foreground text-sm">{restaurant.name}</h4>
-                <span className="text-xs text-primary font-semibold">{restaurant.matchScore}% match</span>
               </div>
 
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-0.5">
-                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                  {restaurant.rating.toFixed(1)}
-                </span>
-                <span>•</span>
                 <span>{restaurant.distance}</span>
               </div>
 

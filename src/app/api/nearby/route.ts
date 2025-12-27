@@ -22,7 +22,7 @@ function consolidateRestaurants(restaurants: Restaurant[]): Restaurant[] {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { lat, lng } = body
+    const { lat, lng, radiusMeters = 2000 } = body
 
     if (!lat || !lng) {
       return NextResponse.json(
@@ -31,8 +31,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check cache first
-    const cacheKey = generateRestaurantCacheKey(lat, lng)
+    // Check cache first with radius in key
+    const cacheKey = `${generateRestaurantCacheKey(lat, lng)}_${radiusMeters}`
     const cachedResult = cache.get(cacheKey)
     if (cachedResult) {
       console.log('🚀 Restaurant cache hit:', cacheKey)
@@ -42,16 +42,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Query Overpass API for restaurants within 2km
+    // Query Overpass API for restaurants within specified radius
     const overpassQuery = `
       [out:json][timeout:25];
       (
-        node["amenity"="restaurant"](around:2000,${lat},${lng});
-        node["amenity"="fast_food"](around:2000,${lat},${lng});
-        way["amenity"="restaurant"](around:2000,${lat},${lng});
-        way["amenity"="fast_food"](around:2000,${lat},${lng});
-        relation["amenity"="restaurant"](around:2000,${lat},${lng});
-        relation["amenity"="fast_food"](around:2000,${lat},${lng});
+        node["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
+        node["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
+        way["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
+        way["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
+        relation["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
+        relation["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
       );
       out geom;
     `
@@ -113,11 +113,23 @@ export async function POST(request: NextRequest) {
     const consolidatedRestaurants = consolidateRestaurants(restaurants)
 
     // Split into known and unknown chains
-    const knownChains = consolidatedRestaurants.filter(r => r.isKnown).slice(0, 10)
-    const unknownRestaurants = consolidatedRestaurants.filter(r => !r.isKnown).slice(0, 15)
+    const knownChains = consolidatedRestaurants.filter(r => r.isKnown)
+    const unknownRestaurants = consolidatedRestaurants.filter(r => !r.isKnown)
+
+    // Prioritize known chains, but ensure we get at least 9 total restaurants if available
+    let finalRestaurants = [...knownChains.slice(0, 20)] // Take up to 20 known chains
+
+    // If we have less than 9, add unknown restaurants to reach at least 9
+    if (finalRestaurants.length < 9) {
+      const needed = 9 - finalRestaurants.length
+      finalRestaurants = [...finalRestaurants, ...unknownRestaurants.slice(0, Math.max(needed, 15))]
+    } else {
+      // Add some unknowns anyway for variety
+      finalRestaurants = [...finalRestaurants, ...unknownRestaurants.slice(0, 10)]
+    }
 
     const result = {
-      restaurants: [...knownChains, ...unknownRestaurants],
+      restaurants: finalRestaurants.slice(0, 30), // Cap at 30 total
       userLocation: { lat, lng }
     }
 

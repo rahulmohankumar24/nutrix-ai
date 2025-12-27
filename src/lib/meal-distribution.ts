@@ -21,7 +21,7 @@ interface MealDistribution {
   targetCarbs: number
   targetFat: number
   mealsRemaining: number
-  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  mealType: 'breakfast' | 'lunch' | 'dinner'
   reasoning: string
 }
 
@@ -46,7 +46,7 @@ export function calculateRealisticMealTarget(
   const hoursUntilBedtime = minutesUntilBedtime / 60
 
   let mealsRemaining = 0
-  let mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' = 'snack'
+  let mealType: 'breakfast' | 'lunch' | 'dinner' = 'dinner'
   let mealPercentage = 0.33 // Default to 33% of remaining
 
   // Smart meal counting: consider both time windows AND actual time left
@@ -57,7 +57,7 @@ export function calculateRealisticMealTarget(
   const HOURS_PER_MEAL = 2.75 // More realistic spacing for comfort and digestion
   const realisticMealsFromTimeRemaining = Math.max(1, Math.floor(hoursUntilBedtime / HOURS_PER_MEAL))
 
-  // Determine current meal type based on time of day
+  // Determine current meal type based on time of day (NO SNACKS - only breakfast, lunch, dinner)
   if (currentTimeInMinutes < lunchTimeMinutes - 60) {
     // Before lunch (breakfast time)
     mealType = 'breakfast'
@@ -67,17 +67,12 @@ export function calculateRealisticMealTarget(
     // Before dinner (lunch time)
     mealType = 'lunch'
     mealsRemaining = Math.min(2, realisticMealsFromTimeRemaining) // lunch, dinner
-    mealPercentage = 0.45 // 45% of remaining (lunch + possible snack)
-  } else if (currentTimeInMinutes < bedTimeMinutes) {
-    // Dinner time or later
+    mealPercentage = 0.45 // 45% of remaining
+  } else {
+    // Dinner time or later (no more snacks, just dinner)
     mealType = 'dinner'
     mealsRemaining = realisticMealsFromTimeRemaining
-    mealPercentage = 0.70 // 70% of remaining (save some for potential late snack)
-  } else {
-    // Late night snack
-    mealType = 'snack'
-    mealsRemaining = 1
-    mealPercentage = 0.80 // Most of what's left
+    mealPercentage = 0.70 // 70% of remaining
   }
 
   // SMART ADJUSTMENT: If we have high remaining macros but limited meals/time, increase meal percentage
@@ -88,17 +83,15 @@ export function calculateRealisticMealTarget(
     if (caloriesPerMealNeeded > 600) {
       // Need substantial meals to hit targets
       mealPercentage = Math.min(0.65, (1 / mealsRemaining) + 0.15) // Add 15% buffer
-      console.log(`⚡ Boosting meal percentage to ${Math.round(mealPercentage * 100)}% - need ${Math.round(caloriesPerMealNeeded)}cal per meal to hit targets`)
     }
   }
 
   // If this is realistically the last meal of the day, be very aggressive
   if (mealsRemaining === 1 && remaining.calories > 800) {
     mealPercentage = 0.85 // Try to hit most of remaining macros
-    console.log(`🎯 Last realistic meal - targeting 85% of remaining macros`)
   }
 
-  // Override with explicit timeOfDay if provided and reasonable
+  // Override with explicit timeOfDay if provided and reasonable (NO SNACKS)
   if (timeOfDay) {
     const lowerTime = timeOfDay.toLowerCase()
     if (lowerTime === 'breakfast' && mealsRemaining >= 2) {
@@ -110,10 +103,8 @@ export function calculateRealisticMealTarget(
     } else if (lowerTime === 'dinner') {
       mealType = 'dinner'
       mealPercentage = mealsRemaining === 1 ? 0.70 : 0.50
-    } else if (lowerTime === 'snack') {
-      mealType = 'snack'
-      mealPercentage = 0.25
     }
+    // Note: Snack option removed - only breakfast, lunch, dinner supported
   }
 
   // Calculate realistic targets for THIS meal
@@ -153,19 +144,6 @@ export function calculateRealisticMealTarget(
     mealType,
     reasoning
   }
-
-  console.log('🔥 MEAL DISTRIBUTION CALCULATION:')
-  console.log(`  Current time: ${currentHour}:${currentMinutes.toString().padStart(2, '0')}`)
-  console.log(`  Bedtime: ${Math.floor(bedTimeMinutes/60)}:${(bedTimeMinutes%60).toString().padStart(2, '0')}`)
-  console.log(`  Hours until bedtime: ${hoursUntilBedtime.toFixed(1)}hrs`)
-  console.log(`  Meals remaining: ${mealsRemaining} (based on ${HOURS_PER_MEAL}hrs per meal)`)
-  console.log(`  Meal type detected: ${mealType}`)
-  console.log(`  Meal percentage: ${Math.round(mealPercentage * 100)}%`)
-  console.log(`  User has remaining: ${remaining.calories}cal, ${remaining.protein}g protein`)
-  console.log(`  Calculated target: calories=${targetCalories}, capped=${cappedCalories}, final=${finalCalories}`)
-  console.log(`  THIS MEAL TARGET: ${finalCalories}cal, ${finalProtein}g protein`)
-  console.log(`  ⚠️ WARNING: If this looks wrong, check the timeOfDay parameter being passed!`)
-  console.log(`  Reasoning: ${reasoning}`)
 
   return result
 }

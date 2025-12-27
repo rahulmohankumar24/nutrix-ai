@@ -163,3 +163,57 @@ model RestaurantContribution {
   @@index([createdAt])
   @@map("restaurant_contributions")
 }
+
+model AiGeneratedMeal {
+  id               String   @id @default(cuid())
+  restaurantName   String
+  title            String
+  description      String
+  calories         Int
+  protein          Int
+  carbs            Int
+  fat              Int
+  reasoning        String?
+  source           String   @default("ai_estimated") // ai_estimated, ai_from_menu, user_verified
+  estimatedNutrition Boolean @default(true)
+  tags             String   @default("[]") // JSON array
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Aggregated feedback stats
+  feedbackCount    Int      @default(0)
+  avgCaloriesAdjustment Int  @default(0) // Average adjustment from feedback
+  avgProteinAdjustment  Int  @default(0)
+  avgCarbsAdjustment    Int  @default(0)
+  avgFatAdjustment      Int  @default(0)
+  confidenceScore  Float    @default(0.5) // 0-1, increases with positive feedback
+
+  feedback MealFeedback[]
+
+  @@index([restaurantName])
+  @@index([confidenceScore])
+  @@map("ai_generated_meals")
+}
+
+model MealFeedback {
+  id                String   @id @default(cuid())
+  userId            String
+  aiGeneratedMealId String
+
+  // User's correction/feedback
+  suggestedCalories Int?
+  suggestedProtein  Int?
+  suggestedCarbs    Int?
+  suggestedFat      Int?
+
+  feedbackType      String   // accurate | too_high | too_low | missing_item
+  comment           String?
+  helpful           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  aiGeneratedMeal AiGeneratedMeal @relation(fields: [aiGeneratedMealId], references: [id], onDelete: Cascade)
+
+  @@index([aiGeneratedMealId])
+  @@index([createdAt])
+  @@map("meal_feedback")
+}

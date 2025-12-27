@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId, userSchedule, bypassCache = false } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', currentTime, currentHour, userProfile, userId, userSchedule, bypassCache = false } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log(`  User ID: ${userId}`)
     console.log(`  Restaurant: ${restaurantBrand}`)
-    console.log(`  Time of Day RECEIVED: ${timeOfDay}`)
-    console.log(`  ⚠️ CHECK: Is this correct? Should it be breakfast/lunch/dinner/snack?`)
+    console.log(`  EXPLICIT TIME: ${currentTime || 'not provided'} (hour: ${currentHour || 'not provided'})`)
+    console.log(`  Meal Type: ${timeOfDay} (breakfast/lunch/dinner only - NO SNACKS)`)
     console.log('')
     console.log('📈 USER MACRO PROGRESS:')
     console.log(`  Daily Targets: ${userTargets.targets.calories}cal, ${userTargets.targets.protein}g protein, ${userTargets.targets.carbs}g carbs, ${userTargets.targets.fat}g fat`)
@@ -118,7 +118,10 @@ export async function POST(request: NextRequest) {
     // More efficient, focused prompt for faster AI response
     const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
 
+CURRENT TIME: ${currentTime || 'unknown'} (it is ${timeOfDay} time)
 Build ${restaurantBrand} meals for ${mealDistribution.mealType}. User has ${remainingMacros.calories}cal remaining TODAY. Target for this meal: ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein.
+
+IMPORTANT: This is a proper ${timeOfDay} meal (breakfast/lunch/dinner) - NOT a snack. Focus on complete, substantial meals.
 
 CONTEXT: ${mealDistribution.reasoning}
 
