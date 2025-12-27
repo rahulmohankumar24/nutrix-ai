@@ -4,6 +4,7 @@ import OpenAI from 'openai'
 import { cache, generateAIMealCacheKey } from '@/lib/cache'
 import { parseAIResponse } from '@/lib/ai-utils'
 import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
+import { rateMealForTarget } from '@/lib/meal-rating'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId, userSchedule } = await request.json()
+    const { restaurantBrand, userTargets, timeOfDay = 'lunch', userProfile, userId, userSchedule, bypassCache = false } = await request.json()
 
     if (!restaurantBrand || !userTargets) {
       return NextResponse.json({ error: 'Restaurant and user targets required' }, { status: 400 })
@@ -29,6 +30,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('📊 AI MEAL BUILDER - STARTING')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log(`  User ID: ${userId}`)
+    console.log(`  Restaurant: ${restaurantBrand}`)
+    console.log(`  Time of Day RECEIVED: ${timeOfDay}`)
+    console.log(`  ⚠️ CHECK: Is this correct? Should it be breakfast/lunch/dinner/snack?`)
+    console.log('')
+    console.log('📈 USER MACRO PROGRESS:')
+    console.log(`  Daily Targets: ${userTargets.targets.calories}cal, ${userTargets.targets.protein}g protein, ${userTargets.targets.carbs}g carbs, ${userTargets.targets.fat}g fat`)
+    console.log(`  Current Progress: ${userTargets.current.calories}cal, ${userTargets.current.protein}g protein, ${userTargets.current.carbs}g carbs, ${userTargets.current.fat}g fat`)
+    console.log(`  Remaining: ${userTargets.remaining.calories}cal, ${userTargets.remaining.protein}g protein, ${userTargets.remaining.carbs}g carbs, ${userTargets.remaining.fat}g fat`)
+    console.log(`  Progress: ${Math.round(userTargets.current.calories/userTargets.targets.calories*100)}% of daily calories`)
+    console.log('')
+
     // Calculate realistic meal target based on time of day and remaining meals
     const mealDistribution = calculateRealisticMealTarget(
       timeOfDay,
@@ -41,7 +57,14 @@ export async function POST(request: NextRequest) {
       userSchedule
     )
 
-    // Check cache first
+    console.log('')
+    console.log('🎯 AI WILL BE TOLD TO CREATE MEALS WITH:')
+    console.log(`  Target for THIS meal: ${mealDistribution.targetCalories}cal, ${mealDistribution.targetProtein}g protein`)
+    console.log(`  Meals remaining today: ${mealDistribution.mealsRemaining}`)
+    console.log(`  Context: ${mealDistribution.reasoning}`)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+
+    // Check cache first (unless bypassed)
     const cacheKey = generateAIMealCacheKey(
       restaurantBrand,
       userId || 'anonymous',
@@ -50,14 +73,18 @@ export async function POST(request: NextRequest) {
       userTargets.remaining.protein
     )
 
-    const cachedResult = cache.get(cacheKey)
-    if (cachedResult) {
-      console.log('🚀 AI meal cache hit:', cacheKey)
-      return NextResponse.json({
-        ...cachedResult,
-        cached: true,
-        cacheKey
-      })
+    if (!bypassCache) {
+      const cachedResult = cache.get(cacheKey)
+      if (cachedResult) {
+        console.log('🚀 AI meal cache hit:', cacheKey)
+        return NextResponse.json({
+          ...cachedResult,
+          cached: true,
+          cacheKey
+        })
+      }
+    } else {
+      console.log('🔄 Cache bypassed for:', cacheKey)
     }
 
     // Get available ingredients for this restaurant
@@ -87,77 +114,142 @@ export async function POST(request: NextRequest) {
       fat: userTargets.remaining?.fat || 0
     }
 
-    const currentProgress = {
-      calories: `${userTargets.current?.calories || 0}/${userTargets.targets?.calories || 0}`,
-      protein: `${userTargets.current?.protein || 0}g/${userTargets.targets?.protein || 0}g`,
-      carbs: `${userTargets.current?.carbs || 0}g/${userTargets.targets?.carbs || 0}g`,
-      fat: `${userTargets.current?.fat || 0}g/${userTargets.targets?.fat || 0}g`
-    }
-
-    const timeContext: Record<string, string> = {
-      'breakfast': 'Morning meal - focus on energy and protein to start the day',
-      'lunch': 'Midday meal - sustained energy for afternoon productivity',
-      'dinner': 'Evening meal - focus on recovery and meeting daily targets',
-      'snack': 'Light meal - fill macro gaps without overeating'
-    }
-
-    const restaurantInstructions: Record<string, string> = {
-      'cava': 'Build Mediterranean bowls with base, protein, vegetables, and sauces',
-      'chipotle': 'Create burritos, bowls, or salads with rice/beans, protein, vegetables, and toppings',
-      'subway': 'Design sandwiches with bread, protein, vegetables, and condiments',
-      'sweetgreen': 'Construct salads with greens, protein, vegetables, and dressings'
-    }
 
     // More efficient, focused prompt for faster AI response
     const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
 
-Build ${restaurantBrand} meals for ${mealDistribution.mealType}. User has ${remainingMacros.calories}cal remaining TODAY, but THIS MEAL should target ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein since they have ${mealDistribution.mealsRemaining} meals left today.
+Build ${restaurantBrand} meals for ${mealDistribution.mealType}. User has ${remainingMacros.calories}cal remaining TODAY. Target for this meal: ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein.
+
+CONTEXT: ${mealDistribution.reasoning}
 
 CRITICAL INSTRUCTIONS:
-- TARGET: ~${mealDistribution.targetCalories}cal and ~${mealDistribution.targetProtein}g protein for THIS MEAL
-- DO NOT build a meal with all ${remainingMacros.calories}cal - that's unrealistic for one meal!
-- Realistic single meal limit: 1200 calories maximum
-- If a basic meal is too low, ADD ingredients to reach THIS MEAL'S target (~${mealDistribution.targetCalories}cal)
-- For ${restaurantBrand.toLowerCase()}: suggest "double protein", "extra chicken", "add guacamole", "add cheese" to hit THIS MEAL'S target
+- CREATE 5 VARIED OPTIONS with different calorie/protein levels
+- OPTION 1: LIGHT (~${Math.round(mealDistribution.targetCalories * 0.65)}cal, ~${Math.round(mealDistribution.targetProtein * 0.7)}g protein) - smaller portions, single protein
+- OPTION 2: MODERATE (~${Math.round(mealDistribution.targetCalories * 0.85)}cal, ~${Math.round(mealDistribution.targetProtein * 0.9)}g protein) - standard portions
+- OPTION 3: TARGET (~${mealDistribution.targetCalories}cal, ~${mealDistribution.targetProtein}g protein) - hits the target perfectly
+- OPTION 4: PROTEIN-PACKED (~${Math.round(mealDistribution.targetCalories * 1.1)}cal, ~${Math.round(mealDistribution.targetProtein * 1.3)}g protein) - double protein, extra meat
+- OPTION 5: MAX (~${Math.min(Math.round(mealDistribution.targetCalories * 1.3), 1200)}cal, ~${Math.round(mealDistribution.targetProtein * 1.5)}g protein) - aggressive portions with all add-ons
+- For ${restaurantBrand.toLowerCase()}: use "double protein", "extra chicken", "guacamole", "cheese", portion sizes to vary calories/protein
+- Each meal MUST have different ingredient quantities to achieve the calorie/protein variation
 
 INGREDIENTS:
 ${Object.entries(categorizedIngredients).map(([cat, items]) =>
   `${cat.toUpperCase()}: ${(items as any[]).map(i => `${i.name}(${i.calories}c,${i.protein}p,${i.carbs}cb,${i.fat}f)`).join(', ')}`
 ).join('\n')}
 
-Return this exact JSON structure with 3 meals targeting ~${mealDistribution.targetCalories}cal for THIS meal:
+IMPORTANT: Your TARGET meal should be around ${mealDistribution.targetCalories} calories. The OPTION 3 "TARGET" meal MUST be close to ${mealDistribution.targetCalories}cal, not lower!
+
+Return this exact JSON structure with 5 VARIED meals:
 {
   "customMeals": [
     {
       "id": "meal_1",
-      "title": "Balanced ${mealDistribution.mealType} Bowl",
-      "description": "Perfect portion for this ${mealDistribution.mealType}",
-      "totalCalories": ${Math.min(mealDistribution.targetCalories, 1200)},
+      "title": "Light ${mealDistribution.mealType}",
+      "description": "Smaller portion, fewer calories",
+      "totalCalories": ${Math.round(mealDistribution.targetCalories * 0.65)},
+      "totalProtein": ${Math.round(mealDistribution.targetProtein * 0.7)},
+      "totalCarbs": ${Math.round(mealDistribution.targetCarbs * 0.7)},
+      "totalFat": ${Math.round(mealDistribution.targetFat * 0.7)},
+      "macroFitScore": 85,
+      "ingredients": [
+        {"name": "Chicken", "id": "ing_1", "calories": 180, "protein": 32, "carbs": 0, "fat": 7, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 105, "protein": 2, "carbs": 18, "fat": 3, "category": "base"}
+      ],
+      "reasoning": "Lighter option if you're not too hungry or saving calories for later",
+      "buildInstructions": "Order: half rice + regular protein + veggies"
+    },
+    {
+      "id": "meal_2",
+      "title": "Balanced ${mealDistribution.mealType}",
+      "description": "Standard portions",
+      "totalCalories": ${Math.round(mealDistribution.targetCalories * 0.85)},
+      "totalProtein": ${Math.round(mealDistribution.targetProtein * 0.9)},
+      "totalCarbs": ${Math.round(mealDistribution.targetCarbs * 0.9)},
+      "totalFat": ${Math.round(mealDistribution.targetFat * 0.9)},
+      "macroFitScore": 90,
+      "ingredients": [
+        {"name": "Chicken", "id": "ing_1", "calories": 180, "protein": 32, "carbs": 0, "fat": 7, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 210, "protein": 4, "carbs": 36, "fat": 6, "category": "base"}
+      ],
+      "reasoning": "Well-balanced standard meal",
+      "buildInstructions": "Order: regular portions of base + protein + veggies"
+    },
+    {
+      "id": "meal_3",
+      "title": "Target ${mealDistribution.mealType}",
+      "description": "Hits your macro targets perfectly",
+      "totalCalories": ${mealDistribution.targetCalories},
       "totalProtein": ${mealDistribution.targetProtein},
       "totalCarbs": ${mealDistribution.targetCarbs},
       "totalFat": ${mealDistribution.targetFat},
       "macroFitScore": 95,
       "ingredients": [
-        {"name": "Chicken", "id": "ing_1", "calories": 180, "protein": 35, "carbs": 0, "fat": 7, "category": "protein"},
-        {"name": "Brown Rice", "id": "ing_2", "calories": 220, "protein": 5, "carbs": 45, "fat": 2, "category": "base"},
-        {"name": "Vegetables", "id": "ing_3", "calories": 50, "protein": 2, "carbs": 10, "fat": 0, "category": "vegetables"}
+        {"name": "Chicken", "id": "ing_1", "calories": 180, "protein": 32, "carbs": 0, "fat": 7, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 210, "protein": 4, "carbs": 36, "fat": 6, "category": "base"}
       ],
-      "reasoning": "Right size for ${mealDistribution.mealType} with ${mealDistribution.mealsRemaining} meals remaining today",
-      "buildInstructions": "Order: base + protein + veggies + sauce"
+      "reasoning": "Perfect for hitting your ${mealDistribution.mealType} targets",
+      "buildInstructions": "Order: base + protein + add-ons to hit target"
+    },
+    {
+      "id": "meal_4",
+      "title": "Protein-Packed ${mealDistribution.mealType}",
+      "description": "Extra protein for muscle building",
+      "totalCalories": ${Math.round(mealDistribution.targetCalories * 1.1)},
+      "totalProtein": ${Math.round(mealDistribution.targetProtein * 1.3)},
+      "totalCarbs": ${Math.round(mealDistribution.targetCarbs * 1.0)},
+      "totalFat": ${Math.round(mealDistribution.targetFat * 1.2)},
+      "macroFitScore": 92,
+      "ingredients": [
+        {"name": "Double Chicken", "id": "ing_1", "calories": 360, "protein": 64, "carbs": 0, "fat": 14, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 210, "protein": 4, "carbs": 36, "fat": 6, "category": "base"}
+      ],
+      "reasoning": "High protein option with double meat",
+      "buildInstructions": "Order: base + DOUBLE PROTEIN + veggies"
+    },
+    {
+      "id": "meal_5",
+      "title": "Maximum ${mealDistribution.mealType}",
+      "description": "Largest option with all add-ons",
+      "totalCalories": ${Math.min(Math.round(mealDistribution.targetCalories * 1.3), 1200)},
+      "totalProtein": ${Math.round(mealDistribution.targetProtein * 1.5)},
+      "totalCarbs": ${Math.round(mealDistribution.targetCarbs * 1.2)},
+      "totalFat": ${Math.round(mealDistribution.targetFat * 1.4)},
+      "macroFitScore": 88,
+      "ingredients": [
+        {"name": "Double Chicken", "id": "ing_1", "calories": 360, "protein": 64, "carbs": 0, "fat": 14, "category": "protein"},
+        {"name": "Brown Rice", "id": "ing_2", "calories": 210, "protein": 4, "carbs": 36, "fat": 6, "category": "base"}
+      ],
+      "reasoning": "${mealDistribution.mealsRemaining === 1 ? 'Last meal - maximize everything to hit daily targets' : 'Aggressive portions if you need to catch up on macros'}",
+      "buildInstructions": "Order: base + DOUBLE PROTEIN + all toppings (guac, cheese, etc.)"
     }
   ],
-  "overallAdvice": "This ${mealDistribution.mealType} should be ~${mealDistribution.targetCalories}cal. You have ${mealDistribution.mealsRemaining} meals left today.",
-  "restaurantTips": "Build a ${mealDistribution.targetCalories}cal meal - save calories for your remaining meals!"
+  "overallAdvice": "${mealDistribution.reasoning} Choose the option that best fits your hunger level and remaining targets.",
+  "restaurantTips": "Use portion sizes and add-ons to customize calories and protein to your needs"
 }`
+
+    console.log('')
+    console.log('🤖 PROMPT BEING SENT TO AI:')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log(prompt.substring(0, 800) + '...[truncated]')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
-      max_tokens: 3000,
+      max_tokens: 4000, // Increased for 5 varied meal options
     })
 
     const aiResponse = completion.choices[0]?.message?.content
+
+    console.log('')
+    console.log('🤖 AI RESPONSE RECEIVED')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    if (aiResponse) {
+      console.log(aiResponse.substring(0, 500) + '...[truncated]')
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    }
+
     if (!aiResponse) {
       return NextResponse.json({ error: 'No response from AI meal builder' }, { status: 500 })
     }
@@ -165,13 +257,100 @@ Return this exact JSON structure with 3 meals targeting ~${mealDistribution.targ
     try {
       const parsedResponse = parseAIResponse(aiResponse)
 
+      // CRITICAL FIX: Validate and recalculate nutrition totals from ingredients
+      // The AI sometimes makes math errors, so we recalculate from ingredients
+      const validatedMeals = parsedResponse.customMeals?.map((meal: any) => {
+        if (!meal.ingredients || meal.ingredients.length === 0) {
+          console.warn('⚠️ Meal has no ingredients, using AI totals:', meal.title)
+          return meal
+        }
+
+        // Recalculate totals from actual ingredients
+        const calculatedTotals = meal.ingredients.reduce((totals: any, ingredient: any) => {
+          return {
+            calories: totals.calories + (ingredient.calories || 0),
+            protein: totals.protein + (ingredient.protein || 0),
+            carbs: totals.carbs + (ingredient.carbs || 0),
+            fat: totals.fat + (ingredient.fat || 0)
+          }
+        }, { calories: 0, protein: 0, carbs: 0, fat: 0 })
+
+        // Check if AI totals match calculated totals (with 5% tolerance)
+        const caloriesDiff = Math.abs(meal.totalCalories - calculatedTotals.calories)
+        const proteinDiff = Math.abs(meal.totalProtein - calculatedTotals.protein)
+
+        if (caloriesDiff > meal.totalCalories * 0.05 || proteinDiff > meal.totalProtein * 0.05) {
+          console.warn('⚠️ AI math error detected for meal:', meal.title)
+          console.warn('  AI totals:', {
+            calories: meal.totalCalories,
+            protein: meal.totalProtein,
+            carbs: meal.totalCarbs,
+            fat: meal.totalFat
+          })
+          console.warn('  Calculated totals:', calculatedTotals)
+          console.warn('  Using calculated totals instead ✅')
+        }
+
+        // Always use calculated totals to ensure accuracy
+        return {
+          ...meal,
+          totalCalories: calculatedTotals.calories,
+          totalProtein: calculatedTotals.protein,
+          totalCarbs: calculatedTotals.carbs,
+          totalFat: calculatedTotals.fat,
+          aiTotals: { // Keep AI's original totals for debugging
+            calories: meal.totalCalories,
+            protein: meal.totalProtein,
+            carbs: meal.totalCarbs,
+            fat: meal.totalFat
+          }
+        }
+      }) || []
+
+      // Add smart ratings and sort by best fit
+      const ratedMeals = validatedMeals.map((meal: any) => {
+        const rating = rateMealForTarget(
+          {
+            calories: meal.totalCalories,
+            protein: meal.totalProtein,
+            carbs: meal.totalCarbs,
+            fat: meal.totalFat
+          },
+          remainingMacros,
+          mealDistribution.mealsRemaining,
+          mealDistribution.targetCalories,
+          mealDistribution.targetProtein
+        )
+
+        return {
+          ...meal,
+          fitScore: rating.score,
+          fitBadge: rating.badge,
+          fitReasoning: rating.reasoning,
+          caloriesFit: rating.caloriesFit,
+          proteinFit: rating.proteinFit
+        }
+      }).sort((a: any, b: any) => b.fitScore - a.fitScore) // Sort by best fit first
+
+      console.log('📊 Meal ratings (sorted by best fit first):')
+      ratedMeals.forEach((m: any, idx: number) => {
+        console.log(`  ${idx + 1}. [${m.fitScore}/100] ${m.fitBadge || 'NO BADGE'} - ${m.title}`)
+        console.log(`     ${m.totalCalories}cal, ${m.totalProtein}g protein`)
+        console.log(`     → ${m.fitReasoning}`)
+      })
+
       const result = {
         success: true,
-        customMeals: parsedResponse.customMeals || [],
+        customMeals: ratedMeals,
         coaching: parsedResponse,
         restaurantBrand,
         availableIngredients: ingredients.length,
-        mealCount: parsedResponse.customMeals?.length || 0
+        mealCount: ratedMeals.length,
+        targetInfo: {
+          mealsRemaining: mealDistribution.mealsRemaining,
+          targetCaloriesThisMeal: mealDistribution.targetCalories,
+          targetProteinThisMeal: mealDistribution.targetProtein
+        }
       }
 
       // Cache the result for 2 hours

@@ -58,7 +58,7 @@ export default function LogPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim()) return
+    if (!input.trim() || !user?.id) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -68,58 +68,51 @@ export default function LogPage() {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const messageText = input
     setInput("")
     setIsTyping(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const mockResponses: { content: string; mealData?: Message["mealData"] }[] = [
-        {
-          content:
-            "Got it! I've logged your grilled chicken salad. That's a great choice for hitting your protein goals.",
-          mealData: {
-            name: "Grilled Chicken Salad",
-            calories: 420,
-            protein: 38,
-            carbs: 22,
-            fat: 18,
-          },
-        },
-        {
-          content: "Logged! Your salmon bowl looks delicious and protein-packed.",
-          mealData: {
-            name: "Salmon Poke Bowl",
-            calories: 520,
-            protein: 34,
-            carbs: 48,
-            fat: 22,
-          },
-        },
-        {
-          content: "Added to your log. The avocado toast with eggs is a solid breakfast choice.",
-          mealData: {
-            name: "Avocado Toast with Eggs",
-            calories: 380,
-            protein: 18,
-            carbs: 32,
-            fat: 24,
-          },
-        },
-      ]
+    try {
+      // Call the chat API to process the meal
+      const response = await fetch('/api/chat-log-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageText,
+          userId: user.id
+        })
+      })
 
-      const randomResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)]
+      if (!response.ok) {
+        throw new Error('Failed to process message')
+      }
+
+      const data = await response.json()
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: randomResponse.content,
+        content: data.message,
         timestamp: new Date(),
-        mealData: randomResponse.mealData,
+        mealData: data.mealLogged ? data.mealData : undefined,
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+    } catch (error) {
+      console.error('Failed to log meal:', error)
+
+      // Show error message to user
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "Sorry, I had trouble processing that. Could you try again?",
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
       setIsTyping(false)
-    }, 1200)
+    }
   }
 
   // Show loading state while checking auth

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
-import { Star, MapPin, Clock, Search, SlidersHorizontal, ChevronDown, ArrowRight } from "lucide-react"
+import { Star, MapPin, Search, SlidersHorizontal, ChevronDown, ArrowRight } from "lucide-react"
 
 interface MenuItem {
   name: string
@@ -189,7 +189,6 @@ export function RestaurantsList() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"match" | "distance" | "rating">("match")
-  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
 
   useEffect(() => {
@@ -293,6 +292,7 @@ export function RestaurantsList() {
   }
 
   const handleRestaurantClick = (restaurant: Restaurant) => {
+    // Save restaurant data to localStorage
     localStorage.setItem(`restaurant_${restaurant.id}`, JSON.stringify({
       id: restaurant.id,
       name: restaurant.name,
@@ -300,6 +300,11 @@ export function RestaurantsList() {
       tags: { cuisine: restaurant.type },
       isKnown: true
     }))
+
+    // Set a flag to show loading state immediately on the restaurant page
+    sessionStorage.setItem('generatingMeals', 'true')
+
+    // Navigate to restaurant page
     router.push(`/restaurant/${restaurant.id}`)
   }
 
@@ -377,10 +382,12 @@ export function RestaurantsList() {
       {/* Restaurant List */}
       <div className="space-y-3">
         {filteredRestaurants.map((restaurant) => (
-          <div key={restaurant.id} className="rounded-2xl border border-border bg-card overflow-hidden transition-all">
-            <div
-              className="w-full p-5"
-            >
+          <button
+            key={restaurant.id}
+            onClick={() => handleRestaurantClick(restaurant)}
+            className="w-full rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-sm text-left"
+          >
+            <div className="p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
@@ -405,56 +412,10 @@ export function RestaurantsList() {
                   </div>
                   <p className="text-sm text-muted-foreground">{restaurant.goalReason}</p>
                 </div>
-                <button
-                  onClick={() => setExpandedId(expandedId === restaurant.id ? null : restaurant.id)}
-                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${expandedId === restaurant.id ? "rotate-180" : ""}`}
-                  />
-                </button>
+                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
               </div>
             </div>
-
-            {/* Expanded Content */}
-            {expandedId === restaurant.id && (
-              <div className="px-5 pb-5 border-t border-border">
-                <div className="pt-4">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      {restaurant.hours}
-                    </span>
-                    <span>•</span>
-                    <span>{restaurant.address}</span>
-                  </div>
-
-                  <h4 className="text-sm font-medium text-foreground mb-3">Recommended for your goals</h4>
-                  <div className="space-y-2">
-                    {restaurant.topItems.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.calories} cal • {item.protein}g protein
-                          </p>
-                        </div>
-                        <span className="text-sm font-medium text-foreground">{item.price}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => handleRestaurantClick(restaurant)}
-                    className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
-                  >
-                    View Full Menu
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          </button>
         ))}
       </div>
     </>

@@ -29,6 +29,20 @@ class SimpleCache {
     this.cache.clear()
   }
 
+  delete(key: string): boolean {
+    return this.cache.delete(key)
+  }
+
+  has(key: string): boolean {
+    const entry = this.cache.get(key)
+    if (!entry) return false
+    if (Date.now() > entry.expiry) {
+      this.cache.delete(key)
+      return false
+    }
+    return true
+  }
+
   // Clean up expired entries periodically
   cleanup(): void {
     const now = Date.now()
