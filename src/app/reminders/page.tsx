@@ -206,9 +206,7 @@ export default function RemindersPage() {
 
         {/* Info Card */}
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mt-6">
-          <div className="flex">
-            <div className="text-yellow-600 text-xl mr-3">💡</div>
-            <div>
+          <div>
               <h3 className="font-medium text-yellow-900 mb-2">About Reminders</h3>
               <ul className="text-yellow-800 space-y-1 text-sm">
                 <li>• <strong>Morning Protein:</strong> Aim for 30-40g protein by mid-morning</li>
@@ -220,7 +218,6 @@ export default function RemindersPage() {
                 <strong>Note:</strong> In this MVP, reminders are stored in the database but push notifications
                 are not implemented. You can view your next reminder time here.
               </p>
-            </div>
           </div>
         </div>
       </div>

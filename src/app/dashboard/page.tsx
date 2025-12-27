@@ -386,20 +386,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-6xl px-8 py-12 space-y-10">
+      <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
 
         {/* Header with Remaining Summary */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-semibold text-foreground">
+            <h1 className="text-2xl font-semibold text-foreground">
               {getGreeting()}, {userName}
             </h1>
-            <p className="text-lg text-muted-foreground mt-2">Let's find your path today</p>
+            <p className="text-base text-muted-foreground mt-1">Let's find your path today</p>
           </div>
 
           {/* Remaining Summary Pill */}
           {macros && macros.remaining.calories > 0 && (
-            <div className="bg-primary/10 rounded-full px-6 py-3 flex items-center gap-4">
+            <div className="bg-primary/10 rounded-full px-5 py-2.5 flex items-center gap-4 text-base">
               <div className="flex items-center gap-2">
                 <span className="text-primary font-semibold text-lg">{macros.remaining.calories}</span>
                 <span className="text-muted-foreground">cal</span>
@@ -418,16 +418,16 @@ export default function DashboardPage() {
         <PathwayVisualization dailyData={getDailyMealPath()} />
 
         {/* Side by Side: Today's Total + Meals Logged */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Today's Total */}
           {macros && (
-            <div className="bg-card rounded-3xl p-8 border border-border/50 flex flex-col h-full">
-              <p className="text-lg font-medium text-muted-foreground mb-6">Today's Total</p>
-              <div className="grid grid-cols-2 gap-8 flex-1 place-items-center">
+            <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col h-full">
+              <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
+              <div className="grid grid-cols-2 gap-6 flex-1 place-items-center">
                 {/* Calories */}
                 <div className="flex flex-col items-center">
-                  <div className="relative w-28 h-28">
-                    <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                  <div className="relative w-20 h-20">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
                       <circle
                         cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
@@ -437,17 +437,17 @@ export default function DashboardPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-foreground">{Math.round((macros.current.calories / macros.targets.calories) * 100)}%</span>
+                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.calories / macros.targets.calories) * 100)}%</span>
                     </div>
                   </div>
-                  <p className="text-base font-medium text-foreground mt-3">{macros.current.calories}</p>
+                  <p className="text-base font-medium text-foreground mt-2">{macros.current.calories}</p>
                   <p className="text-sm text-muted-foreground">of {macros.targets.calories} cal</p>
                 </div>
 
                 {/* Protein */}
                 <div className="flex flex-col items-center">
-                  <div className="relative w-28 h-28">
-                    <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                  <div className="relative w-20 h-20">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
                       <circle
                         cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
@@ -457,17 +457,17 @@ export default function DashboardPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-foreground">{Math.round((macros.current.protein / macros.targets.protein) * 100)}%</span>
+                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.protein / macros.targets.protein) * 100)}%</span>
                     </div>
                   </div>
-                  <p className="text-base font-medium text-foreground mt-3">{macros.current.protein}g</p>
+                  <p className="text-base font-medium text-foreground mt-2">{macros.current.protein}g</p>
                   <p className="text-sm text-muted-foreground">of {macros.targets.protein}g pro</p>
                 </div>
 
                 {/* Carbs */}
                 <div className="flex flex-col items-center">
-                  <div className="relative w-28 h-28">
-                    <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                  <div className="relative w-20 h-20">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
                       <circle
                         cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
@@ -477,17 +477,17 @@ export default function DashboardPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-foreground">{Math.round((macros.current.carbs / macros.targets.carbs) * 100)}%</span>
+                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.carbs / macros.targets.carbs) * 100)}%</span>
                     </div>
                   </div>
-                  <p className="text-base font-medium text-foreground mt-3">{macros.current.carbs}g</p>
+                  <p className="text-base font-medium text-foreground mt-2">{macros.current.carbs}g</p>
                   <p className="text-sm text-muted-foreground">of {macros.targets.carbs}g carbs</p>
                 </div>
 
                 {/* Fat */}
                 <div className="flex flex-col items-center">
-                  <div className="relative w-28 h-28">
-                    <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                  <div className="relative w-20 h-20">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
                       <circle
                         cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
@@ -497,10 +497,10 @@ export default function DashboardPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-foreground">{Math.round((macros.current.fat / macros.targets.fat) * 100)}%</span>
+                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.fat / macros.targets.fat) * 100)}%</span>
                     </div>
                   </div>
-                  <p className="text-base font-medium text-foreground mt-3">{macros.current.fat}g</p>
+                  <p className="text-base font-medium text-foreground mt-2">{macros.current.fat}g</p>
                   <p className="text-sm text-muted-foreground">of {macros.targets.fat}g fat</p>
                 </div>
               </div>
@@ -508,25 +508,25 @@ export default function DashboardPage() {
           )}
 
           {/* Meals Logged */}
-          <div className="bg-card rounded-3xl p-8 border border-border/50 flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-lg font-medium text-muted-foreground">Meals Logged</p>
-              {!showChatInput && !pendingMeal && (
-                <button
-                  onClick={() => setShowChatInput(true)}
-                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add meal
-                </button>
-              )}
-            </div>
+          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
+            {/* Add Meal Button - Always visible at top */}
+            {!showChatInput && !pendingMeal && (
+              <button
+                onClick={() => setShowChatInput(true)}
+                className="w-full mb-4 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all group"
+              >
+                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                  <Plus className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <span className="text-sm font-medium text-primary">Add a meal</span>
+              </button>
+            )}
 
             {/* Inline Chat Input */}
             {showChatInput && !pendingMeal && (
-              <div className="mb-5 pb-5 border-b border-border/50">
+              <div className="mb-4 pb-4 border-b border-border/50">
                 <form onSubmit={handleChatSubmit}>
-                  <div className="flex items-center gap-2 rounded-xl bg-muted/50 border border-border px-3 py-2 focus-within:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2 rounded-lg bg-muted/50 border border-border px-3 py-1.5 focus-within:border-primary/50 transition-colors">
                     <input
                       type="text"
                       value={chatInput}
@@ -538,16 +538,16 @@ export default function DashboardPage() {
                     <button
                       type="submit"
                       disabled={!chatInput.trim() || isProcessing}
-                      className={`rounded-lg p-2 transition-all ${
+                      className={`rounded-md p-1.5 transition-all ${
                         chatInput.trim() && !isProcessing
                           ? 'bg-primary text-primary-foreground hover:opacity-90'
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       {isProcessing ? (
-                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <Send className="h-4 w-4" />
+                        <Send className="h-3.5 w-3.5" />
                       )}
                     </button>
                     <button
@@ -556,9 +556,9 @@ export default function DashboardPage() {
                         setShowChatInput(false)
                         setChatInput('')
                       }}
-                      className="rounded-lg p-2 bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                      className="rounded-md p-1.5 bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </form>
@@ -567,10 +567,10 @@ export default function DashboardPage() {
 
             {/* Pending Meal Confirmation */}
             {pendingMeal && (
-              <div className="mb-5 pb-5 border-b border-border/50">
-                <div className="bg-muted/30 rounded-xl p-4">
+              <div className="mb-4 pb-4 border-b border-border/50">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="font-medium text-foreground text-sm">{pendingMeal.name}</p>
-                  <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                  <div className="flex gap-2 mt-1.5 text-xs text-muted-foreground">
                     <span>{pendingMeal.calories} cal</span>
                     <span>{pendingMeal.protein}g pro</span>
                     <span>{pendingMeal.carbs}g carbs</span>
@@ -578,12 +578,12 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Meal type selector */}
-                  <div className="flex flex-wrap gap-1.5 mt-3">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
                       <button
                         key={type}
                         onClick={() => setSelectedMealType(type)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all capitalize ${
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all capitalize ${
                           selectedMealType === type
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -595,51 +595,54 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-2">
                     <button
                       onClick={confirmMeal}
                       disabled={isLogging}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
                     >
                       {isLogging ? (
-                        <div className="h-3.5 w-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                        <div className="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <Check className="h-3.5 w-3.5" />
+                        <Check className="h-3 w-3" />
                       )}
-                      Log meal
+                      Log
                     </button>
                     <button
                       onClick={cancelMeal}
                       disabled={isLogging}
-                      className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-xs hover:bg-muted/80 transition-colors disabled:opacity-50"
+                      className="px-2.5 py-1.5 rounded-md bg-muted text-muted-foreground text-xs hover:bg-muted/80 transition-colors disabled:opacity-50"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Meals Logged Header */}
+            <p className="text-base font-medium text-muted-foreground mb-4">Meals Logged</p>
+
             {(() => {
               const mealsByType = getMealsByType()
               const MAX_VISIBLE = 2
 
               return (
-                <div className="space-y-5 flex-1">
+                <div className="space-y-4 flex-1">
                   {/* Breakfast */}
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-base font-medium text-foreground uppercase tracking-wider">Breakfast</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Breakfast</p>
                       {mealsByType.breakfast.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.breakfast.length} item{mealsByType.breakfast.length > 1 ? 's' : ''}</span>
+                        <span className="text-sm text-primary font-medium">{mealsByType.breakfast.length}</span>
                       )}
                     </div>
                     {mealsByType.breakfast.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.breakfast.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-4 bg-muted/30 rounded-lg">
-                            <p className="text-base text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-3 text-sm ml-3">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
+                            <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
                             </div>
@@ -652,26 +655,26 @@ export default function DashboardPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-base text-muted-foreground/40 py-2">No meals logged</p>
+                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
                     )}
                   </div>
 
-                  <div className="border-t border-border/50" />
+                  <div className="border-t border-border/30" />
 
                   {/* Lunch */}
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-base font-medium text-foreground uppercase tracking-wider">Lunch</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Lunch</p>
                       {mealsByType.lunch.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.lunch.length} item{mealsByType.lunch.length > 1 ? 's' : ''}</span>
+                        <span className="text-sm text-primary font-medium">{mealsByType.lunch.length}</span>
                       )}
                     </div>
                     {mealsByType.lunch.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.lunch.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-4 bg-muted/30 rounded-lg">
-                            <p className="text-base text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-3 text-sm ml-3">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
+                            <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
                             </div>
@@ -684,26 +687,26 @@ export default function DashboardPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-base text-muted-foreground/40 py-2">No meals logged</p>
+                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
                     )}
                   </div>
 
-                  <div className="border-t border-border/50" />
+                  <div className="border-t border-border/30" />
 
                   {/* Dinner */}
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-base font-medium text-foreground uppercase tracking-wider">Dinner</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Dinner</p>
                       {mealsByType.dinner.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.dinner.length} item{mealsByType.dinner.length > 1 ? 's' : ''}</span>
+                        <span className="text-sm text-primary font-medium">{mealsByType.dinner.length}</span>
                       )}
                     </div>
                     {mealsByType.dinner.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.dinner.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-4 bg-muted/30 rounded-lg">
-                            <p className="text-base text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-3 text-sm ml-3">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
+                            <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
                             </div>
@@ -716,7 +719,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-base text-muted-foreground/40 py-2">No meals logged</p>
+                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
                     )}
                   </div>
                 </div>
@@ -726,48 +729,48 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions - Bottom */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Link
             href="/coach"
-            className="bg-card rounded-3xl p-6 border border-border/50 hover:border-primary/30 transition-all hover:shadow-md group"
+            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <MessageCircle className="h-7 w-7 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <MessageCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-lg font-medium text-foreground">Log a meal</p>
-                <p className="text-base text-muted-foreground">Chat with your coach</p>
+                <p className="text-sm font-medium text-foreground">Log a meal</p>
+                <p className="text-sm text-muted-foreground">Chat with your coach</p>
               </div>
             </div>
           </Link>
 
           <Link
             href="/restaurants"
-            className="bg-card rounded-3xl p-6 border border-border/50 hover:border-primary/30 transition-all hover:shadow-md group"
+            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <Utensils className="h-7 w-7 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <Utensils className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-lg font-medium text-foreground">Find food nearby</p>
-                <p className="text-base text-muted-foreground">Restaurant suggestions</p>
+                <p className="text-sm font-medium text-foreground">Find food nearby</p>
+                <p className="text-sm text-muted-foreground">Restaurant suggestions</p>
               </div>
             </div>
           </Link>
 
           <Link
             href="/profile"
-            className="bg-card rounded-3xl p-6 border border-border/50 hover:border-primary/30 transition-all hover:shadow-md group"
+            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <TrendingUp className="h-7 w-7 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <TrendingUp className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-lg font-medium text-foreground">Your progress</p>
-                <p className="text-base text-muted-foreground">View weekly trends</p>
+                <p className="text-sm font-medium text-foreground">Your progress</p>
+                <p className="text-sm text-muted-foreground">View weekly trends</p>
               </div>
             </div>
           </Link>

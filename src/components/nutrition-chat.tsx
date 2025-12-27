@@ -258,7 +258,7 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
               {message.role === "assistant" && (
                 <div className="flex-shrink-0 mr-3 mt-1">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-primary font-medium text-sm">R</span>
+                    <span className="text-xs font-medium text-primary">r</span>
                   </div>
                 </div>
               )}
@@ -290,7 +290,7 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
             <div className="flex justify-start">
               <div className="flex-shrink-0 mr-3 mt-1">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary font-medium text-sm">R</span>
+                  <span className="text-xs font-medium text-primary">r</span>
                 </div>
               </div>
 
@@ -354,7 +354,7 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
             <div className="flex justify-start">
               <div className="flex-shrink-0 mr-3 mt-1">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary font-medium text-sm">R</span>
+                  <span className="text-xs font-medium text-primary">r</span>
                 </div>
               </div>
               <div className="rounded-2xl bg-card border border-border px-4 py-3">

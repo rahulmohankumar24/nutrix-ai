@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
-import { Home, MessageCircle, Utensils, User } from "lucide-react"
+import { Home, MessageCircle, Utensils, TrendingUp } from "lucide-react"
 
 export function Navbar() {
   const pathname = usePathname()
@@ -13,18 +13,15 @@ export function Navbar() {
     { name: "Home", href: "/dashboard", icon: Home },
     { name: "Coach", href: "/coach", icon: MessageCircle },
     { name: "Restaurants", href: "/restaurants", icon: Utensils },
-    { name: "Profile", href: "/profile", icon: User },
+    { name: "My Path", href: "/my-path", icon: TrendingUp },
   ]
 
   return (
     <header className="bg-background/80 backdrop-blur-xl border-b border-border/30 sticky top-0 z-50">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
         {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-            <span className="text-primary-foreground font-bold text-lg">R</span>
-          </div>
-          <span className="text-xl font-semibold text-foreground hidden sm:block">Rovia</span>
+        <Link href="/dashboard" className="group">
+          <span className="text-2xl font-normal text-foreground tracking-[0.08em]">rovia</span>
         </Link>
 
         {/* Center Navigation */}
@@ -51,8 +48,9 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* User Button */}
-        <div className="flex items-center">
+        {/* Profile / User Button */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground hidden sm:block">Profile</span>
           <UserButton
             afterSignOutUrl="/"
             appearance={{

@@ -495,11 +495,11 @@ export default function RestaurantPage() {
               <div className="relative p-5">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-2xl">🎯</span>
+                    <span className="text-sm font-semibold text-primary">r</span>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-bold text-foreground">AI Nutrition Coach</h3>
+                      <h3 className="text-base font-bold text-foreground">Nutrition Coach</h3>
                       <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-semibold">Live</span>
                     </div>
                     <p className="text-xs text-muted-foreground/80">
@@ -529,9 +529,6 @@ export default function RestaurantPage() {
               <div className="text-center max-w-md">
                 <div className="relative">
                   <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto"></div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl">🍽️</span>
-                  </div>
                 </div>
                 <h3 className="mt-6 text-lg font-semibold text-foreground">Generating Your Personalized Meals</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -595,7 +592,7 @@ export default function RestaurantPage() {
                         {item.fitReasoning && (
                           <div className="mt-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
                             <p className="text-xs text-foreground">
-                              <span className="font-medium">🎯 Why this works: </span>
+                              <span className="font-medium">Why this works: </span>
                               {item.fitReasoning}
                             </p>
                           </div>
@@ -605,7 +602,6 @@ export default function RestaurantPage() {
                         {item.aiReasoning && item.aiReasoning !== item.fitReasoning && (
                           <div className="mt-2 p-2 rounded-lg bg-muted">
                             <p className="text-xs text-muted-foreground">
-                              <span className="font-medium">💡 </span>
                               {item.aiReasoning}
                             </p>
                             {item.macroImpact && (
@@ -645,7 +641,6 @@ export default function RestaurantPage() {
                     {(item as any).isAIAnalyzed && (
                       <div className="mt-3 mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                         <div className="flex items-start gap-2 mb-3">
-                          <span className="text-blue-600 text-xs">🤖</span>
                           <div className="flex-1">
                             <p className="text-xs font-medium text-blue-700">AI Menu Analysis</p>
                             <p className="text-xs text-blue-600 mt-0.5">

@@ -4,14 +4,9 @@ export default function SignInPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center py-12 px-6">
       <div className="mx-auto w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <span className="text-primary font-semibold text-lg">R</span>
-            </div>
-          </div>
-          <h1 className="text-2xl font-semibold text-foreground">Welcome back</h1>
-          <p className="text-muted-foreground mt-1">Sign in to continue your journey</p>
+        <div className="text-center mb-10">
+          <span className="text-4xl font-normal text-foreground tracking-[0.08em]">rovia</span>
+          <p className="text-muted-foreground mt-4">Sign in to continue</p>
         </div>
 
         <div className="flex justify-center">

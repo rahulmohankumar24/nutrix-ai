@@ -125,13 +125,8 @@ export default function OnboardingPage() {
       <div className="max-w-xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <span className="text-primary font-semibold text-lg">R</span>
-            </div>
-          </div>
-          <h1 className="text-2xl font-semibold text-foreground mb-2">Tell us about yourself</h1>
-          <p className="text-muted-foreground">We'll create a personalized plan just for you</p>
+          <span className="text-4xl font-normal text-foreground tracking-[0.08em]">rovia</span>
+          <p className="text-muted-foreground mt-4">Tell us about yourself</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">

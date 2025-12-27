@@ -187,9 +187,6 @@ export default function SnacksPage() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">🍎</span>
-              </div>
               <h1 className="text-xl font-semibold text-white">Smart Food Finder</h1>
             </div>
             <nav className="flex items-center space-x-6">
@@ -213,10 +210,10 @@ export default function SnacksPage() {
           <h2 className="text-xl font-bold text-white mb-4">Food Sources</h2>
           <div className="flex space-x-4">
             {[
-              { value: 'all', label: 'All Foods', icon: '🍽️' },
-              { value: 'home', label: 'Home Foods', icon: '🏠' },
-              { value: 'grocery', label: 'Grocery Items', icon: '🛒' },
-              { value: 'restaurant', label: 'Restaurant', icon: '🍽️' }
+              { value: 'all', label: 'All Foods' },
+              { value: 'home', label: 'Home Foods' },
+              { value: 'grocery', label: 'Grocery Items' },
+              { value: 'restaurant', label: 'Restaurant' }
             ].map(source => (
               <button
                 key={source.value}
@@ -227,7 +224,6 @@ export default function SnacksPage() {
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                <span className="mr-2">{source.icon}</span>
                 {source.label}
               </button>
             ))}
@@ -255,7 +251,7 @@ export default function SnacksPage() {
                 </p>
               </div>
               <div className="text-green-400 text-sm">
-                ✨ AI Optimized for {getCurrentTimeOfDay()}
+                Optimized for {getCurrentTimeOfDay()}
               </div>
             </div>
 
@@ -268,7 +264,7 @@ export default function SnacksPage() {
                       <p className="text-gray-400 text-sm capitalize">{food.source}</p>
                       {food.aiApproved && (
                         <span className="inline-block mt-2 px-2 py-1 bg-green-900/50 text-green-300 text-xs rounded-md border border-green-500/30">
-                          ✨ AI Approved
+                          Recommended
                         </span>
                       )}
                     </div>
@@ -312,7 +308,6 @@ export default function SnacksPage() {
         {/* No Foods Found */}
         {!loading && foods.length === 0 && (
           <div className="glass rounded-2xl p-16 text-center">
-            <div className="text-gray-600 text-6xl mb-6">🥗</div>
             <h3 className="text-xl font-semibold text-white mb-3">No suitable foods found</h3>
             <p className="text-gray-400">Try selecting a different food source or check your nutrition targets.</p>
           </div>

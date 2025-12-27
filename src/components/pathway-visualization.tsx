@@ -25,21 +25,21 @@ export function PathwayVisualization({
   const data = dailyData
 
   return (
-    <div className="bg-card rounded-3xl border border-border/50 p-10 md:p-12">
+    <div className="bg-card rounded-2xl border border-border/50 p-6">
       {/* Header */}
-      <div className="text-center mb-12">
-        <p className="text-lg text-muted-foreground tracking-wide">your path today</p>
+      <div className="text-center mb-6">
+        <p className="text-base text-muted-foreground tracking-wide">your path today</p>
       </div>
 
       {/* Pathway with line through middle */}
       <div className="relative">
         {/* Connecting line - goes through middle of circles */}
-        <div className="absolute top-8 md:top-10 left-0 right-0 flex items-center px-8 md:px-10">
-          <div className="w-8 md:w-10" /> {/* Spacer for first circle */}
-          <div className={`flex-1 h-0.5 rounded-full ${data[0]?.isCompleted ? 'bg-primary/40' : 'bg-muted'}`} />
-          <div className="w-16 md:w-20" /> {/* Spacer for middle circle */}
-          <div className={`flex-1 h-0.5 rounded-full ${data[1]?.isCompleted ? 'bg-primary/40' : 'bg-muted'}`} />
-          <div className="w-8 md:w-10" /> {/* Spacer for last circle */}
+        <div className="absolute top-6 left-0 right-0 flex items-center px-6">
+          <div className="w-6" /> {/* Spacer for first circle */}
+          <div className={`flex-1 h-px rounded-full ${data[0]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
+          <div className="w-12" /> {/* Spacer for middle circle */}
+          <div className={`flex-1 h-px rounded-full ${data[1]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
+          <div className="w-6" /> {/* Spacer for last circle */}
         </div>
 
         {/* Circles and labels */}
@@ -53,7 +53,7 @@ export function PathwayVisualization({
                 {/* Circle */}
                 <div
                   className={`
-                    relative z-10 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center
+                    relative z-10 w-12 h-12 rounded-full flex items-center justify-center
                     transition-all duration-300
                     ${isCompleted
                       ? 'bg-primary'
@@ -64,47 +64,47 @@ export function PathwayVisualization({
                   `}
                 >
                   {isCompleted ? (
-                    <svg className="w-7 h-7 md:w-8 md:h-8 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-5 h-5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    <span className={`text-xl md:text-2xl font-semibold ${isCurrent ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                    <span className={`text-base font-semibold ${isCurrent ? 'text-primary' : 'text-muted-foreground/40'}`}>
                       {index + 1}
                     </span>
                   )}
                 </div>
 
                 {/* Label */}
-                <div className="mt-4 text-center">
-                  <p className={`text-lg font-medium ${
+                <div className="mt-3 text-center">
+                  <p className={`text-base font-medium ${
                     isCompleted ? 'text-primary' : isCurrent ? 'text-foreground' : 'text-muted-foreground/50'
                   }`}>
                     {meal.time}
                   </p>
 
                   {/* All Macros */}
-                  <div className="mt-2">
+                  <div className="mt-1.5">
                     {meal.macros && meal.macros.calories > 0 ? (
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm md:text-base">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
                         <div className="text-right">
                           <span className="text-muted-foreground">{meal.macros.calories}</span>
-                          <span className="text-muted-foreground/60 ml-1">cal</span>
+                          <span className="text-muted-foreground/60 ml-0.5">cal</span>
                         </div>
                         <div className="text-left">
                           <span className="text-primary font-medium">{meal.macros.protein}g</span>
-                          <span className="text-muted-foreground/60 ml-1">pro</span>
+                          <span className="text-muted-foreground/60 ml-0.5">pro</span>
                         </div>
                         <div className="text-right">
                           <span className="text-muted-foreground">{meal.macros.carbs}g</span>
-                          <span className="text-muted-foreground/60 ml-1">carb</span>
+                          <span className="text-muted-foreground/60 ml-0.5">carb</span>
                         </div>
                         <div className="text-left">
                           <span className="text-muted-foreground">{meal.macros.fat}g</span>
-                          <span className="text-muted-foreground/60 ml-1">fat</span>
+                          <span className="text-muted-foreground/60 ml-0.5">fat</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-base text-muted-foreground/40">
+                      <p className="text-sm text-muted-foreground/40">
                         {isCurrent ? "up next" : "—"}
                       </p>
                     )}
