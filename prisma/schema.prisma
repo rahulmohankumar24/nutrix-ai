@@ -117,6 +117,7 @@ model MealLog {
   foodCatalogItemId  String?
   orderTemplateId    String?
   servings           Float    @default(1.0)
+  mealType           String?  // breakfast, lunch, dinner, snack
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   foodCatalogItem  FoodCatalogItem?  @relation(fields: [foodCatalogItemId], references: [id])

@@ -11,8 +11,8 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Rovia - Your Nutrition Path",
-  description: "Track your nutrition goals with calm, supportive guidance",
+  title: "Rovia - Find Your Nutrition Path",
+  description: "Find your nutrition path",
   generator: "v0.app",
   icons: {
     icon: [

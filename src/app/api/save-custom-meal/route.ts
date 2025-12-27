@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Infer meal type from current hour if not provided
+function inferMealType(hour: number): string {
+  if (hour < 11) return 'breakfast'
+  if (hour < 16) return 'lunch'
+  return 'dinner'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const {
@@ -14,7 +21,8 @@ export async function POST(request: NextRequest) {
       fat,
       ingredients,
       buildInstructions,
-      customizations
+      customizations,
+      mealType
     } = await request.json()
 
     if (!userId || !restaurantBrand || !title || calories === undefined || protein === undefined) {
@@ -42,13 +50,18 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Determine meal type - use provided value or infer from time
+    const now = new Date()
+    const resolvedMealType = mealType || inferMealType(now.getHours())
+
     // Immediately log the meal
     const mealLog = await prisma.mealLog.create({
       data: {
         userId,
         orderTemplateId: orderTemplate.id,
         servings: 1,
-        datetime: new Date()
+        datetime: now,
+        mealType: resolvedMealType
       },
       include: {
         orderTemplate: true

@@ -3,190 +3,113 @@ interface MealData {
   percentage: number
   isCurrent?: boolean
   isCompleted?: boolean
-  details?: {
-    items: string[]
-    summary?: string
+  macros?: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
   }
 }
 
 interface PathwayVisualizationProps {
-  title?: string
   dailyData?: MealData[]
 }
 
 export function PathwayVisualization({
-  title = "Today's Journey",
   dailyData = [
-    {
-      time: "Breakfast",
-      percentage: 85,
-      isCompleted: true,
-      details: {
-        items: ["Oatmeal with berries", "Greek yogurt", "Black coffee"],
-        summary: "Great protein start",
-      },
-    },
-    {
-      time: "Lunch",
-      percentage: 72,
-      isCompleted: true,
-      details: {
-        items: ["Grilled chicken salad", "Whole grain bread", "Apple"],
-        summary: "Could use more carbs",
-      },
-    },
-    {
-      time: "Dinner",
-      percentage: 0,
-      isCurrent: true,
-      details: {
-        items: [],
-        summary: "Not yet logged",
-      },
-    },
+    { time: "Breakfast", percentage: 0, isCurrent: true },
+    { time: "Lunch", percentage: 0 },
+    { time: "Dinner", percentage: 0 },
   ],
 }: PathwayVisualizationProps) {
   const data = dailyData
 
-  const svgHeight = 280
-  const pathWidth = 80
-  const waveAmplitude = 30
-
-  const primaryColor = "hsl(140, 35%, 55%)"
-
-  const getOpacity = (percentage: number) => {
-    return 0.4 + (percentage / 100) * 0.6
-  }
-
-  const calculatePath = () => {
-    const points = data.length
-    const segmentHeight = svgHeight / (points - 1)
-    const centerX = pathWidth / 2
-
-    let path = `M ${centerX} 10`
-
-    for (let i = 1; i < points; i++) {
-      const y = 10 + i * segmentHeight
-      const prevY = 10 + (i - 1) * segmentHeight
-      const midY = prevY + segmentHeight / 2
-
-      const waveOffset = i % 2 === 0 ? -waveAmplitude : waveAmplitude
-      const controlX = centerX + waveOffset
-
-      path += ` Q ${controlX} ${midY}, ${centerX} ${y}`
-    }
-
-    return path
-  }
-
-  const calculateProgressPath = () => {
-    const currentIndex = data.findIndex((item) => item.isCurrent)
-    if (currentIndex === -1) return ""
-
-    const points = currentIndex + 1
-    const segmentHeight = svgHeight / (data.length - 1)
-    const centerX = pathWidth / 2
-
-    let path = `M ${centerX} 10`
-
-    for (let i = 1; i < points; i++) {
-      const y = 10 + i * segmentHeight
-      const prevY = 10 + (i - 1) * segmentHeight
-      const midY = prevY + segmentHeight / 2
-
-      const waveOffset = i % 2 === 0 ? -waveAmplitude : waveAmplitude
-      const controlX = centerX + waveOffset
-
-      path += ` Q ${controlX} ${midY}, ${centerX} ${y}`
-    }
-
-    return path
-  }
-
-  const calculateStonePosition = (index: number) => {
-    const points = data.length
-    const segmentHeight = svgHeight / (points - 1)
-    const centerX = pathWidth / 2
-    const y = 10 + index * segmentHeight
-
-    return { x: centerX, y }
-  }
-
   return (
-    <div className="rounded-2xl bg-card border border-border p-5 h-full flex flex-col">
-      <h2 className="mb-4 text-lg font-semibold text-foreground">{title}</h2>
+    <div className="bg-card rounded-3xl border border-border/50 p-10 md:p-12">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <p className="text-lg text-muted-foreground tracking-wide">your path today</p>
+      </div>
 
-      <div className="flex gap-4 flex-1">
-        {/* Pathway SVG */}
-        <div className="flex-shrink-0" style={{ width: `${pathWidth}px`, height: `${svgHeight + 20}px` }}>
-          <svg width={pathWidth} height={svgHeight + 20} viewBox={`0 0 ${pathWidth} ${svgHeight + 20}`}>
-            {/* Background pathway */}
-            <path d={calculatePath()} fill="none" stroke="#e5e5e5" strokeWidth="18" strokeLinecap="round" />
-            {/* Progress pathway */}
-            <path
-              d={calculateProgressPath()}
-              fill="none"
-              stroke={primaryColor}
-              strokeWidth="18"
-              strokeLinecap="round"
-            />
-
-            {/* Stone markers */}
-            {data.map((item, index) => {
-              const position = calculateStonePosition(index)
-              const isCurrent = item.isCurrent
-              const isCompleted = item.isCompleted
-
-              return (
-                <g key={index}>
-                  <circle
-                    cx={position.x}
-                    cy={position.y}
-                    r={isCurrent ? 7 : 6}
-                    fill={
-                      isCompleted ? `rgba(60, 60, 60, ${getOpacity(item.percentage)})` : isCurrent ? "#333" : "#ccc"
-                    }
-                    stroke={isCurrent ? primaryColor : "white"}
-                    strokeWidth={isCurrent ? 2 : 1.5}
-                  />
-                </g>
-              )
-            })}
-          </svg>
+      {/* Pathway with line through middle */}
+      <div className="relative">
+        {/* Connecting line - goes through middle of circles */}
+        <div className="absolute top-8 md:top-10 left-0 right-0 flex items-center px-8 md:px-10">
+          <div className="w-8 md:w-10" /> {/* Spacer for first circle */}
+          <div className={`flex-1 h-0.5 rounded-full ${data[0]?.isCompleted ? 'bg-primary/40' : 'bg-muted'}`} />
+          <div className="w-16 md:w-20" /> {/* Spacer for middle circle */}
+          <div className={`flex-1 h-0.5 rounded-full ${data[1]?.isCompleted ? 'bg-primary/40' : 'bg-muted'}`} />
+          <div className="w-8 md:w-10" /> {/* Spacer for last circle */}
         </div>
 
-        {/* Labels and details */}
-        <div className="flex flex-1 flex-col justify-between py-1" style={{ height: `${svgHeight + 20}px` }}>
-          {data.map((item, index) => {
-            const isCurrent = item.isCurrent
-            const isCompleted = item.isCompleted
+        {/* Circles and labels */}
+        <div className="relative flex items-start justify-between w-full">
+          {data.map((meal, index) => {
+            const isCompleted = meal.isCompleted
+            const isCurrent = meal.isCurrent
 
             return (
-              <div key={index} className="flex-1 flex flex-col justify-center">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`
-                      text-sm
-                      ${isCurrent ? "font-semibold text-foreground" : isCompleted ? "font-medium text-foreground" : "text-muted-foreground"}
-                    `}
-                  >
-                    {item.time}
-                  </span>
-                  {(isCompleted || isCurrent) && item.percentage > 0 && (
-                    <span className="text-xs font-medium text-primary">{item.percentage}%</span>
+              <div key={index} className="flex flex-col items-center flex-1">
+                {/* Circle */}
+                <div
+                  className={`
+                    relative z-10 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center
+                    transition-all duration-300
+                    ${isCompleted
+                      ? 'bg-primary'
+                      : isCurrent
+                        ? 'bg-card ring-2 ring-primary'
+                        : 'bg-muted/50'
+                    }
+                  `}
+                >
+                  {isCompleted ? (
+                    <svg className="w-7 h-7 md:w-8 md:h-8 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <span className={`text-xl md:text-2xl font-semibold ${isCurrent ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                      {index + 1}
+                    </span>
                   )}
                 </div>
 
-                {item.details && (isCompleted || isCurrent) && (
-                  <div className="mt-1.5 text-xs text-muted-foreground">
-                    {item.details.items.length > 0 && <p className="line-clamp-1">{item.details.items.join(", ")}</p>}
-                    {item.details.summary && (
-                      <p className={`mt-0.5 ${isCompleted ? "text-foreground font-medium" : "italic"}`}>
-                        {item.details.summary}
+                {/* Label */}
+                <div className="mt-4 text-center">
+                  <p className={`text-lg font-medium ${
+                    isCompleted ? 'text-primary' : isCurrent ? 'text-foreground' : 'text-muted-foreground/50'
+                  }`}>
+                    {meal.time}
+                  </p>
+
+                  {/* All Macros */}
+                  <div className="mt-2">
+                    {meal.macros && meal.macros.calories > 0 ? (
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm md:text-base">
+                        <div className="text-right">
+                          <span className="text-muted-foreground">{meal.macros.calories}</span>
+                          <span className="text-muted-foreground/60 ml-1">cal</span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-primary font-medium">{meal.macros.protein}g</span>
+                          <span className="text-muted-foreground/60 ml-1">pro</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-muted-foreground">{meal.macros.carbs}g</span>
+                          <span className="text-muted-foreground/60 ml-1">carb</span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-muted-foreground">{meal.macros.fat}g</span>
+                          <span className="text-muted-foreground/60 ml-1">fat</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-base text-muted-foreground/40">
+                        {isCurrent ? "up next" : "—"}
                       </p>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             )
           })}

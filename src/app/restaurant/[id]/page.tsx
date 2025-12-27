@@ -54,6 +54,12 @@ export default function RestaurantPage() {
   const [loggedMealId, setLoggedMealId] = useState<string | null>(null)
   const [showFeedbackFor, setShowFeedbackFor] = useState<string | null>(null)
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [selectedMealType, setSelectedMealType] = useState<string>(() => {
+    const hour = new Date().getHours()
+    if (hour < 11) return 'breakfast'
+    if (hour < 16) return 'lunch'
+    return 'dinner'
+  })
 
   useEffect(() => {
     if (params.id && user?.id) {
@@ -333,7 +339,8 @@ export default function RestaurantPage() {
           fat: meal.fat,
           ingredients: meal.ingredients,
           buildInstructions: meal.buildInstructions || meal.description,
-          customizations: meal.customizations
+          customizations: meal.customizations,
+          mealType: selectedMealType
         })
       })
 
@@ -726,6 +733,26 @@ export default function RestaurantPage() {
                       <div className="text-center">
                         <p className="text-lg font-semibold text-foreground">{Math.round(item.fat)}g</p>
                         <p className="text-xs text-muted-foreground">fat</p>
+                      </div>
+                    </div>
+
+                    {/* Meal Type Selector */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-muted-foreground">Log as:</span>
+                      <div className="flex gap-1 flex-1">
+                        {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => setSelectedMealType(type)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${
+                              selectedMealType === type
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
                       </div>
                     </div>
 

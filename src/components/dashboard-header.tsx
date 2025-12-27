@@ -1,11 +1,13 @@
 interface DashboardHeaderProps {
   userName?: string
+  greeting?: string
   message?: string
   progressPercentage?: number
 }
 
 export function DashboardHeader({
   userName = "Sarah",
+  greeting = "Good afternoon",
   message = "Steady momentum today",
   progressPercentage = 65,
 }: DashboardHeaderProps) {
@@ -18,7 +20,7 @@ export function DashboardHeader({
   return (
     <div className="flex items-end justify-between gap-8">
       <h1 className="text-5xl font-bold tracking-tight text-foreground">
-        Good afternoon, <span className="font-bold">{userName}</span>
+        {greeting}, <span className="font-bold">{userName}</span>
       </h1>
 
       <div className="flex flex-col items-center gap-1">

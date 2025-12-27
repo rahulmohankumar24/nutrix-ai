@@ -84,8 +84,15 @@ export function WeekSummary({
   const primaryColor = "hsl(140, 35%, 55%)"
   const belowTargetColor = "hsl(45, 90%, 50%)"
 
-  const getCaloriePercentage = (day: DayData) => (day.calories / day.caloriesTarget) * 100
-  const getProteinPercentage = (day: DayData) => (day.protein / day.proteinTarget) * 100
+  // Safe percentage calculation - handle 0 or invalid targets
+  const getCaloriePercentage = (day: DayData) => {
+    if (!day.caloriesTarget || day.caloriesTarget <= 0) return 0
+    return (day.calories / day.caloriesTarget) * 100
+  }
+  const getProteinPercentage = (day: DayData) => {
+    if (!day.proteinTarget || day.proteinTarget <= 0) return 0
+    return (day.protein / day.proteinTarget) * 100
+  }
 
   const weeklyCalories = days.reduce((sum, day) => sum + day.calories, 0)
   const weeklyProtein = days.reduce((sum, day) => sum + day.protein, 0)
