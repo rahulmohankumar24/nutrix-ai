@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
           restaurantBrand.toLowerCase(),
           ...(customizations && customizations.length > 0 ? ['customized'] : [])
         ]),
-        ingredientsJson: ingredients ? JSON.stringify(ingredients) : null
+        keywordsForDeliverySearch: title.toLowerCase()
       }
     })
 
