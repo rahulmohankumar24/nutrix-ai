@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Clock, Phone, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X } from 'lucide-react'
 
 interface Restaurant {
   id: string
@@ -41,6 +41,12 @@ interface MealTemplate {
   proteinFit?: number
 }
 
+interface MacroProgress {
+  targets: { calories: number; protein: number; carbs: number; fat: number }
+  current: { calories: number; protein: number; carbs: number; fat: number }
+  remaining: { calories: number; protein: number; carbs: number; fat: number }
+}
+
 export default function RestaurantPage() {
   const params = useParams()
   const router = useRouter()
@@ -54,6 +60,18 @@ export default function RestaurantPage() {
   const [loggedMealId, setLoggedMealId] = useState<string | null>(null)
   const [showFeedbackFor, setShowFeedbackFor] = useState<string | null>(null)
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [feedbackData, setFeedbackData] = useState<{
+    caloriesFeedback: 'accurate' | 'too_high' | 'too_low' | null
+    proteinFeedback: 'accurate' | 'too_high' | 'too_low' | null
+    suggestedCalories: string
+    suggestedProtein: string
+  }>({
+    caloriesFeedback: null,
+    proteinFeedback: null,
+    suggestedCalories: '',
+    suggestedProtein: ''
+  })
+  const [macroProgress, setMacroProgress] = useState<MacroProgress | null>(null)
   const [selectedMealType, setSelectedMealType] = useState<string>(() => {
     const hour = new Date().getHours()
     if (hour < 11) return 'breakfast'
@@ -106,19 +124,10 @@ export default function RestaurantPage() {
         }
       })
       if (!macroResponse.ok) throw new Error('Failed to fetch macro progress')
-      const macroProgress = await macroResponse.json()
+      const macroData = await macroResponse.json()
 
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('🎯 RESTAURANT PAGE - User Macro Progress')
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('  Targets:', macroProgress.targets)
-      console.log('  Current:', macroProgress.current)
-      console.log('  Remaining:', macroProgress.remaining)
-      console.log(`  Progress: ${macroProgress.current.calories}/${macroProgress.targets.calories} cal (${Math.round(macroProgress.current.calories/macroProgress.targets.calories*100)}%)`)
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('')
-      console.log('⚠️ CHECK: Is this data correct? Does the "Remaining" match what you expect?')
-      console.log('')
+      // Store macro progress for display
+      setMacroProgress(macroData)
 
       // Fetch user profile for schedule
       const profileResponse = await fetch(`/api/profile?userId=${user?.id}`)
@@ -162,7 +171,7 @@ export default function RestaurantPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantBrand: restaurantInfo.name,
-            userTargets: macroProgress,
+            userTargets: macroData,
             userId: user?.id,
             timeOfDay,
             currentTime: currentTimeString,
@@ -170,7 +179,7 @@ export default function RestaurantPage() {
             userProfile: { goal: 'recomp', liftingDays: 4, stepsLevel: 'med' },
             useEnhancedAI: true,
             userSchedule,
-            bypassCache: false // Set to true to bypass cache for fresh calculations
+            bypassCache: false
           })
         })
 
@@ -208,7 +217,7 @@ export default function RestaurantPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantBrand: restaurantInfo.name,
-            userTargets: macroProgress,
+            userTargets: macroData,
             userId: user?.id,
             timeOfDay,
             currentTime: currentTimeString,
@@ -234,13 +243,12 @@ export default function RestaurantPage() {
         }
       } else {
         // Use AI web search and menu analysis for unknown restaurants
-        console.log(`🔍 Unknown restaurant detected: ${restaurantInfo.name}, using AI menu analysis`)
         response = await fetch('/api/analyze-unknown-restaurant', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantName: restaurantInfo.name,
-            userTargets: macroProgress,
+            userTargets: macroData,
             userId: user?.id,
             timeOfDay,
             currentTime: currentTimeString,
@@ -367,8 +375,16 @@ export default function RestaurantPage() {
     }
   }
 
-  const handleSubmitFeedback = async (mealId: string, feedbackType: string, suggestions?: any) => {
+  const handleSubmitFeedback = async (mealId: string) => {
     if (!user?.id) return
+
+    // Determine overall feedback type based on individual feedbacks
+    let feedbackType = 'accurate'
+    if (feedbackData.caloriesFeedback === 'too_high' || feedbackData.proteinFeedback === 'too_high') {
+      feedbackType = 'too_high'
+    } else if (feedbackData.caloriesFeedback === 'too_low' || feedbackData.proteinFeedback === 'too_low') {
+      feedbackType = 'too_low'
+    }
 
     setSubmittingFeedback(true)
 
@@ -380,7 +396,10 @@ export default function RestaurantPage() {
           userId: user.id,
           aiGeneratedMealId: mealId,
           feedbackType,
-          ...suggestions
+          caloriesFeedback: feedbackData.caloriesFeedback,
+          proteinFeedback: feedbackData.proteinFeedback,
+          suggestedCalories: feedbackData.suggestedCalories ? parseInt(feedbackData.suggestedCalories) : null,
+          suggestedProtein: feedbackData.suggestedProtein ? parseInt(feedbackData.suggestedProtein) : null
         })
       })
 
@@ -396,36 +415,50 @@ export default function RestaurantPage() {
           if ((meal as any).aiGeneratedMealId === mealId) {
             return {
               ...meal,
-              calories: data.updatedMeal.calories,
-              protein: data.updatedMeal.protein,
-              carbs: data.updatedMeal.carbs,
-              fat: data.updatedMeal.fat,
-              feedbackCount: data.updatedMeal.feedbackCount,
-              confidenceScore: data.updatedMeal.confidenceScore
+              calories: data.updatedMeal?.calories || meal.calories,
+              protein: data.updatedMeal?.protein || meal.protein,
+              carbs: data.updatedMeal?.carbs || meal.carbs,
+              fat: data.updatedMeal?.fat || meal.fat,
+              feedbackCount: data.updatedMeal?.feedbackCount,
+              confidenceScore: data.updatedMeal?.confidenceScore
             }
           }
           return meal
         })
       )
 
+      // Reset feedback state
       setShowFeedbackFor(null)
-      alert('Thank you for your feedback! This helps improve our recommendations.')
+      setFeedbackData({
+        caloriesFeedback: null,
+        proteinFeedback: null,
+        suggestedCalories: '',
+        suggestedProtein: ''
+      })
     } catch (error) {
       console.error('Failed to submit feedback:', error)
-      alert('Failed to submit feedback. Please try again.')
     } finally {
       setSubmittingFeedback(false)
     }
   }
 
+  const resetFeedback = () => {
+    setShowFeedbackFor(null)
+    setFeedbackData({
+      caloriesFeedback: null,
+      proteinFeedback: null,
+      suggestedCalories: '',
+      suggestedProtein: ''
+    })
+  }
+
   const getRestaurantInfo = () => {
-    if (!restaurant) return { type: 'Restaurant', address: '', hours: '', phone: '' }
+    if (!restaurant) return { type: 'Restaurant', address: '', hours: '' }
 
     return {
       type: restaurant.tags?.cuisine || 'Restaurant',
-      address: `${restaurant.distance.toFixed(1)} miles away`,
-      hours: 'Open now • Closes 10PM',
-      phone: '(555) 123-4567'
+      address: `${restaurant.distance.toFixed(1)} mi away`,
+      hours: 'Open now'
     }
   }
 
@@ -454,61 +487,83 @@ export default function RestaurantPage() {
           Back to restaurants
         </Link>
 
+        {/* Remaining Macros Card - Sticky on desktop */}
+        {macroProgress && (
+          <div className="mb-6 lg:fixed lg:top-24 lg:right-8 lg:w-64 lg:z-40">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Remaining Today</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Calories</span>
+                  <span className="text-lg font-semibold text-foreground">{Math.round(macroProgress.remaining.calories)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Protein</span>
+                  <span className="text-lg font-semibold text-primary">{Math.round(macroProgress.remaining.protein)}g</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Carbs</span>
+                  <span className="text-lg font-semibold text-foreground">{Math.round(macroProgress.remaining.carbs)}g</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Fat</span>
+                  <span className="text-lg font-semibold text-foreground">{Math.round(macroProgress.remaining.fat)}g</span>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Today's progress</span>
+                  <span>{Math.round((macroProgress.current.calories / macroProgress.targets.calories) * 100)}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (macroProgress.current.calories / macroProgress.targets.calories) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Restaurant Header with AI Coach */}
-        <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:pr-72">
           {/* Restaurant Info */}
           <div>
-            <div className="mb-3">
-              <h1 className="text-3xl font-bold text-foreground">{restaurant.name}</h1>
-            </div>
+            <h1 className="text-2xl font-semibold text-foreground mb-2">{restaurant.name}</h1>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
               <span>{restaurantInfo.type}</span>
               <span>•</span>
               <span>$$</span>
-            </div>
-
-            <p className="text-muted-foreground mb-4">
-              Great options for your nutrition goals
-            </p>
-
-            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" />
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" />
                 {restaurantInfo.address}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
                 {restaurantInfo.hours}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Phone className="h-4 w-4" />
-                {restaurantInfo.phone}
               </span>
             </div>
           </div>
 
           {/* AI Coaching Advice */}
           {coachingAdvice && (
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 shadow-lg h-fit">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="relative p-5">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">r</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-bold text-foreground">Nutrition Coach</h3>
-                      <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-semibold">Live</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground/80">
-                      Based on your current progress
-                    </p>
-                  </div>
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-primary">r</span>
                 </div>
-                <div className="bg-background/60 backdrop-blur-sm rounded-xl p-3 border border-primary/10">
-                  <p className="text-sm leading-relaxed text-foreground">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-semibold text-foreground">Nutrition Coach</h3>
+                    <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-medium">Live</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     {coachingAdvice}
                   </p>
                 </div>
@@ -518,27 +573,21 @@ export default function RestaurantPage() {
         </div>
 
         {/* Menu Section */}
-        <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">Recommended Menu Items</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Items personalized for your nutrition goals
-          </p>
+        <div className="lg:pr-72">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Recommended for You</h2>
+              <p className="text-sm text-muted-foreground">Personalized for your nutrition goals</p>
+            </div>
+          </div>
 
           {aiLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center max-w-md">
-                <div className="relative">
-                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto"></div>
-                </div>
-                <h3 className="mt-6 text-lg font-semibold text-foreground">Generating Your Personalized Meals</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Analyzing your macro targets and creating the perfect meal options for you...
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary/20 border-t-primary mx-auto"></div>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Finding your best meal options...
                 </p>
-                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
               </div>
             </div>
           ) : meals.length === 0 ? (
@@ -661,39 +710,90 @@ export default function RestaurantPage() {
 
                         {/* Feedback UI */}
                         {showFeedbackFor === item.id ? (
-                          <div className="space-y-2 pt-2 border-t border-blue-500/20">
-                            <p className="text-xs font-medium text-foreground">How accurate is this nutrition info?</p>
-                            <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-3 pt-3 border-t border-blue-500/20">
+                            <p className="text-xs font-medium text-foreground">Help us improve this estimate</p>
+
+                            {/* Calories Feedback */}
+                            <div className="space-y-1.5">
+                              <p className="text-xs text-muted-foreground">Calories ({Math.round(item.calories)})</p>
+                              <div className="flex gap-1.5">
+                                {(['too_low', 'accurate', 'too_high'] as const).map((option) => (
+                                  <button
+                                    key={option}
+                                    onClick={() => setFeedbackData(prev => ({ ...prev, caloriesFeedback: option }))}
+                                    className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                      feedbackData.caloriesFeedback === option
+                                        ? option === 'accurate'
+                                          ? 'bg-green-500 text-white'
+                                          : 'bg-orange-500 text-white'
+                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                    }`}
+                                  >
+                                    {option === 'too_low' ? 'Too Low' : option === 'accurate' ? 'Accurate' : 'Too High'}
+                                  </button>
+                                ))}
+                              </div>
+                              {feedbackData.caloriesFeedback && feedbackData.caloriesFeedback !== 'accurate' && (
+                                <input
+                                  type="number"
+                                  value={feedbackData.suggestedCalories}
+                                  onChange={(e) => setFeedbackData(prev => ({ ...prev, suggestedCalories: e.target.value }))}
+                                  placeholder="Your estimate (e.g., 650)"
+                                  className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs focus:outline-none focus:border-primary"
+                                />
+                              )}
+                            </div>
+
+                            {/* Protein Feedback */}
+                            <div className="space-y-1.5">
+                              <p className="text-xs text-muted-foreground">Protein ({Math.round(item.protein)}g)</p>
+                              <div className="flex gap-1.5">
+                                {(['too_low', 'accurate', 'too_high'] as const).map((option) => (
+                                  <button
+                                    key={option}
+                                    onClick={() => setFeedbackData(prev => ({ ...prev, proteinFeedback: option }))}
+                                    className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                      feedbackData.proteinFeedback === option
+                                        ? option === 'accurate'
+                                          ? 'bg-green-500 text-white'
+                                          : 'bg-orange-500 text-white'
+                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                    }`}
+                                  >
+                                    {option === 'too_low' ? 'Too Low' : option === 'accurate' ? 'Accurate' : 'Too High'}
+                                  </button>
+                                ))}
+                              </div>
+                              {feedbackData.proteinFeedback && feedbackData.proteinFeedback !== 'accurate' && (
+                                <input
+                                  type="number"
+                                  value={feedbackData.suggestedProtein}
+                                  onChange={(e) => setFeedbackData(prev => ({ ...prev, suggestedProtein: e.target.value }))}
+                                  placeholder="Your estimate (e.g., 45)"
+                                  className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs focus:outline-none focus:border-primary"
+                                />
+                              )}
+                            </div>
+
+                            {/* Submit/Cancel */}
+                            <div className="flex gap-2 pt-1">
                               <button
-                                onClick={() => handleSubmitFeedback((item as any).aiGeneratedMealId, 'accurate')}
-                                disabled={submittingFeedback}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 text-green-700 hover:bg-green-500/30 transition-colors text-xs font-medium disabled:opacity-50"
+                                onClick={() => handleSubmitFeedback((item as any).aiGeneratedMealId)}
+                                disabled={submittingFeedback || (!feedbackData.caloriesFeedback && !feedbackData.proteinFeedback)}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-colors text-xs font-medium disabled:opacity-50"
                               >
-                                <ThumbsUp className="h-3.5 w-3.5" />
-                                Accurate
+                                {submittingFeedback ? (
+                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                                Submit Feedback
                               </button>
                               <button
-                                onClick={() => handleSubmitFeedback((item as any).aiGeneratedMealId, 'too_high')}
-                                disabled={submittingFeedback}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/20 text-orange-700 hover:bg-orange-500/30 transition-colors text-xs font-medium disabled:opacity-50"
-                              >
-                                <ThumbsDown className="h-3.5 w-3.5" />
-                                Too High
-                              </button>
-                              <button
-                                onClick={() => handleSubmitFeedback((item as any).aiGeneratedMealId, 'too_low')}
-                                disabled={submittingFeedback}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/20 text-orange-700 hover:bg-orange-500/30 transition-colors text-xs font-medium disabled:opacity-50"
-                              >
-                                <ThumbsDown className="h-3.5 w-3.5" />
-                                Too Low
-                              </button>
-                              <button
-                                onClick={() => setShowFeedbackFor(null)}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gray-500/20 text-gray-700 hover:bg-gray-500/30 transition-colors text-xs font-medium"
+                                onClick={resetFeedback}
+                                className="px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors text-xs font-medium"
                               >
                                 <X className="h-3.5 w-3.5" />
-                                Cancel
                               </button>
                             </div>
                           </div>
@@ -785,10 +885,10 @@ export default function RestaurantPage() {
         </div>
 
         {/* Get Directions Button */}
-        <div className="mt-8 pt-6 border-t border-border">
+        <div className="mt-6 pt-5 border-t border-border">
           <button
             onClick={() => window.open(`https://www.google.com/maps/search/${encodeURIComponent(restaurant.name)}`, '_blank')}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-neutral-900 text-white font-medium hover:bg-neutral-800 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
           >
             <ExternalLink className="h-4 w-4" />
             Get Directions

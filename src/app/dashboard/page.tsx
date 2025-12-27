@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2 } from 'lucide-react'
 
 interface MealLogEntry {
   id: string
@@ -70,6 +70,7 @@ export default function DashboardPage() {
     return 'dinner'
   })
   const [isLogging, setIsLogging] = useState(false)
+  const [deletingMealId, setDeletingMealId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -374,6 +375,27 @@ export default function DashboardPage() {
     setChatInput('')
   }
 
+  const deleteMeal = async (mealId: string) => {
+    if (!user?.id) return
+
+    setDeletingMealId(mealId)
+
+    try {
+      const response = await fetch(`/api/log-meal?mealLogId=${mealId}&userId=${user.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete meal')
+
+      // Refresh data
+      await loadDashboardData(user.id)
+    } catch (error) {
+      console.error('Failed to delete meal:', error)
+    } finally {
+      setDeletingMealId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -423,9 +445,9 @@ export default function DashboardPage() {
           {macros && (
             <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col h-full">
               <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
-              <div className="grid grid-cols-2 gap-6 flex-1 place-items-center">
+              <div className="grid grid-cols-2 gap-4 flex-1">
                 {/* Calories */}
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -445,7 +467,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Protein */}
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -465,7 +487,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Carbs */}
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -485,7 +507,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Fat */}
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -640,11 +662,22 @@ export default function DashboardPage() {
                     {mealsByType.breakfast.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.breakfast.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
                             <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
                             <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
+                              <button
+                                onClick={() => deleteMeal(meal.id)}
+                                disabled={deletingMealId === meal.id}
+                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                              >
+                                {deletingMealId === meal.id ? (
+                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -672,11 +705,22 @@ export default function DashboardPage() {
                     {mealsByType.lunch.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.lunch.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
                             <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
                             <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
+                              <button
+                                onClick={() => deleteMeal(meal.id)}
+                                disabled={deletingMealId === meal.id}
+                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                              >
+                                {deletingMealId === meal.id ? (
+                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -704,11 +748,22 @@ export default function DashboardPage() {
                     {mealsByType.dinner.length > 0 ? (
                       <div className="space-y-2">
                         {mealsByType.dinner.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg">
+                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
                             <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
                             <div className="flex items-center gap-2 text-sm ml-2">
                               <span className="text-muted-foreground">{meal.calories}</span>
                               <span className="text-primary font-medium">{meal.protein}g</span>
+                              <button
+                                onClick={() => deleteMeal(meal.id)}
+                                disabled={deletingMealId === meal.id}
+                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                              >
+                                {deletingMealId === meal.id ? (
+                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -761,7 +816,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link
-            href="/profile"
+            href="/my-path"
             className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
           >
             <div className="flex items-center gap-3">

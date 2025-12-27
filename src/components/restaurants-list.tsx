@@ -3,14 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
-import { MapPin, Search, SlidersHorizontal, ChevronDown, RefreshCw, Car, PersonStanding } from "lucide-react"
+import { Search, ChevronDown, RefreshCw, Car, PersonStanding, Sparkles, Leaf, Flame, Zap } from "lucide-react"
 
-interface MenuItem {
-  name: string
-  calories: number
-  protein: number
-  price: string
-}
+type QuickFilter = 'all' | 'high-protein' | 'low-carb' | 'vegetarian' | 'known-menu'
 
 interface ApiRestaurant {
   id: string
@@ -24,181 +19,27 @@ interface Restaurant {
   id: string
   name: string
   distance: string
-  rating: number
-  reviewCount: number
   type: string
   priceRange: string
-  matchScore: number
   goalReason: string
-  hours: string
   address: string
-  topItems: MenuItem[]
+  isKnown: boolean
 }
-
-const mockRestaurants: Restaurant[] = [
-  {
-    id: "1",
-    name: "Fresh & Green",
-    distance: "0.3 mi",
-    rating: 4.8,
-    reviewCount: 342,
-    type: "Salads & Bowls",
-    priceRange: "$$",
-    matchScore: 95,
-    goalReason: "High protein salads to help hit your 120g daily goal",
-    hours: "Open until 9pm",
-    address: "123 Main St",
-    topItems: [
-      { name: "Grilled Chicken Power Bowl", calories: 520, protein: 45, price: "$14" },
-      { name: "Salmon Avocado Salad", calories: 480, protein: 38, price: "$16" },
-      { name: "Protein Green Smoothie", calories: 280, protein: 24, price: "$9" },
-    ],
-  },
-  {
-    id: "2",
-    name: "Protein Kitchen",
-    distance: "0.5 mi",
-    rating: 4.6,
-    reviewCount: 218,
-    type: "Healthy Bowls",
-    priceRange: "$$",
-    matchScore: 88,
-    goalReason: "Low carb options perfect for staying under 150g carbs",
-    hours: "Open until 10pm",
-    address: "456 Oak Ave",
-    topItems: [
-      { name: "Keto Steak Bowl", calories: 580, protein: 52, price: "$18" },
-      { name: "Low Carb Turkey Wrap", calories: 420, protein: 38, price: "$13" },
-      { name: "Egg White Scramble", calories: 320, protein: 28, price: "$11" },
-    ],
-  },
-  {
-    id: "3",
-    name: "Mediterranean Grill",
-    distance: "0.7 mi",
-    rating: 4.7,
-    reviewCount: 456,
-    type: "Mediterranean",
-    priceRange: "$$",
-    matchScore: 82,
-    goalReason: "Lean proteins and healthy fats for balanced nutrition",
-    hours: "Open until 9:30pm",
-    address: "789 Elm St",
-    topItems: [
-      { name: "Grilled Lamb Plate", calories: 620, protein: 48, price: "$19" },
-      { name: "Chicken Shawarma Bowl", calories: 550, protein: 42, price: "$15" },
-      { name: "Falafel & Hummus", calories: 480, protein: 18, price: "$12" },
-    ],
-  },
-  {
-    id: "4",
-    name: "Green Leaf Cafe",
-    distance: "0.9 mi",
-    rating: 4.5,
-    reviewCount: 189,
-    type: "Vegetarian",
-    priceRange: "$",
-    matchScore: 78,
-    goalReason: "Light options under 500 calories for your remaining intake",
-    hours: "Open until 8pm",
-    address: "321 Pine Rd",
-    topItems: [
-      { name: "Quinoa Buddha Bowl", calories: 420, protein: 18, price: "$13" },
-      { name: "Tofu Stir Fry", calories: 380, protein: 22, price: "$12" },
-      { name: "Garden Veggie Wrap", calories: 340, protein: 14, price: "$10" },
-    ],
-  },
-  {
-    id: "5",
-    name: "Poke Paradise",
-    distance: "1.1 mi",
-    rating: 4.4,
-    reviewCount: 267,
-    type: "Hawaiian",
-    priceRange: "$$",
-    matchScore: 75,
-    goalReason: "Protein-rich fish bowls with customizable portions",
-    hours: "Open until 9pm",
-    address: "555 Beach Blvd",
-    topItems: [
-      { name: "Ahi Tuna Poke Bowl", calories: 510, protein: 42, price: "$16" },
-      { name: "Salmon Lover's Bowl", calories: 540, protein: 38, price: "$17" },
-      { name: "Spicy Shrimp Bowl", calories: 480, protein: 32, price: "$15" },
-    ],
-  },
-  {
-    id: "6",
-    name: "The Fit Bowl",
-    distance: "1.2 mi",
-    rating: 4.6,
-    reviewCount: 312,
-    type: "Power Bowls",
-    priceRange: "$$",
-    matchScore: 72,
-    goalReason: "Balanced macros designed for active lifestyles",
-    hours: "Open until 8:30pm",
-    address: "777 Fitness Way",
-    topItems: [
-      { name: "Athlete's Power Bowl", calories: 650, protein: 55, price: "$17" },
-      { name: "Lean & Clean Chicken", calories: 480, protein: 45, price: "$15" },
-      { name: "Post-Workout Recovery", calories: 520, protein: 48, price: "$16" },
-    ],
-  },
-  {
-    id: "7",
-    name: "Sushi Zen",
-    distance: "1.4 mi",
-    rating: 4.8,
-    reviewCount: 523,
-    type: "Japanese",
-    priceRange: "$$$",
-    matchScore: 70,
-    goalReason: "Fresh sashimi for high protein, low fat options",
-    hours: "Open until 10pm",
-    address: "888 Tokyo Lane",
-    topItems: [
-      { name: "Sashimi Platter", calories: 380, protein: 52, price: "$24" },
-      { name: "Salmon Nigiri Set", calories: 420, protein: 38, price: "$18" },
-      { name: "Edamame & Miso", calories: 220, protein: 16, price: "$8" },
-    ],
-  },
-  {
-    id: "8",
-    name: "Grain & Glory",
-    distance: "1.6 mi",
-    rating: 4.5,
-    reviewCount: 178,
-    type: "Grain Bowls",
-    priceRange: "$$",
-    matchScore: 68,
-    goalReason: "Complex carbs for sustained energy throughout the day",
-    hours: "Open until 7pm",
-    address: "999 Harvest St",
-    topItems: [
-      { name: "Ancient Grains Bowl", calories: 580, protein: 28, price: "$14" },
-      { name: "Farro & Chicken", calories: 520, protein: 35, price: "$15" },
-      { name: "Brown Rice Power Bowl", calories: 490, protein: 32, price: "$13" },
-    ],
-  },
-]
 
 export function RestaurantsList() {
   const router = useRouter()
   const { user } = useUser()
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(mockRestaurants)
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortBy, setSortBy] = useState<"match" | "distance" | "rating">("match")
+  const [sortBy, setSortBy] = useState<"match" | "distance">("match")
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
+  const [cuisineFilter, setCuisineFilter] = useState<string>('all')
   const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending')
   const [refreshingLocation, setRefreshingLocation] = useState(false)
-  const [transportMode, setTransportMode] = useState<'walk' | 'drive'>('walk')
-  const [radiusMiles, setRadiusMiles] = useState(1) // Default 1 mile for walking
-  const [showSettings, setShowSettings] = useState(false)
+  const [transportMode, setTransportMode] = useState<'walk' | 'drive'>('drive')
+  const [radiusMiles, setRadiusMiles] = useState(5) // Default 5 miles for driving
   const [userGoal, setUserGoal] = useState<string>('recomp')
-
-  // Temporary state for settings before applying
-  const [tempTransportMode, setTempTransportMode] = useState<'walk' | 'drive'>('walk')
-  const [tempRadiusMiles, setTempRadiusMiles] = useState(1)
 
   // Fetch user goal from profile
   useEffect(() => {
@@ -361,7 +202,7 @@ export function RestaurantsList() {
           lat: coords.lat,
           lng: coords.lng,
           radiusMeters,
-          limit: 50
+          limit: 100
         })
       })
 
@@ -369,42 +210,21 @@ export function RestaurantsList() {
         const data = await response.json()
         const apiRestaurants: ApiRestaurant[] = data.restaurants || []
 
-        // Convert API restaurants to display format, use mock data for known restaurants
-        const displayRestaurants = apiRestaurants
-          .filter((r: ApiRestaurant) => r.isKnown)
-          .map((apiRest: ApiRestaurant) => {
-            // Find matching mock restaurant or create new one
-            const mockMatch = mockRestaurants.find(m =>
-              m.name.toLowerCase().includes(apiRest.name.toLowerCase().split(' ')[0])
-            )
+        // Convert API restaurants to display format - only real restaurants from the API
+        const displayRestaurants: Restaurant[] = apiRestaurants.map((apiRest: ApiRestaurant) => {
+          const cuisineType = apiRest.tags?.cuisine || apiRest.tags?.amenity || 'Restaurant'
 
-            if (mockMatch) {
-              return {
-                ...mockMatch,
-                id: apiRest.id,
-                distance: `${apiRest.distance.toFixed(1)} mi`,
-                address: apiRest.tags?.['addr:full'] || mockMatch.address
-              }
-            }
-
-            const cuisineType = apiRest.tags?.cuisine || apiRest.tags?.amenity || 'Restaurant'
-
-            // Create basic restaurant entry for unknown restaurants with data
-            return {
-              id: apiRest.id,
-              name: apiRest.name,
-              distance: `${apiRest.distance.toFixed(1)} mi`,
-              rating: 4.5,
-              reviewCount: 100,
-              type: cuisineType,
-              priceRange: '$$',
-              matchScore: 70,
-              goalReason: getPersonalizedGoalReason(apiRest.name, cuisineType),
-              hours: 'Check hours',
-              address: apiRest.tags?.['addr:full'] || 'Address not available',
-              topItems: []
-            }
-          })
+          return {
+            id: apiRest.id,
+            name: apiRest.name,
+            distance: `${apiRest.distance.toFixed(1)} mi`,
+            type: cuisineType,
+            priceRange: '$$',
+            goalReason: getPersonalizedGoalReason(apiRest.name, cuisineType),
+            address: apiRest.tags?.['addr:full'] || apiRest.tags?.['addr:street'] || '',
+            isKnown: apiRest.isKnown
+          }
+        })
 
         // Score restaurants with AI
         try {
@@ -421,18 +241,16 @@ export function RestaurantsList() {
             const scoreData = await scoreResponse.json()
             setRestaurants(scoreData.scoredRestaurants)
           } else {
-            // Fallback to unscored restaurants
             setRestaurants(displayRestaurants)
           }
         } catch (scoreError) {
           console.error('Failed to score restaurants:', scoreError)
-          // Fallback to unscored restaurants
           setRestaurants(displayRestaurants)
         }
       }
     } catch (error) {
       console.error('Failed to load restaurants:', error)
-      // Keep mock data on error
+      setRestaurants([])
     } finally {
       setLoading(false)
     }
@@ -451,7 +269,7 @@ export function RestaurantsList() {
       name: restaurant.name,
       distance: parseFloat(restaurant.distance),
       tags: { cuisine: restaurant.type },
-      isKnown: true
+      isKnown: restaurant.isKnown
     }))
 
     // Set a flag to show loading state immediately on the restaurant page
@@ -487,12 +305,54 @@ export function RestaurantsList() {
     )
   }
 
+  // Helper function to check if restaurant matches quick filter
+  const matchesQuickFilter = (restaurant: Restaurant, filter: QuickFilter): boolean => {
+    const nameLower = restaurant.name.toLowerCase()
+    const typeLower = restaurant.type.toLowerCase()
+    const goalLower = restaurant.goalReason.toLowerCase()
+
+    switch (filter) {
+      case 'all':
+        return true
+      case 'high-protein':
+        return goalLower.includes('protein') ||
+               typeLower.includes('grill') ||
+               typeLower.includes('poke') ||
+               typeLower.includes('mediterranean') ||
+               typeLower.includes('mexican')
+      case 'low-carb':
+        return goalLower.includes('low carb') ||
+               goalLower.includes('keto') ||
+               typeLower.includes('salad') ||
+               typeLower.includes('poke')
+      case 'vegetarian':
+        return typeLower.includes('vegetarian') ||
+               typeLower.includes('vegan') ||
+               typeLower.includes('salad')
+      case 'known-menu':
+        return restaurant.isKnown
+      default:
+        return true
+    }
+  }
+
+  // Get unique cuisine types for filter dropdown
+  const cuisineTypes = ['all', ...new Set(restaurants.map(r => r.type).filter(Boolean))].slice(0, 10)
+
   const filteredRestaurants = restaurants
-    .filter(
-      (r) =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.type.toLowerCase().includes(searchQuery.toLowerCase()),
-    )
+    .filter((r) => {
+      // Text search filter
+      const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.type.toLowerCase().includes(searchQuery.toLowerCase())
+
+      // Quick filter
+      const matchesQuick = matchesQuickFilter(r, quickFilter)
+
+      // Cuisine filter
+      const matchesCuisine = cuisineFilter === 'all' || r.type.toLowerCase() === cuisineFilter.toLowerCase()
+
+      return matchesSearch && matchesQuick && matchesCuisine
+    })
     .sort((a, b) => {
       if (sortBy === "match") {
         // Sort by AI score if available, otherwise distance
@@ -500,150 +360,171 @@ export function RestaurantsList() {
         const scoreB = (b as any).aiScore ?? 70
         return scoreB - scoreA
       }
-      if (sortBy === "distance") return Number.parseFloat(a.distance) - Number.parseFloat(b.distance)
-      return b.rating - a.rating
+      // Sort by distance
+      return Number.parseFloat(a.distance) - Number.parseFloat(b.distance)
     })
+
+  // Distance options based on transport mode
+  const distanceOptions = transportMode === 'walk'
+    ? [{ value: 0.5, label: '0.5 mi' }, { value: 1, label: '1 mi' }, { value: 2, label: '2 mi' }]
+    : [{ value: 3, label: '3 mi' }, { value: 5, label: '5 mi' }, { value: 10, label: '10 mi' }, { value: 15, label: '15 mi' }]
+
+  const handleTransportChange = (mode: 'walk' | 'drive') => {
+    setTransportMode(mode)
+    // Auto-set reasonable defaults when switching
+    if (mode === 'walk' && radiusMiles > 2) {
+      setRadiusMiles(1)
+    } else if (mode === 'drive' && radiusMiles < 3) {
+      setRadiusMiles(5)
+    }
+  }
 
   return (
     <>
-      {/* Search and Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search restaurants or cuisine..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleRefreshLocation}
-            disabled={refreshingLocation}
-            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh location"
-          >
-            <RefreshCw className={`h-4 w-4 text-muted-foreground ${refreshingLocation ? 'animate-spin' : ''}`} />
-          </button>
-          <div className="relative">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "match" | "distance" | "rating")}
-              className="appearance-none pl-4 pr-10 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-            >
-              <option value="match">Best for Your Goals (AI)</option>
-              <option value="distance">Nearest First</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          </div>
-          <button
-            onClick={() => {
-              if (!showSettings) {
-                // Sync temp values with current values when opening settings
-                setTempTransportMode(transportMode)
-                setTempRadiusMiles(radiusMiles)
-              }
-              setShowSettings(!showSettings)
-            }}
-            className={`p-2.5 rounded-xl border border-border bg-card hover:bg-muted transition-colors ${showSettings ? 'bg-primary/10 border-primary/30' : ''}`}
-          >
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-          </button>
-        </div>
+      {/* Search Bar */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search restaurants or cuisine..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+        />
       </div>
 
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="mb-6 p-4 rounded-xl border border-border bg-card">
-          <div className="space-y-5">
-            {/* Transport Mode Toggle */}
-            <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Transport Mode</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setTempTransportMode('walk')
-                    // Auto-adjust to reasonable walking distance if current is too far
-                    if (tempRadiusMiles > 5) {
-                      setTempRadiusMiles(2)
-                    }
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${
-                    tempTransportMode === 'walk'
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-card border-border hover:border-primary/30'
-                  }`}
-                >
-                  <PersonStanding className="h-4 w-4" />
-                  <span className="text-sm font-medium">Walking</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setTempTransportMode('drive')
-                    // Auto-adjust to reasonable driving distance if current is too small
-                    if (tempRadiusMiles < 2) {
-                      setTempRadiusMiles(5)
-                    }
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${
-                    tempTransportMode === 'drive'
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-card border-border hover:border-primary/30'
-                  }`}
-                >
-                  <Car className="h-4 w-4" />
-                  <span className="text-sm font-medium">Driving</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Distance Slider */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium text-foreground">Distance</label>
-                <span className="text-sm font-semibold text-primary">{tempRadiusMiles.toFixed(1)} mi</span>
-              </div>
-              <div className="relative">
-                <div
-                  className="absolute h-2 bg-primary rounded-lg pointer-events-none"
-                  style={{
-                    width: `${((tempRadiusMiles - (tempTransportMode === 'walk' ? 0.5 : 1)) /
-                      ((tempTransportMode === 'walk' ? 5 : 25) - (tempTransportMode === 'walk' ? 0.5 : 1))) * 100}%`
-                  }}
-                />
-                <input
-                  type="range"
-                  min={tempTransportMode === 'walk' ? 0.5 : 1}
-                  max={tempTransportMode === 'walk' ? 5 : 25}
-                  step={0.5}
-                  value={tempRadiusMiles}
-                  onChange={(e) => setTempRadiusMiles(parseFloat(e.target.value))}
-                  className="relative w-full h-2 bg-muted/60 rounded-lg appearance-none cursor-pointer slider"
-                />
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                <span>{tempTransportMode === 'walk' ? '0.5' : '1'} mi</span>
-                <span>{tempTransportMode === 'walk' ? '5' : '25'} mi</span>
-              </div>
-            </div>
-
-            {/* Apply Button */}
-            <button
-              onClick={() => {
-                setTransportMode(tempTransportMode)
-                setRadiusMiles(tempRadiusMiles)
-                setLoading(true)
-                setShowSettings(false)
-              }}
-              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all"
-            >
-              Apply Filters
-            </button>
-          </div>
+      {/* Transport & Distance Controls - Always Visible */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {/* Transport Toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => handleTransportChange('walk')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-all ${
+              transportMode === 'walk'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <PersonStanding className="h-3.5 w-3.5" />
+            Walk
+          </button>
+          <button
+            onClick={() => handleTransportChange('drive')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-all ${
+              transportMode === 'drive'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Car className="h-3.5 w-3.5" />
+            Drive
+          </button>
         </div>
-      )}
+
+        {/* Distance Quick Select */}
+        <div className="flex gap-1">
+          {distanceOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setRadiusMiles(opt.value)}
+              className={`px-2.5 py-1.5 rounded-lg text-sm transition-all ${
+                radiusMiles === opt.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Sort Dropdown */}
+        <div className="relative ml-auto">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as "match" | "distance")}
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg border border-border bg-card text-sm cursor-pointer"
+          >
+            <option value="match">Best Match</option>
+            <option value="distance">Nearest</option>
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        </div>
+
+        {/* Refresh Button */}
+        <button
+          onClick={handleRefreshLocation}
+          disabled={refreshingLocation}
+          className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted transition-colors disabled:opacity-50"
+          title="Refresh location"
+        >
+          <RefreshCw className={`h-4 w-4 text-muted-foreground ${refreshingLocation ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* Quick Filter Chips */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[
+          { id: 'all' as QuickFilter, label: 'All', icon: null },
+          { id: 'high-protein' as QuickFilter, label: 'High Protein', icon: Zap },
+          { id: 'low-carb' as QuickFilter, label: 'Low Carb', icon: Flame },
+          { id: 'vegetarian' as QuickFilter, label: 'Vegetarian', icon: Leaf },
+          { id: 'known-menu' as QuickFilter, label: 'Known Menus', icon: Sparkles },
+        ].map((filter) => (
+          <button
+            key={filter.id}
+            onClick={() => setQuickFilter(filter.id)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+              quickFilter === filter.id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            {filter.icon && <filter.icon className="h-3.5 w-3.5" />}
+            {filter.label}
+          </button>
+        ))}
+
+        {/* Cuisine Type Dropdown */}
+        {cuisineTypes.length > 2 && (
+          <div className="relative">
+            <select
+              value={cuisineFilter}
+              onChange={(e) => setCuisineFilter(e.target.value)}
+              className={`appearance-none pl-3 pr-8 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+                cuisineFilter !== 'all'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              <option value="all">All Cuisines</option>
+              {cuisineTypes.filter(c => c !== 'all').map((cuisine) => (
+                <option key={cuisine} value={cuisine}>{cuisine}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" />
+          </div>
+        )}
+      </div>
+
+      {/* Results Count */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-muted-foreground">
+          {filteredRestaurants.length} restaurant{filteredRestaurants.length !== 1 ? 's' : ''} found
+        </p>
+        {(quickFilter !== 'all' || cuisineFilter !== 'all' || searchQuery) && (
+          <button
+            onClick={() => {
+              setQuickFilter('all')
+              setCuisineFilter('all')
+              setSearchQuery('')
+            }}
+            className="text-sm text-primary hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
 
       {/* Restaurant List */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -651,25 +532,44 @@ export function RestaurantsList() {
           <button
             key={restaurant.id}
             onClick={() => handleRestaurantClick(restaurant)}
-            className="rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-sm text-left flex flex-col"
+            className="rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-sm text-left flex flex-col group"
           >
             <div className="p-5 flex-1 flex flex-col">
-              <div className="mb-3 flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-foreground flex-1">{restaurant.name}</h3>
+              {/* Header with name and score */}
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{restaurant.name}</h3>
+                  {restaurant.isKnown && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary mt-1">
+                      <Sparkles className="h-3 w-3" />
+                      Known Menu
+                    </span>
+                  )}
+                </div>
                 {(restaurant as any).aiScore && (
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                    (restaurant as any).aiScore >= 80
-                      ? 'bg-green-500/20 text-green-700 border border-green-500/30'
-                      : (restaurant as any).aiScore >= 70
-                      ? 'bg-blue-500/20 text-blue-700 border border-blue-500/30'
-                      : 'bg-gray-500/20 text-gray-700 border border-gray-500/30'
+                  <div className={`flex flex-col items-center px-2 py-1 rounded-lg ${
+                    (restaurant as any).aiScore >= 85
+                      ? 'bg-green-500/10'
+                      : (restaurant as any).aiScore >= 75
+                      ? 'bg-blue-500/10'
+                      : 'bg-muted'
                   }`}>
-                    Rovia Score: {(restaurant as any).aiScore}
-                  </span>
+                    <span className={`text-lg font-bold ${
+                      (restaurant as any).aiScore >= 85
+                        ? 'text-green-600'
+                        : (restaurant as any).aiScore >= 75
+                        ? 'text-blue-600'
+                        : 'text-muted-foreground'
+                    }`}>
+                      {(restaurant as any).aiScore}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">score</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
+              {/* Distance and type */}
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-3">
                 <span className="flex items-center gap-1">
                   {transportMode === 'walk' ? (
                     <PersonStanding className="h-3.5 w-3.5" />
@@ -678,19 +578,33 @@ export function RestaurantsList() {
                   )}
                   {restaurant.distance} • {getTravelTime(parseFloat(restaurant.distance), transportMode)}
                 </span>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                <span>{restaurant.type}</span>
                 <span>•</span>
-                <span>{restaurant.priceRange}</span>
+                <span>{restaurant.type}</span>
               </div>
 
+              {/* Goal reason */}
               <p className="text-sm text-muted-foreground mt-auto">{restaurant.goalReason}</p>
             </div>
           </button>
         ))}
       </div>
+
+      {/* Empty state */}
+      {filteredRestaurants.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-2">No restaurants match your filters</p>
+          <button
+            onClick={() => {
+              setQuickFilter('all')
+              setCuisineFilter('all')
+              setSearchQuery('')
+            }}
+            className="text-sm text-primary hover:underline"
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
     </>
   )
 }

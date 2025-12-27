@@ -92,7 +92,7 @@ export default function OnboardingPage() {
         throw new Error('Failed to create profile')
       }
 
-      router.push('/dashboard')
+      router.push('/welcome')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

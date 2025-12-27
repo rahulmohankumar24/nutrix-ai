@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
       suggestedCarbs,
       suggestedFat,
       feedbackType,
+      caloriesFeedback,
+      proteinFeedback,
       comment
     } = await request.json()
 
@@ -36,6 +38,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Build detailed comment from individual feedbacks
+    const feedbackDetails: string[] = []
+    if (caloriesFeedback) {
+      feedbackDetails.push(`Calories: ${caloriesFeedback}${suggestedCalories ? ` (suggested: ${suggestedCalories})` : ''}`)
+    }
+    if (proteinFeedback) {
+      feedbackDetails.push(`Protein: ${proteinFeedback}${suggestedProtein ? ` (suggested: ${suggestedProtein}g)` : ''}`)
+    }
+    const detailedComment = feedbackDetails.length > 0
+      ? feedbackDetails.join(', ') + (comment ? `. ${comment}` : '')
+      : comment
+
     // Create the feedback
     const feedback = await prisma.mealFeedback.create({
       data: {
@@ -46,7 +60,7 @@ export async function POST(request: NextRequest) {
         suggestedCarbs,
         suggestedFat,
         feedbackType,
-        comment,
+        comment: detailedComment,
         helpful: true
       }
     })
@@ -68,33 +82,36 @@ export async function POST(request: NextRequest) {
     let avgCarbsAdjustment = 0
     let avgFatAdjustment = 0
 
-    if (feedbackWithSuggestions.length > 0) {
+    // Calculate averages only if there are valid suggestions for each macro
+    const caloriesSuggestions = feedbackWithSuggestions.filter(f => f.suggestedCalories !== null)
+    if (caloriesSuggestions.length > 0) {
       avgCaloriesAdjustment = Math.round(
-        feedbackWithSuggestions
-          .filter(f => f.suggestedCalories !== null)
-          .reduce((sum, f) => sum + ((f.suggestedCalories || 0) - meal.calories), 0) /
-          feedbackWithSuggestions.filter(f => f.suggestedCalories !== null).length
+        caloriesSuggestions.reduce((sum, f) => sum + ((f.suggestedCalories || 0) - meal.calories), 0) /
+        caloriesSuggestions.length
       )
+    }
 
+    const proteinSuggestions = feedbackWithSuggestions.filter(f => f.suggestedProtein !== null)
+    if (proteinSuggestions.length > 0) {
       avgProteinAdjustment = Math.round(
-        feedbackWithSuggestions
-          .filter(f => f.suggestedProtein !== null)
-          .reduce((sum, f) => sum + ((f.suggestedProtein || 0) - meal.protein), 0) /
-          feedbackWithSuggestions.filter(f => f.suggestedProtein !== null).length
+        proteinSuggestions.reduce((sum, f) => sum + ((f.suggestedProtein || 0) - meal.protein), 0) /
+        proteinSuggestions.length
       )
+    }
 
+    const carbsSuggestions = feedbackWithSuggestions.filter(f => f.suggestedCarbs !== null)
+    if (carbsSuggestions.length > 0) {
       avgCarbsAdjustment = Math.round(
-        feedbackWithSuggestions
-          .filter(f => f.suggestedCarbs !== null)
-          .reduce((sum, f) => sum + ((f.suggestedCarbs || 0) - meal.carbs), 0) /
-          feedbackWithSuggestions.filter(f => f.suggestedCarbs !== null).length
+        carbsSuggestions.reduce((sum, f) => sum + ((f.suggestedCarbs || 0) - meal.carbs), 0) /
+        carbsSuggestions.length
       )
+    }
 
+    const fatSuggestions = feedbackWithSuggestions.filter(f => f.suggestedFat !== null)
+    if (fatSuggestions.length > 0) {
       avgFatAdjustment = Math.round(
-        feedbackWithSuggestions
-          .filter(f => f.suggestedFat !== null)
-          .reduce((sum, f) => sum + ((f.suggestedFat || 0) - meal.fat), 0) /
-          feedbackWithSuggestions.filter(f => f.suggestedFat !== null).length
+        fatSuggestions.reduce((sum, f) => sum + ((f.suggestedFat || 0) - meal.fat), 0) /
+        fatSuggestions.length
       )
     }
 

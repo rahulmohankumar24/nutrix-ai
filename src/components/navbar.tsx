@@ -48,18 +48,15 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Profile / User Button */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-muted-foreground hidden sm:block">Profile</span>
-          <UserButton
-            afterSignOutUrl="/"
-            appearance={{
-              elements: {
-                avatarBox: "h-10 w-10 rounded-full ring-2 ring-border/50 hover:ring-primary/30 transition-all"
-              }
-            }}
-          />
-        </div>
+        {/* User Button */}
+        <UserButton
+          afterSignOutUrl="/"
+          appearance={{
+            elements: {
+              avatarBox: "h-14 w-14 rounded-full ring-2 ring-border/50 hover:ring-primary/30 transition-all"
+            }
+          }}
+        />
       </div>
     </header>
   )

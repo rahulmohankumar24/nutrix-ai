@@ -55,6 +55,7 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
   const [isLogging, setIsLogging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const isInitialLoad = useRef(true)
 
   useEffect(() => {
     let greeting = "Hi"
@@ -88,11 +89,16 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
   }
 
   useEffect(() => {
+    // Skip scroll on initial load
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false
+      return
+    }
     scrollToBottom()
   }, [messages, pendingMeal])
 
   useEffect(() => {
-    inputRef.current?.focus()
+    inputRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {

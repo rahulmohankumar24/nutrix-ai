@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
-import { TrendingUp, Flame, Target, Calendar, Lightbulb, AlertCircle, CheckCircle, Sparkles } from "lucide-react"
+import { TrendingUp, Flame, Target, Calendar, Lightbulb, AlertCircle, CheckCircle, Sparkles, User, Edit3, Check, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 interface WeeklyData {
   day: string
@@ -22,7 +23,18 @@ interface UserGoals {
   goal: string
   targetCalories: number
   targetProtein: number
+  targetCarbs: number
+  targetFat: number
   strategy: string
+}
+
+interface UserProfile {
+  age: number
+  heightFt: number
+  heightIn: number
+  weightLb: number
+  activityLevel: string
+  goal: string
 }
 
 export default function MyPathPage() {
@@ -31,6 +43,10 @@ export default function MyPathPage() {
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<AIInsight[]>([])
   const [loadingInsights, setLoadingInsights] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userTargets, setUserTargets] = useState<UserGoals | null>(null)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -40,7 +56,105 @@ export default function MyPathPage() {
     }
     setLoading(false)
     fetchInsights()
-  }, [isLoaded, isSignedIn, router])
+    fetchUserProfile()
+  }, [isLoaded, isSignedIn, router, user?.id])
+
+  const fetchUserProfile = async () => {
+    if (!user?.id) return
+    try {
+      const response = await fetch(`/api/profile?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.profile) {
+          setUserProfile({
+            age: data.profile.age || 0,
+            heightFt: data.profile.heightFt || 5,
+            heightIn: data.profile.heightIn || 10,
+            weightLb: data.profile.weightLb || 150,
+            activityLevel: data.profile.stepsLevel || 'med',
+            goal: data.profile.goal || 'maintain'
+          })
+          setUserTargets({
+            goal: formatGoal(data.profile.goal),
+            targetCalories: data.targets?.calories || 2000,
+            targetProtein: data.targets?.protein || 150,
+            targetCarbs: data.targets?.carbs || 250,
+            targetFat: data.targets?.fat || 65,
+            strategy: getGoalStrategy(data.profile.goal)
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error)
+    }
+  }
+
+  const formatGoal = (goal: string) => {
+    const goalMap: Record<string, string> = {
+      'cut': 'Lose Fat',
+      'maintain': 'Maintain Weight',
+      'lean_bulk': 'Lean Bulk',
+      'recomp': 'Build Lean Muscle',
+      'bulk': 'Build Muscle'
+    }
+    return goalMap[goal] || 'Build Lean Muscle'
+  }
+
+  const getGoalStrategy = (goal: string) => {
+    const strategies: Record<string, string> = {
+      'cut': "We're keeping you in a caloric deficit with high protein to preserve muscle while losing fat. Focus on nutrient-dense foods.",
+      'maintain': "We're balancing your calories to maintain your current weight while optimizing protein for body composition.",
+      'lean_bulk': "We're keeping you in a slight surplus with high protein to build muscle while minimizing fat gain.",
+      'recomp': "We're optimizing your nutrition to build muscle while staying lean. High protein with strategic calorie timing.",
+      'bulk': "We're fueling your muscle growth with a caloric surplus and high protein to maximize gains."
+    }
+    return strategies[goal] || strategies['recomp']
+  }
+
+  const formatActivityLevel = (level: string) => {
+    const levelMap: Record<string, string> = {
+      'low': 'Low Activity',
+      'med': 'Moderate Activity',
+      'high': 'High Activity'
+    }
+    return levelMap[level] || 'Moderate Activity'
+  }
+
+  const handleSaveProfile = async () => {
+    if (!user?.id || !editedProfile) return
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          age: editedProfile.age,
+          heightFt: editedProfile.heightFt,
+          heightIn: editedProfile.heightIn,
+          weightLb: editedProfile.weightLb,
+          stepsLevel: editedProfile.activityLevel,
+          goal: editedProfile.goal
+        })
+      })
+      if (response.ok) {
+        setUserProfile(editedProfile)
+        setIsEditingProfile(false)
+        fetchUserProfile() // Refresh to get updated targets
+      }
+    } catch (error) {
+      console.error('Failed to save profile:', error)
+    }
+  }
+
+  const startEditing = () => {
+    setEditedProfile(userProfile)
+    setIsEditingProfile(true)
+  }
+
+  const cancelEditing = () => {
+    setEditedProfile(null)
+    setIsEditingProfile(false)
+  }
 
   const fetchInsights = async () => {
     setLoadingInsights(true)
@@ -81,12 +195,14 @@ export default function MyPathPage() {
     }
   }
 
-  // Mock user goals - replace with real API data
-  const userGoals: UserGoals = {
+  // Use fetched userTargets or fallback
+  const displayGoals = userTargets || {
     goal: "Build lean muscle",
     targetCalories: 2400,
     targetProtein: 150,
-    strategy: "We're keeping you in a slight caloric surplus with high protein to support muscle growth while minimizing fat gain. Your meal timing is optimized around your workout schedule."
+    targetCarbs: 250,
+    targetFat: 65,
+    strategy: "We're keeping you in a slight caloric surplus with high protein to support muscle growth while minimizing fat gain."
   }
 
   // Mock data - replace with real API calls
@@ -162,18 +278,26 @@ export default function MyPathPage() {
               </div>
               <p className="text-sm font-medium text-primary uppercase tracking-wider">Your Goal</p>
             </div>
-            <h2 className="text-2xl font-semibold text-foreground mb-3">{userGoals.goal}</h2>
+            <h2 className="text-2xl font-semibold text-foreground mb-3">{displayGoals.goal}</h2>
             <p className="text-base text-muted-foreground leading-relaxed mb-6 flex-1">
-              {userGoals.strategy}
+              {displayGoals.strategy}
             </p>
             <div className="flex flex-wrap gap-3">
               <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-foreground">{userGoals.targetCalories}</span>
+                <span className="text-lg font-semibold text-foreground">{displayGoals.targetCalories}</span>
                 <span className="text-sm text-muted-foreground ml-1">cal/day</span>
               </div>
               <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-primary">{userGoals.targetProtein}g</span>
+                <span className="text-lg font-semibold text-primary">{displayGoals.targetProtein}g</span>
                 <span className="text-sm text-muted-foreground ml-1">protein/day</span>
+              </div>
+              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
+                <span className="text-lg font-semibold text-foreground">{displayGoals.targetCarbs}g</span>
+                <span className="text-sm text-muted-foreground ml-1">carbs/day</span>
+              </div>
+              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
+                <span className="text-lg font-semibold text-foreground">{displayGoals.targetFat}g</span>
+                <span className="text-sm text-muted-foreground ml-1">fat/day</span>
               </div>
             </div>
           </div>
@@ -217,6 +341,142 @@ export default function MyPathPage() {
             )}
           </div>
         </div>
+
+        {/* Personal Info Card */}
+        {userProfile && (
+          <div className="bg-card rounded-3xl p-8 border border-border/50">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Personal Info</h2>
+                  <p className="text-sm text-muted-foreground">Your profile details</p>
+                </div>
+              </div>
+              {isEditingProfile ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={cancelEditing}
+                    className="p-2 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  >
+                    <Check className="h-5 w-5 text-primary" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={startEditing}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Edit
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {/* Age */}
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Age</p>
+                {isEditingProfile && editedProfile ? (
+                  <Input
+                    type="number"
+                    value={editedProfile.age}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, age: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-lg font-semibold bg-background"
+                  />
+                ) : (
+                  <p className="text-lg font-semibold text-foreground">{userProfile.age} yrs</p>
+                )}
+              </div>
+
+              {/* Height */}
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Height</p>
+                {isEditingProfile && editedProfile ? (
+                  <div className="flex gap-1">
+                    <Input
+                      type="number"
+                      value={editedProfile.heightFt}
+                      onChange={(e) => setEditedProfile({ ...editedProfile, heightFt: parseInt(e.target.value) || 0 })}
+                      className="h-8 w-12 text-sm font-semibold bg-background"
+                    />
+                    <span className="text-sm self-center">'</span>
+                    <Input
+                      type="number"
+                      value={editedProfile.heightIn}
+                      onChange={(e) => setEditedProfile({ ...editedProfile, heightIn: parseInt(e.target.value) || 0 })}
+                      className="h-8 w-12 text-sm font-semibold bg-background"
+                    />
+                    <span className="text-sm self-center">"</span>
+                  </div>
+                ) : (
+                  <p className="text-lg font-semibold text-foreground">{userProfile.heightFt}'{userProfile.heightIn}"</p>
+                )}
+              </div>
+
+              {/* Weight */}
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Weight</p>
+                {isEditingProfile && editedProfile ? (
+                  <Input
+                    type="number"
+                    value={editedProfile.weightLb}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, weightLb: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-lg font-semibold bg-background"
+                  />
+                ) : (
+                  <p className="text-lg font-semibold text-foreground">{userProfile.weightLb} lbs</p>
+                )}
+              </div>
+
+              {/* Activity Level */}
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Activity</p>
+                {isEditingProfile && editedProfile ? (
+                  <select
+                    value={editedProfile.activityLevel}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, activityLevel: e.target.value })}
+                    className="h-8 w-full text-sm font-semibold bg-background border rounded-md px-2"
+                  >
+                    <option value="low">Low</option>
+                    <option value="med">Moderate</option>
+                    <option value="high">High</option>
+                  </select>
+                ) : (
+                  <p className="text-lg font-semibold text-foreground">{formatActivityLevel(userProfile.activityLevel)}</p>
+                )}
+              </div>
+
+              {/* Goal */}
+              <div className="bg-muted/30 rounded-xl p-4 col-span-2">
+                <p className="text-xs text-muted-foreground mb-1">Goal</p>
+                {isEditingProfile && editedProfile ? (
+                  <select
+                    value={editedProfile.goal}
+                    onChange={(e) => setEditedProfile({ ...editedProfile, goal: e.target.value })}
+                    className="h-8 w-full text-sm font-semibold bg-background border rounded-md px-2"
+                  >
+                    <option value="cut">Lose Fat</option>
+                    <option value="maintain">Maintain Weight</option>
+                    <option value="lean_bulk">Lean Bulk</option>
+                    <option value="recomp">Build Lean Muscle</option>
+                    <option value="bulk">Build Muscle</option>
+                  </select>
+                ) : (
+                  <p className="text-lg font-semibold text-foreground">{formatGoal(userProfile.goal)}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
