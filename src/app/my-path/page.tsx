@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
 import {
-  TrendingUp, Flame, Target, Calendar, Sparkles,
-  ChevronRight, Zap, Brain, Trophy, Clock,
-  Utensils, ArrowUpRight, BarChart3
+  Sparkles, ChevronRight, Zap, Brain, Trophy,
+  ArrowUpRight, BarChart3
 } from "lucide-react"
 
 interface WeeklyData {
@@ -45,20 +44,10 @@ interface PatternInsight {
   confidence: number
 }
 
-interface UserGoals {
-  goal: string
-  targetCalories: number
-  targetProtein: number
-  targetCarbs: number
-  targetFat: number
-  strategy: string
-}
-
 export default function MyPathPage() {
   const router = useRouter()
   const { user, isLoaded, isSignedIn } = useUser()
   const [loading, setLoading] = useState(true)
-  const [userTargets, setUserTargets] = useState<UserGoals | null>(null)
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [stats, setStats] = useState<WeeklyStats | null>(null)
   const [loadingData, setLoadingData] = useState(true)
@@ -75,7 +64,6 @@ export default function MyPathPage() {
     }
     setLoading(false)
     if (user?.id) {
-      fetchUserProfile()
       fetchWeeklyData()
       fetchStats()
       fetchPatternInsights()
@@ -255,50 +243,6 @@ export default function MyPathPage() {
     setWeeklyInsight(parts.join(' '))
   }
 
-  const fetchUserProfile = async () => {
-    if (!user?.id) return
-    try {
-      const response = await fetch(`/api/profile?userId=${user.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.profile) {
-          setUserTargets({
-            goal: formatGoal(data.profile.goal),
-            targetCalories: data.targets?.calories || 2000,
-            targetProtein: data.targets?.protein || 150,
-            targetCarbs: data.targets?.carbs || 250,
-            targetFat: data.targets?.fat || 65,
-            strategy: getGoalStrategy(data.profile.goal)
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch profile:', error)
-    }
-  }
-
-  const formatGoal = (goal: string) => {
-    const goalMap: Record<string, string> = {
-      'cut': 'Lose Fat',
-      'maintain': 'Maintain Weight',
-      'lean_bulk': 'Lean Bulk',
-      'recomp': 'Build Lean Muscle',
-      'bulk': 'Build Muscle'
-    }
-    return goalMap[goal] || 'Build Lean Muscle'
-  }
-
-  const getGoalStrategy = (goal: string) => {
-    const strategies: Record<string, string> = {
-      'cut': "Caloric deficit with high protein to preserve muscle.",
-      'maintain': "Balanced calories to maintain your current weight.",
-      'lean_bulk': "Slight surplus with high protein to build muscle.",
-      'recomp': "Optimized nutrition to build muscle while staying lean.",
-      'bulk': "Caloric surplus with high protein to maximize gains."
-    }
-    return strategies[goal] || strategies['recomp']
-  }
-
   const displayStats = stats || {
     currentStreak: 0,
     longestStreak: 0,
@@ -309,15 +253,6 @@ export default function MyPathPage() {
     weeklyGoalHit: 0,
     targetCalories: 2000,
     targetProtein: 150
-  }
-
-  const displayGoals = userTargets || {
-    goal: "Build lean muscle",
-    targetCalories: 2400,
-    targetProtein: 150,
-    targetCarbs: 250,
-    targetFat: 65,
-    strategy: "Optimized nutrition to build muscle while staying lean."
   }
 
   if (loading) {
@@ -477,7 +412,7 @@ export default function MyPathPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Patterns emerge after 7+ days of logging.</p>
+                <p className="text-sm text-muted-foreground">Patterns emerge after 3+ days of logging.</p>
               )}
             </div>
           </Link>
@@ -515,67 +450,6 @@ export default function MyPathPage() {
               <p className="text-xs text-muted-foreground mt-2">Tap to see detailed breakdown</p>
             </div>
           </Link>
-        </div>
-
-        {/* Goal Card */}
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Target className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">{displayGoals.goal}</h3>
-                <p className="text-sm text-muted-foreground">{displayGoals.strategy}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-3">
-            <div className="text-center p-3 rounded-xl bg-muted/30">
-              <p className="text-lg font-bold text-foreground">{displayGoals.targetCalories}</p>
-              <p className="text-xs text-muted-foreground">Cal/day</p>
-            </div>
-            <div className="text-center p-3 rounded-xl bg-primary/10">
-              <p className="text-lg font-bold text-primary">{displayGoals.targetProtein}g</p>
-              <p className="text-xs text-muted-foreground">Protein</p>
-            </div>
-            <div className="text-center p-3 rounded-xl bg-muted/30">
-              <p className="text-lg font-bold text-foreground">{displayGoals.targetCarbs}g</p>
-              <p className="text-xs text-muted-foreground">Carbs</p>
-            </div>
-            <div className="text-center p-3 rounded-xl bg-muted/30">
-              <p className="text-lg font-bold text-foreground">{displayGoals.targetFat}g</p>
-              <p className="text-xs text-muted-foreground">Fat</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Milestones */}
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <h3 className="font-semibold text-foreground mb-4">Milestones</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20">
-              <Flame className="h-6 w-6 text-orange-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{displayStats.longestStreak}</p>
-              <p className="text-xs text-muted-foreground">Best Streak</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-              <Calendar className="h-6 w-6 text-primary mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{displayStats.totalDaysLogged}</p>
-              <p className="text-xs text-muted-foreground">Days Logged</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20">
-              <TrendingUp className="h-6 w-6 text-green-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</p>
-              <p className="text-xs text-muted-foreground">Protein Eaten</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20">
-              <Utensils className="h-6 w-6 text-blue-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgCalories * displayStats.totalDaysLogged / 1000)}k</p>
-              <p className="text-xs text-muted-foreground">Calories Logged</p>
-            </div>
-          </div>
         </div>
 
       </main>

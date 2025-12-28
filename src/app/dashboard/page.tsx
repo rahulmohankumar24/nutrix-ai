@@ -940,7 +940,7 @@ export default function DashboardPage() {
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Log a meal or ask a question..."
+                    placeholder="Log a meal..."
                     className="flex-1 min-w-0 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/50"
                   />
                   {chatInput.trim() && (

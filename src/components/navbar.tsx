@@ -2,9 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
-import { Home, Utensils, TrendingUp, Package } from "lucide-react"
+import { Home, Utensils, TrendingUp, Package, User } from "lucide-react"
 
 export function Navbar() {
   const pathname = usePathname()
@@ -48,15 +47,18 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* User Button */}
-        <UserButton
-          afterSignOutUrl="/"
-          appearance={{
-            elements: {
-              avatarBox: "h-24 w-24 rounded-full ring-2 ring-border/50 hover:ring-primary/30 transition-all"
-            }
-          }}
-        />
+        {/* Profile Link */}
+        <Link
+          href="/profile"
+          className={cn(
+            "h-10 w-10 rounded-full flex items-center justify-center transition-all",
+            pathname === "/profile"
+              ? "bg-primary/10 text-primary ring-2 ring-primary/30"
+              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <User className="h-5 w-5" />
+        </Link>
       </div>
     </header>
   )
