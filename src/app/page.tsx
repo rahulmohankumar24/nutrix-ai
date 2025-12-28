@@ -52,18 +52,12 @@ export default function LandingPage() {
               />
               <span className="text-2xl font-semibold text-foreground tracking-tight leading-none">rovia</span>
             </div>
-            <div className="flex items-center gap-4">
-              <a
-                href="mailto:rovianutrition@gmail.com"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Contact
-              </a>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-sm font-medium text-primary">Coming Soon</span>
-              </div>
-            </div>
+            <a
+              href="/auth/signin"
+              className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Log in
+            </a>
           </div>
         </header>
 
@@ -199,16 +193,22 @@ export default function LandingPage() {
                   </div>
                   <div className="p-5 space-y-4">
                     {/* Chart visualization */}
-                    <div className="h-32 flex items-end gap-1.5 px-2">
-                      {[65, 82, 78, 90, 85, 45, 52].map((h, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="flex items-end justify-between gap-3 h-24">
+                      {[
+                        { day: 'M', height: 88, hit: true },
+                        { day: 'T', height: 92, hit: true },
+                        { day: 'W', height: 80, hit: true },
+                        { day: 'T', height: 95, hit: true },
+                        { day: 'F', height: 85, hit: true },
+                        { day: 'S', height: 42, hit: false },
+                        { day: 'S', height: 50, hit: false },
+                      ].map((bar, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
                           <div
-                            className={`w-full rounded-t transition-all ${h >= 70 ? 'bg-primary' : 'bg-amber-500'}`}
-                            style={{ height: `${h}%` }}
+                            className={`w-full rounded-sm ${bar.hit ? 'bg-primary' : 'bg-amber-500'}`}
+                            style={{ height: `${bar.height}px` }}
                           />
-                          <span className="text-xs text-muted-foreground">
-                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}
-                          </span>
+                          <span className="text-xs text-muted-foreground">{bar.day}</span>
                         </div>
                       ))}
                     </div>
@@ -480,7 +480,7 @@ export default function LandingPage() {
               href="mailto:rovianutrition@gmail.com"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              rovianutrition@gmail.com
+              Contact
             </a>
           </div>
         </footer>
