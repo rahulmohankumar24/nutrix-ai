@@ -204,6 +204,8 @@ export async function GET(request: NextRequest) {
     const maxDistance = TRAVEL_DISTANCES[travelMode]
     const timezone = searchParams.get('timezone') || 'America/Los_Angeles'
     const currentHourParam = searchParams.get('currentHour')
+    const limitParam = searchParams.get('limit')
+    const suggestionLimit = limitParam ? Math.min(parseInt(limitParam), 12) : 3
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -429,13 +431,19 @@ export async function GET(request: NextRequest) {
     .filter(meal => meal.score > 0) // Remove snacks/inappropriate sized meals
     .sort((a, b) => b.score - a.score)
 
-    // Get top 3 unique restaurants (don't suggest 3 meals from same place)
+    // Get top suggestions with variety from different restaurants
     const suggestions: any[] = []
     const usedRestaurants = new Set<string>()
+    const maxPerRestaurant = suggestionLimit > 3 ? 2 : 1 // Allow 2 per restaurant for expanded view
+    const restaurantCounts: Record<string, number> = {}
 
     for (const meal of scoredMeals) {
-      if (suggestions.length >= 3) break
-      if (usedRestaurants.has(meal.restaurantBrand)) continue
+      if (suggestions.length >= suggestionLimit) break
+
+      const count = restaurantCounts[meal.restaurantBrand] || 0
+      if (count >= maxPerRestaurant) continue
+
+      restaurantCounts[meal.restaurantBrand] = count + 1
 
       usedRestaurants.add(meal.restaurantBrand)
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
@@ -460,10 +468,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // If we don't have 3 yet, add more from same restaurants
-    if (suggestions.length < 3) {
+    // If we don't have enough yet, add more (relaxing restaurant limit)
+    if (suggestions.length < suggestionLimit) {
       for (const meal of scoredMeals) {
-        if (suggestions.length >= 3) break
+        if (suggestions.length >= suggestionLimit) break
         if (suggestions.some(s => s.id === meal.id)) continue
 
         const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')

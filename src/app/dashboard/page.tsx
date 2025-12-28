@@ -177,6 +177,7 @@ export default function DashboardPage() {
   const [hasPersonalizedSuggestions, setHasPersonalizedSuggestions] = useState(false)
   const [unlockCelebration, setUnlockCelebration] = useState<{ show: boolean; message: string } | null>(null)
 
+
   // Home meals state
   const [mealSource, setMealSource] = useState<'restaurant' | 'home'>('restaurant')
   const [homeMeals, setHomeMeals] = useState<HomeMealSuggestion[]>([])
@@ -930,11 +931,19 @@ export default function DashboardPage() {
         {/* Header with Chat Bar */}
         <div className="space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Greeting */}
-            <div className="flex-shrink-0">
+            {/* Greeting + Refresh */}
+            <div className="flex items-center gap-4 flex-shrink-0">
               <h1 className="text-2xl font-semibold text-foreground whitespace-nowrap">
                 {getGreeting()}, {userName}
               </h1>
+              <button
+                onClick={handleRefreshSuggestions}
+                disabled={loadingSuggestions}
+                className="flex items-center gap-2 py-2 px-3 rounded-lg bg-sky-500/10 text-sky-600 text-xs font-medium hover:bg-sky-500/20 transition-all disabled:opacity-50"
+              >
+                <Sparkles className={`h-3.5 w-3.5 ${loadingSuggestions ? 'animate-pulse' : ''}`} />
+                {loadingSuggestions ? 'Generating...' : 'Refresh AI'}
+              </button>
             </div>
 
             {/* Chat Bar - Right aligned, above meal suggestions */}
@@ -1058,14 +1067,13 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={handleRefreshSuggestions}
-                disabled={loadingSuggestions}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/60 text-xs font-medium text-foreground/70 hover:bg-white hover:text-foreground transition-all disabled:opacity-50"
+              <Link
+                href="/ai-picks"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-sky-600 text-sm font-medium hover:bg-sky-50 border border-sky-200 shadow-sm transition-all"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingSuggestions ? 'animate-spin' : ''}`} />
-                {loadingSuggestions ? 'Loading...' : 'Refresh'}
-              </button>
+                See more
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
 
@@ -1563,6 +1571,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">

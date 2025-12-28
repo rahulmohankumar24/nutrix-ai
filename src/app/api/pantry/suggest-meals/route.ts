@@ -1,10 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
+import { calculateTargets } from '@/lib/calculations'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
+
+// Helper function to get user's remaining macros directly from DB
+async function getRemainingMacros(userId: string) {
+  const timezone = 'America/Los_Angeles'
+  const now = new Date()
+  const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+  const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
+
+  // Get or create daily target
+  let dailyTarget = await prisma.dailyTarget.findFirst({
+    where: { userId, date: today }
+  })
+
+  if (!dailyTarget) {
+    const profile = await prisma.profile.findUnique({ where: { userId } })
+    if (!profile) return null
+
+    const calculated = calculateTargets(
+      profile.heightIn,
+      profile.weightLb,
+      profile.age || 27,
+      profile.sex as 'male' | 'female' | 'other',
+      profile.goal as 'recomp' | 'lean_bulk' | 'cut',
+      profile.liftingDays,
+      profile.stepsLevel as 'low' | 'med' | 'high'
+    )
+
+    dailyTarget = await prisma.dailyTarget.create({
+      data: {
+        userId,
+        date: today,
+        calories: calculated.calories,
+        protein: calculated.protein,
+        carbs: calculated.carbs,
+        fat: calculated.fat
+      }
+    })
+  }
+
+  // Get today's meal logs
+  const mealLogs = await prisma.mealLog.findMany({
+    where: {
+      userId,
+      datetime: {
+        gte: today,
+        lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      }
+    },
+    include: {
+      foodCatalogItem: true,
+      orderTemplate: true
+    }
+  })
+
+  // Calculate current intake
+  let currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0
+  mealLogs.forEach((log: any) => {
+    const item = log.foodCatalogItem || log.orderTemplate
+    if (item) {
+      currentCalories += item.calories * log.servings
+      currentProtein += item.protein * log.servings
+      currentCarbs += item.carbs * log.servings
+      currentFat += item.fat * log.servings
+    }
+  })
+
+  return {
+    calories: Math.max(0, dailyTarget.calories - Math.round(currentCalories)),
+    protein: Math.max(0, dailyTarget.protein - Math.round(currentProtein)),
+    carbs: Math.max(0, dailyTarget.carbs - Math.round(currentCarbs)),
+    fat: Math.max(0, dailyTarget.fat - Math.round(currentFat))
+  }
+}
 
 // POST: Get meal suggestions based on pantry items
 export async function POST(request: NextRequest) {
@@ -32,14 +106,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Get user's remaining macros for the day
+    // Get user's remaining macros for the day (direct DB query, no HTTP fetch)
     let userMacros = targetMacros
     if (!userMacros) {
-      const macroResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/macro-progress?userId=${userId}`)
-      if (macroResponse.ok) {
-        const macroData = await macroResponse.json()
-        userMacros = macroData.remaining
-      }
+      userMacros = await getRemainingMacros(userId)
     }
 
     // Build prompt for AI

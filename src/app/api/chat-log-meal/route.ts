@@ -56,13 +56,28 @@ If they mention eating something, parse it and provide ACCURATE nutrition estima
 
 CRITICAL - ACCURACY GUIDELINES:
 - Use real nutritional data for known restaurants and foods
-- Fast food burgers: typically 400-600 cal each
-- Grilled cheese sandwiches: typically 300-500 cal each
-- In-N-Out grilled cheese (bun, cheese, veggies, no meat): ~380 cal, animal style adds ~100 cal
-- Chipotle burrito bowl: 600-900 cal depending on ingredients
 - Don't inflate or round up excessively - users depend on accuracy for their nutrition goals
-- When a quantity is specified (e.g., "2 tacos"), estimate per-item then multiply
 - When uncertain, use conservative middle-ground estimates
+
+QUANTITY HANDLING (VERY IMPORTANT):
+- When user says a quantity (e.g., "2 tacos", "3 wings", "2 sides"), set "servings" to that number
+- Estimate macros for ONE SINGLE ITEM, not the total
+- The system will multiply automatically: if user says "2 tacos", you return per-taco macros with servings: 2
+- Examples:
+  - "2 chicken tacos" → estimate ONE taco (~170 cal, 10g protein), servings: 2
+  - "3 mozzarella sticks" → estimate ONE stick (~80 cal, 4g protein), servings: 3
+  - "2 sides of rice" → estimate ONE side (~150-200 cal), servings: 2
+  - "half a burrito" → estimate full burrito macros, servings: 0.5
+- "Sides" at restaurants are typically small portions (100-250 cal each)
+- Do NOT multiply in your estimates - just provide per-unit values
+
+COMMON PORTION SIZES:
+- Restaurant side (rice, beans, veggies): 100-200 cal each
+- Fast food burger: 400-600 cal each
+- Taco: 150-250 cal each
+- Chicken wing: 80-100 cal each
+- Slice of pizza: 250-350 cal each
+- Chipotle burrito bowl: 600-900 cal (as one serving)
 
 Respond with valid JSON only.`
 

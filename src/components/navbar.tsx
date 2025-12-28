@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Home, Utensils, TrendingUp, Package, User } from "lucide-react"
+import { Home, Utensils, TrendingUp, Package, User, Sparkles } from "lucide-react"
 
 export function Navbar() {
   const pathname = usePathname()
@@ -16,13 +16,14 @@ export function Navbar() {
 
   const navItems = [
     { name: "Home", href: "/dashboard", icon: Home },
+    { name: "AI Picks", href: "/ai-picks", icon: Sparkles },
     { name: "Restaurants", href: "/restaurants", icon: Utensils },
     { name: "Pantry", href: "/pantry", icon: Package },
     { name: "Analytics", href: "/my-path", icon: TrendingUp },
   ]
 
   return (
-    <header className="bg-primary/30 backdrop-blur-xl border-b border-primary/40 sticky top-0 z-50">
+    <header className="bg-primary/50 backdrop-blur-xl border-b border-primary/60 sticky top-0 z-50">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
         {/* Logo */}
         <Link href="/dashboard" className="group">
