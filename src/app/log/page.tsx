@@ -97,7 +97,9 @@ export default function LogPage() {
         body: JSON.stringify({
           message: messageText,
           userId: user.id,
-          parseOnly: true // Don't log yet, just parse
+          parseOnly: true, // Don't log yet, just parse
+          currentHour: new Date().getHours(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
 

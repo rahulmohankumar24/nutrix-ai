@@ -238,11 +238,11 @@ Analyze & return JSON with 5-6 VARIED meal recommendations:
     {"mealIndex": 3, "score": 90, "reasoning": "High protein option for muscle building", "customizations": ["ADD DOUBLE PROTEIN +180cal +32g protein"], "macroImpact": "Maximizes protein at ${mealDistribution.targetProtein}g+ for the day"}
   ],
   "mealsToAvoid": [
-    {"title": "Example Low Protein Option", "reason": "Only 15g protein - you need ${mealDistribution.targetProtein}g this meal"},
-    {"title": "Example High Calorie Option", "reason": "1200cal would exceed your ${userTargets.remaining.calories}cal remaining budget"}
+    {"title": "Example Low Protein Option", "reason": "Not enough protein to keep you full"},
+    {"title": "Example High Calorie Option", "reason": "Too heavy - won't leave room for your other meals"}
   ],
-  "overallAdvice": "${mealDistribution.reasoning} Choose the portion size that matches your hunger level.",
-  "coachingNote": "Brief personalized tip about hitting targets at this restaurant"
+  "overallAdvice": "Write 1-2 SHORT sentences of friendly advice like a coach would give. Focus on WHAT to prioritize and WHAT to watch out for. NO NUMBERS, NO CALCULATIONS. Examples: 'Prioritize protein here - go for double chicken. Watch out for the heavy sauces.' or 'This is a great spot to load up since you kept breakfast light. Don't be shy with the portions.'",
+  "coachingNote": "One actionable tip for THIS restaurant. NO NUMBERS. Example: 'Double protein is your best friend here' or 'Skip the chips and load up on protein instead'"
 }`
 
     const completion = await openai.responses.create({

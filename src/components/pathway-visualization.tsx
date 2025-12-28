@@ -53,7 +53,7 @@ export function PathwayVisualization({
   const proteinProgress = totals?.targetProtein ? Math.min(100, (totals.protein / totals.targetProtein) * 100) : 0
 
   return (
-    <div className="bg-card rounded-2xl border border-border/50 p-6 h-full flex flex-col">
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-6 h-full flex flex-col">
       {/* Header with Totals */}
       <div className="flex items-center justify-between gap-4 mb-5">
         <h2 className="text-xl font-semibold text-foreground flex-1">your path today</h2>

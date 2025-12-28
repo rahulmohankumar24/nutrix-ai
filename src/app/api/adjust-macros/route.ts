@@ -15,7 +15,7 @@ interface MacroTargets {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, message, currentTargets } = await request.json()
+    const { userId, message, currentTargets, timezone = 'America/Los_Angeles' } = await request.json()
 
     if (!userId || !message || !currentTargets) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -74,9 +74,10 @@ Only return valid JSON, no other text.`
       fat: Math.round(Math.max(20, Math.min(200, result.newTargets.fat)))
     }
 
-    // Update today's daily target in database
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Update today's daily target in database (using user's timezone)
+    const now = new Date()
+    const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
 
     await prisma.dailyTarget.upsert({
       where: {

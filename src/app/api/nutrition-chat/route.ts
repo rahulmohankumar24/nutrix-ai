@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, userId } = await request.json()
+    const { message, userId, currentHour: passedHour, timezone = 'America/Los_Angeles' } = await request.json()
 
     if (!message || !userId) {
       return NextResponse.json(
@@ -16,6 +16,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Use passed currentHour or calculate from timezone (never calculate from server time)
+    const currentHour = passedHour !== undefined
+      ? passedHour
+      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
 
     // Fetch user's current macro progress and profile for context
     let userContext = ''
@@ -43,7 +48,6 @@ USER CONTEXT:
       console.log('Could not fetch user context:', e)
     }
 
-    const currentHour = new Date().getHours()
     const timeContext = currentHour < 11 ? 'morning' : currentHour < 16 ? 'afternoon' : 'evening'
 
     const systemPrompt = `You are Rovia, a friendly nutrition coach. You can help users log meals AND answer nutrition questions.

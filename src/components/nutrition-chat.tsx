@@ -123,7 +123,9 @@ export function NutritionChat({ userId, userName, macros, onMealLogged, classNam
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: messageText,
-          userId
+          userId,
+          currentHour: new Date().getHours(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
 

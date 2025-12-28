@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, userId, parseOnly = false } = await request.json()
+    const { message, userId, parseOnly = false, currentHour: passedHour, timezone = 'America/Los_Angeles' } = await request.json()
 
     if (!message || !userId) {
       return NextResponse.json(
@@ -17,8 +17,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get current hour for meal type inference
-    const currentHour = new Date().getHours()
+    // Use passed currentHour or calculate from timezone (never calculate from server time)
+    const currentHour = passedHour !== undefined
+      ? passedHour
+      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
+
     const timeContext = currentHour < 11 ? 'morning (breakfast time)'
                       : currentHour < 16 ? 'midday (lunch time)'
                       : 'evening (dinner time)'

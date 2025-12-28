@@ -134,7 +134,8 @@ export default function ProfilePage() {
             protein: userGoals.targetProtein,
             carbs: userGoals.targetCarbs,
             fat: userGoals.targetFat
-          }
+          },
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
 

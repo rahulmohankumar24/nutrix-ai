@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Clock, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X, Sparkles } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X, Sparkles, Trophy, ChevronRight } from 'lucide-react'
 
 interface Restaurant {
   id: string
@@ -122,7 +122,7 @@ export default function RestaurantPage() {
     setAiLoading(true)
     try {
       // Fetch FRESH user's macro progress (no cache)
-      const macroResponse = await fetch(`/api/macro-progress?userId=${user?.id}`, {
+      const macroResponse = await fetch(`/api/macro-progress?userId=${user?.id}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache'
@@ -587,84 +587,178 @@ export default function RestaurantPage() {
           </div>
         )}
 
-        {/* Restaurant Header with AI Coach */}
-        <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:pr-72">
-          {/* Restaurant Info */}
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-semibold text-foreground">{restaurant.name}</h1>
-              {restaurantInfo.isCustomSearch && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20">
-                  <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-                  <span className="text-xs font-medium text-purple-600">AI Analysis</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
-              <span>{restaurantInfo.type}</span>
-              {!restaurantInfo.isCustomSearch && (
-                <>
-                  <span>•</span>
-                  <span>$$</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {restaurantInfo.address}
-                  </span>
-                </>
-              )}
-            </div>
-
-            {!restaurantInfo.isCustomSearch && restaurantInfo.hours && (
-              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {restaurantInfo.hours}
-                </span>
-              </div>
-            )}
-
+        {/* Restaurant Header */}
+        <div className="mb-4 lg:pr-72">
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl font-semibold text-foreground">{restaurant.name}</h1>
             {restaurantInfo.isCustomSearch && (
-              <p className="text-sm text-muted-foreground">
-                Real-time menu analysis powered by AI
-              </p>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+                <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                <span className="text-xs font-medium text-purple-600">AI Analysis</span>
+              </span>
             )}
           </div>
 
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span>{restaurantInfo.type}</span>
+            {!restaurantInfo.isCustomSearch && (
+              <>
+                <span>•</span>
+                <span>$$</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {restaurantInfo.address}
+                </span>
+                {restaurantInfo.hours && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {restaurantInfo.hours}
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+            {restaurantInfo.isCustomSearch && (
+              <span>Real-time menu analysis powered by AI</span>
+            )}
+          </div>
+        </div>
+
+        {/* Nutrition Coach + Top Pick Side by Side */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:pr-72">
           {/* AI Coaching Advice */}
           {(coachingAdvice || coachingNote) && (
-            <div className="rounded-xl bg-purple-500/5 border border-purple-500/20 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-purple-500" />
+            <div className="rounded-2xl bg-purple-500/5 border border-purple-500/20 p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-purple-500" />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-medium text-foreground">Nutrition Coach</h3>
-                    <span className="px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-500 text-[10px] font-medium">Live</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-base font-semibold text-foreground">Nutrition Coach</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-500 text-xs font-medium">Live</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {coachingAdvice}
                   </p>
                   {coachingNote && (
-                    <p className="text-sm text-purple-500 font-medium mt-2 pt-2 border-t border-purple-500/10">
-                      {coachingNote}
+                    <p className="text-sm text-purple-500 font-medium mt-3 pt-3 border-t border-purple-500/10">
+                      💡 {coachingNote}
                     </p>
                   )}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Top Pick */}
+          {!aiLoading && meals.length > 0 && (() => {
+            const topPick = meals.reduce((best, current) => {
+              const currentScore = current.fitScore || 0
+              const bestScore = best?.fitScore || 0
+              if (current.fitBadge === 'PERFECT MATCH') return current
+              if (best?.fitBadge === 'PERFECT MATCH') return best
+              return currentScore > bestScore ? current : best
+            }, meals[0])
+
+            if (!topPick) return null
+
+            return (
+              <div className="rounded-2xl border-2 border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 relative overflow-hidden">
+                {/* Top Pick Badge */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary text-primary-foreground">
+                      <Trophy className="h-4 w-4" />
+                      <span className="text-sm font-bold">Top Pick</span>
+                    </div>
+                    {topPick.fitScore !== undefined && (
+                      <span className="text-sm font-semibold text-primary">{topPick.fitScore}/100 match</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Meal Title & Reason */}
+                <h3 className="text-lg font-bold text-foreground mb-2">{topPick.title}</h3>
+                {(topPick.fitReasoning || topPick.aiReasoning) && (
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {topPick.fitReasoning || topPick.aiReasoning}
+                  </p>
+                )}
+
+                {/* Macros Grid */}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  <div className="text-center p-2 rounded-lg bg-card/50">
+                    <p className="text-lg font-bold text-foreground">{Math.round(topPick.calories)}</p>
+                    <p className="text-[10px] text-muted-foreground">cal</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-primary/10">
+                    <p className="text-lg font-bold text-primary">{Math.round(topPick.protein)}g</p>
+                    <p className="text-[10px] text-muted-foreground">protein</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-card/50">
+                    <p className="text-lg font-bold text-foreground">{Math.round(topPick.carbs)}g</p>
+                    <p className="text-[10px] text-muted-foreground">carbs</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-card/50">
+                    <p className="text-lg font-bold text-foreground">{Math.round(topPick.fat)}g</p>
+                    <p className="text-[10px] text-muted-foreground">fat</p>
+                  </div>
+                </div>
+
+                {/* Meal Type + Log Button */}
+                <div className="flex items-center gap-3">
+                  <select
+                    value={selectedMealType}
+                    onChange={(e) => setSelectedMealType(e.target.value)}
+                    className="px-3 py-2.5 rounded-xl bg-card border border-border text-sm font-medium focus:outline-none"
+                  >
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                  <button
+                    onClick={() => handleLogMeal(topPick)}
+                    disabled={loggingMealId === topPick.id || loggedMealId === topPick.id}
+                    className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                      loggedMealId === topPick.id
+                        ? 'bg-green-500 text-white'
+                        : loggingMealId === topPick.id
+                        ? 'bg-muted text-muted-foreground cursor-wait'
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] shadow-md shadow-primary/20'
+                    }`}
+                  >
+                    {loggedMealId === topPick.id ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Check className="h-4 w-4" />
+                        Logged!
+                      </span>
+                    ) : loggingMealId === topPick.id ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                        Logging...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        Log This Meal
+                        <ChevronRight className="h-4 w-4" />
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Menu Section */}
         <div className="lg:pr-72">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Recommended for You</h2>
-              <p className="text-sm text-muted-foreground">Personalized for your nutrition goals</p>
-            </div>
+            <h2 className="text-base font-medium text-foreground">Other Options</h2>
           </div>
 
           {aiLoading ? (
@@ -687,8 +781,19 @@ export default function RestaurantPage() {
               <p className="text-muted-foreground">No meal recommendations available</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {meals.map((item, idx) => {
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {meals.filter((item, idx) => {
+                // Find top pick to exclude it
+                const topPick = meals.reduce((best, current) => {
+                  const currentScore = current.fitScore || 0
+                  const bestScore = best?.fitScore || 0
+                  if (current.fitBadge === 'PERFECT MATCH') return current
+                  if (best?.fitBadge === 'PERFECT MATCH') return best
+                  return currentScore > bestScore ? current : best
+                }, meals[0])
+                return item.id !== topPick?.id
+              }).map((item, idx) => {
                 const getBadgeColor = (badge: string | null | undefined) => {
                   switch (badge) {
                     case 'PERFECT MATCH': return 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30'
@@ -704,279 +809,114 @@ export default function RestaurantPage() {
                     key={idx}
                     className={`p-5 rounded-xl border transition-all flex flex-col ${
                       item.fitBadge === 'PERFECT MATCH' || item.fitBadge === 'HIGHLY RECOMMENDED'
-                        ? 'border-primary bg-primary/5 shadow-sm'
+                        ? 'border-primary/50 bg-primary/5'
                         : 'border-border bg-card hover:border-primary/30'
                     }`}
                   >
-                    {/* Content wrapper - flex-1 to push button to bottom */}
+                    {/* Content wrapper */}
                     <div className="flex-1 flex flex-col">
                       {/* Fit Badge */}
                       {item.fitBadge && (
                         <div className="flex items-center gap-2 mb-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getBadgeColor(item.fitBadge)}`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getBadgeColor(item.fitBadge)}`}>
                             {item.fitBadge}
                           </span>
                           {item.fitScore !== undefined && (
                             <span className="text-xs font-semibold text-muted-foreground">
-                              {item.fitScore}/100 match
+                              {item.fitScore}/100
                             </span>
                           )}
                         </div>
                       )}
 
-                      <div className="flex items-start justify-between gap-4 mb-2">
-                        <div className="flex-1">
+                      <div className="flex-1">
                         <h3 className="font-semibold text-foreground mb-1">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
 
-                        {/* Coach Insights Section - Purple themed for AI insights */}
-                        {(item.fitReasoning || item.aiReasoning || item.macroImpact) && (
+                        {/* AI Insight - Purple themed */}
+                        {item.fitReasoning && (
                           <div className="mt-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                            {/* Why this works */}
-                            {item.fitReasoning && (
-                              <p className="text-xs text-foreground">
-                                <span className="font-medium text-purple-500">Why this works: </span>
-                                {item.fitReasoning}
-                              </p>
-                            )}
-
-                            {/* AI Strategy - show only if different and valuable */}
-                            {item.aiReasoning && item.aiReasoning !== item.fitReasoning && (
-                              <p className="text-xs text-foreground mt-2">
-                                <span className="font-medium text-purple-500">Strategy: </span>
-                                {item.aiReasoning}
-                              </p>
-                            )}
-
-                            {/* Macro Impact - always show if available */}
-                            {item.macroImpact && (
-                              <p className="text-xs font-medium text-purple-500 mt-2 pt-2 border-t border-purple-500/10">
-                                {item.macroImpact}
-                              </p>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium text-purple-500">Why this works: </span>
+                              {item.fitReasoning}
+                            </p>
                           </div>
                         )}
 
                         {/* Customizations */}
                         {item.customizations && item.customizations.length > 0 && (
-                          <div className="mt-3 space-y-1.5">
-                            <p className="text-xs font-medium text-foreground uppercase tracking-wide">Recommended Add-ons:</p>
-                            {item.customizations.map((customization: string, custIdx: number) => (
-                              <div key={custIdx} className="flex items-start gap-2 text-xs">
-                                <span className="text-primary mt-0.5">+</span>
-                                <span className="text-muted-foreground">{customization}</span>
-                              </div>
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {item.customizations.slice(0, 3).map((customization: string, custIdx: number) => (
+                              <span key={custIdx} className="text-xs text-primary">
+                                +{customization}
+                              </span>
                             ))}
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    {item.tags && item.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3 mb-4">
-                        {item.tags.slice(0, 5).map((tag, tagIdx) => (
-                          <span key={tagIdx} className="px-2 py-0.5 rounded-full bg-muted text-xs text-muted-foreground">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
 
                     {/* Show AI analysis badge for unknown restaurants */}
                     {(item as any).isAIAnalyzed && (
-                      <div className="mt-3 mb-4 p-3 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                        <div className="flex items-start gap-2 mb-3">
-                          <div className="h-6 w-6 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="h-3 w-3 text-purple-500" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs font-medium text-purple-500">AI Menu Analysis</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {(item as any).estimatedNutrition
-                                ? 'Nutrition estimated based on typical ingredients'
-                                : 'Found from online menu'}
-                            </p>
-                            {(item as any).feedbackCount > 0 && (
-                              <p className="text-xs text-purple-500 mt-1 font-medium">
-                                Refined by {(item as any).feedbackCount} user feedback{(item as any).feedbackCount > 1 ? 's' : ''}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Feedback UI */}
-                        {showFeedbackFor === item.id ? (
-                          <div className="space-y-3 pt-3 border-t border-purple-500/10">
-                            <p className="text-xs font-medium text-foreground">Help us improve this estimate</p>
-
-                            {/* Calories Feedback */}
-                            <div className="space-y-1.5">
-                              <p className="text-xs text-muted-foreground">Calories ({Math.round(item.calories)})</p>
-                              <div className="flex gap-1.5">
-                                {(['too_low', 'accurate', 'too_high'] as const).map((option) => (
-                                  <button
-                                    key={option}
-                                    onClick={() => setFeedbackData(prev => ({ ...prev, caloriesFeedback: option }))}
-                                    className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                      feedbackData.caloriesFeedback === option
-                                        ? option === 'accurate'
-                                          ? 'bg-green-500 text-white'
-                                          : 'bg-orange-500 text-white'
-                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                    }`}
-                                  >
-                                    {option === 'too_low' ? 'Too Low' : option === 'accurate' ? 'Accurate' : 'Too High'}
-                                  </button>
-                                ))}
-                              </div>
-                              {feedbackData.caloriesFeedback && feedbackData.caloriesFeedback !== 'accurate' && (
-                                <input
-                                  type="number"
-                                  value={feedbackData.suggestedCalories}
-                                  onChange={(e) => setFeedbackData(prev => ({ ...prev, suggestedCalories: e.target.value }))}
-                                  placeholder="Your estimate (e.g., 650)"
-                                  className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs focus:outline-none focus:border-primary"
-                                />
-                              )}
-                            </div>
-
-                            {/* Protein Feedback */}
-                            <div className="space-y-1.5">
-                              <p className="text-xs text-muted-foreground">Protein ({Math.round(item.protein)}g)</p>
-                              <div className="flex gap-1.5">
-                                {(['too_low', 'accurate', 'too_high'] as const).map((option) => (
-                                  <button
-                                    key={option}
-                                    onClick={() => setFeedbackData(prev => ({ ...prev, proteinFeedback: option }))}
-                                    className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                      feedbackData.proteinFeedback === option
-                                        ? option === 'accurate'
-                                          ? 'bg-green-500 text-white'
-                                          : 'bg-orange-500 text-white'
-                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                    }`}
-                                  >
-                                    {option === 'too_low' ? 'Too Low' : option === 'accurate' ? 'Accurate' : 'Too High'}
-                                  </button>
-                                ))}
-                              </div>
-                              {feedbackData.proteinFeedback && feedbackData.proteinFeedback !== 'accurate' && (
-                                <input
-                                  type="number"
-                                  value={feedbackData.suggestedProtein}
-                                  onChange={(e) => setFeedbackData(prev => ({ ...prev, suggestedProtein: e.target.value }))}
-                                  placeholder="Your estimate (e.g., 45)"
-                                  className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs focus:outline-none focus:border-primary"
-                                />
-                              )}
-                            </div>
-
-                            {/* Submit/Cancel */}
-                            <div className="flex gap-2 pt-1">
-                              <button
-                                onClick={() => handleSubmitFeedback((item as any).aiGeneratedMealId)}
-                                disabled={submittingFeedback || (!feedbackData.caloriesFeedback && !feedbackData.proteinFeedback)}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-colors text-xs font-medium disabled:opacity-50"
-                              >
-                                {submittingFeedback ? (
-                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Check className="h-3.5 w-3.5" />
-                                )}
-                                Submit Feedback
-                              </button>
-                              <button
-                                onClick={resetFeedback}
-                                className="px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors text-xs font-medium"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setShowFeedbackFor(item.id)}
-                            className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-lg bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors text-xs font-medium"
-                          >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            Help Improve This
-                          </button>
+                      <div className="mt-3 p-2.5 rounded-lg bg-purple-500/5 border border-purple-500/10 flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        <span className="text-xs text-purple-500 font-medium">AI estimated</span>
+                        {(item as any).feedbackCount > 0 && (
+                          <span className="text-xs text-muted-foreground">• {(item as any).feedbackCount} refinements</span>
                         )}
                       </div>
                     )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-border mb-4">
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-foreground">{Math.round(item.calories)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.customizations && item.customizations.length > 0 ? 'total calories' : 'calories'}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-primary">{Math.round(item.protein)}g</p>
-                        <p className="text-xs text-muted-foreground">protein</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-foreground">{Math.round(item.carbs)}g</p>
-                        <p className="text-xs text-muted-foreground">carbs</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-foreground">{Math.round(item.fat)}g</p>
-                        <p className="text-xs text-muted-foreground">fat</p>
-                      </div>
+                    {/* Macros */}
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-border text-sm">
+                      <span className="font-semibold text-foreground">{Math.round(item.calories)} cal</span>
+                      <span className="font-bold text-primary">{Math.round(item.protein)}g pro</span>
+                      <span className="text-muted-foreground">{Math.round(item.carbs)}g carbs</span>
+                      <span className="text-muted-foreground">{Math.round(item.fat)}g fat</span>
                     </div>
 
-                    {/* Meal Type Selector */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs text-muted-foreground">Log as:</span>
-                      <div className="flex gap-1 flex-1">
-                        {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
-                          <button
-                            key={type}
-                            onClick={() => setSelectedMealType(type)}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${
-                              selectedMealType === type
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                            }`}
-                          >
-                            {type}
-                          </button>
-                        ))}
-                      </div>
+                    {/* Log Button */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <select
+                        value={selectedMealType}
+                        onChange={(e) => setSelectedMealType(e.target.value)}
+                        className="px-2.5 py-2 rounded-lg bg-muted border-0 text-xs font-medium focus:outline-none"
+                      >
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                      </select>
+                      <button
+                        onClick={() => handleLogMeal(item)}
+                        disabled={loggingMealId === item.id || loggedMealId === item.id}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                          loggedMealId === item.id
+                            ? 'bg-green-500 text-white'
+                            : loggingMealId === item.id
+                            ? 'bg-muted text-muted-foreground cursor-wait'
+                            : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]'
+                        }`}
+                      >
+                        {loggedMealId === item.id ? (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <Check className="h-4 w-4" />
+                            Logged!
+                          </span>
+                        ) : loggingMealId === item.id ? (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <div className="h-3.5 w-3.5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                          </span>
+                        ) : (
+                          'Log This Meal'
+                        )}
+                      </button>
                     </div>
-
-                    {/* Log Meal Button */}
-                    <button
-                      onClick={() => handleLogMeal(item)}
-                      disabled={loggingMealId === item.id || loggedMealId === item.id}
-                      className={`w-full py-3 rounded-xl font-medium transition-all ${
-                        loggedMealId === item.id
-                          ? 'bg-green-500 text-white'
-                          : loggingMealId === item.id
-                          ? 'bg-muted text-muted-foreground cursor-wait'
-                          : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]'
-                      }`}
-                    >
-                      {loggedMealId === item.id ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <Check className="h-5 w-5" />
-                          Logged! Redirecting...
-                        </span>
-                      ) : loggingMealId === item.id ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <div className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                          Logging meal...
-                        </span>
-                      ) : (
-                        'Log This Meal'
-                      )}
-                    </button>
                   </div>
                 )
               })}
             </div>
+            </>
           )}
         </div>
 

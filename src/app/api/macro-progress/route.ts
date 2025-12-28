@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const timezone = searchParams.get('timezone') || 'America/Los_Angeles'
 
     if (!userId) {
       return NextResponse.json(
@@ -15,9 +16,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get today's date
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Get today's date in user's timezone
+    const now = new Date()
+    const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
 
     // Get today's targets
     const dailyTarget = await prisma.dailyTarget.findFirst({

@@ -11,10 +11,17 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const timezone = searchParams.get('timezone') || 'America/Los_Angeles'
+    const currentHourParam = searchParams.get('currentHour')
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
     }
+
+    // Use passed currentHour or calculate from timezone
+    const currentHour = currentHourParam
+      ? parseInt(currentHourParam)
+      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
 
     // Get user profile
     const profile = await prisma.profile.findUnique({
@@ -25,9 +32,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    // Get today's date range
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Get today's date range in user's timezone
+    const now = new Date()
+    const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
@@ -97,8 +105,7 @@ export async function GET(request: NextRequest) {
       fat: Math.max(0, targets.fat - current.fat)
     }
 
-    const hour = new Date().getHours()
-    const timeOfDay = hour < 11 ? 'morning' : hour < 16 ? 'afternoon' : 'evening'
+    const timeOfDay = currentHour < 11 ? 'morning' : currentHour < 16 ? 'afternoon' : 'evening'
 
     // Check which meals are actually logged
     const loggedMealTypes = new Set(mealLogs.map(log => log.mealType || ''))
@@ -108,9 +115,9 @@ export async function GET(request: NextRequest) {
 
     // Calculate actual meals remaining based on time AND what's been logged
     let mealsRemaining = 0
-    if (hour < 11) {
+    if (currentHour < 11) {
       mealsRemaining = (hasBreakfast ? 0 : 1) + (hasLunch ? 0 : 1) + (hasDinner ? 0 : 1)
-    } else if (hour < 16) {
+    } else if (currentHour < 16) {
       mealsRemaining = (hasLunch ? 0 : 1) + (hasDinner ? 0 : 1)
     } else {
       mealsRemaining = hasDinner ? 0 : 1

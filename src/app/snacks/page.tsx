@@ -66,7 +66,7 @@ export default function SnacksPage() {
 
   const loadUserTargets = async () => {
     try {
-      const response = await fetch(`/api/macro-progress?userId=${user?.id}`)
+      const response = await fetch(`/api/macro-progress?userId=${user?.id}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setUserTargets(data)

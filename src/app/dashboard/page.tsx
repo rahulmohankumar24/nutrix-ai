@@ -284,7 +284,9 @@ export default function DashboardPage() {
 
     setLoadingSuggestions(true)
     try {
-      let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}&travel=${travel}`
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const hour = new Date().getHours()
+      let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}&travel=${travel}&timezone=${tz}&currentHour=${hour}`
       if (location) {
         url += `&lat=${location.lat}&lng=${location.lng}`
       }
@@ -410,7 +412,9 @@ export default function DashboardPage() {
     setInsights({ status: 'on_track', headline: '', insights: [], loading: true })
 
     try {
-      const response = await fetch(`/api/daily-insights?userId=${userId}`)
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const hour = new Date().getHours()
+      const response = await fetch(`/api/daily-insights?userId=${userId}&timezone=${tz}&currentHour=${hour}`)
       if (response.ok) {
         const data = await response.json()
         setInsights({
@@ -490,8 +494,8 @@ export default function DashboardPage() {
   const loadDashboardData = async (userId: string) => {
     try {
       const [macroResponse, mealLogResponse] = await Promise.all([
-        fetch(`/api/macro-progress?userId=${userId}`),
-        fetch(`/api/log-meal?userId=${userId}`)
+        fetch(`/api/macro-progress?userId=${userId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
+        fetch(`/api/log-meal?userId=${userId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       ])
 
       if (macroResponse.ok) {
@@ -709,7 +713,9 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: chatInput,
-          userId: user.id
+          userId: user.id,
+          currentHour: new Date().getHours(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
 
@@ -934,7 +940,7 @@ export default function DashboardPage() {
             {/* Chat Bar - Right aligned, above meal suggestions */}
             {!pendingMeal ? (
               <form onSubmit={handleChatSubmit} className="w-full lg:w-[calc(50%-10px)]">
-                <div className="flex items-center gap-3 bg-card rounded-2xl border border-border/50 px-4 py-3.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                <div className="flex items-center gap-3 bg-card rounded-2xl border border-border shadow-sm px-4 py-3.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
                   <MessageCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                   <input
                     type="text"
@@ -1026,7 +1032,7 @@ export default function DashboardPage() {
           />
 
           {/* AI Meal Suggestions */}
-          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
+          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${mealSource === 'home' ? 'bg-green-500/10' : 'bg-purple-500/10'}`}>
@@ -1157,7 +1163,7 @@ export default function DashboardPage() {
           {loadingSuggestions ? (
             <div className="flex-1 space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="p-3 rounded-xl border border-border/50 bg-muted/10 animate-pulse">
+                <div key={i} className="p-3 rounded-xl border border-border bg-card animate-pulse">
                   <div className="h-4 w-1/3 bg-muted rounded mb-2" />
                   <div className="h-3 w-2/3 bg-muted rounded mb-2" />
                   <div className="flex gap-2">
@@ -1208,7 +1214,7 @@ export default function DashboardPage() {
                         >
                           <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
                             {/* Front */}
-                            <div className="absolute inset-0 bg-card rounded-xl p-3 border border-border/50 hover:border-green-500/30 [backface-visibility:hidden]">
+                            <div className="absolute inset-0 bg-card rounded-xl p-3 border border-border shadow-sm hover:border-green-500/50 [backface-visibility:hidden]">
                               <p className="text-sm font-medium text-foreground line-clamp-1">{item.name}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {item.portion}
@@ -1290,7 +1296,7 @@ export default function DashboardPage() {
                         >
                           <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
                             {/* Front of card */}
-                            <div className="absolute inset-0 p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-green-500/30 hover:bg-muted/20 transition-all [backface-visibility:hidden]">
+                            <div className="absolute inset-0 p-4 rounded-xl border border-border bg-card shadow-sm hover:border-green-500/50 hover:shadow-md transition-all [backface-visibility:hidden]">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-xs font-semibold text-green-600 bg-green-500/10 px-2 py-1 rounded-md">
                                   {meal.prepTime}
@@ -1427,7 +1433,7 @@ export default function DashboardPage() {
                   {suggestions.slice(0, 2).map((suggestion, index) => (
                     <div
                       key={index}
-                      className="p-3 rounded-lg border border-border/50 bg-muted/10 hover:border-primary/30 transition-all cursor-pointer mb-2"
+                      className="p-3 rounded-lg border border-border bg-card shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer mb-2"
                       onClick={() => {
                         setPendingMeal({
                           name: suggestion.name,
@@ -1458,7 +1464,7 @@ export default function DashboardPage() {
                   <div className="flip-card-inner relative">
                     {/* Front of card */}
                     <div
-                      className="flip-card-front p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/30 hover:bg-muted/20 transition-all cursor-pointer group"
+                      className="flip-card-front p-4 rounded-xl border border-border bg-card shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
                       onClick={() => setFlippedCardIndex(index)}
                     >
                       <div className="flex items-center gap-2 mb-2">
@@ -1499,24 +1505,24 @@ export default function DashboardPage() {
 
                     {/* Back of card - click anywhere to flip back */}
                     <div
-                      className="flip-card-back p-4 rounded-xl border border-primary/30 bg-card flex flex-col justify-center cursor-pointer"
+                      className="flip-card-back p-4 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center cursor-pointer"
                       onClick={() => setFlippedCardIndex(null)}
                     >
                       {/* Full macros grid */}
                       <div className="grid grid-cols-4 gap-2 mb-3">
-                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                        <div className="text-center p-2 rounded-lg bg-muted">
                           <p className="text-sm font-semibold text-foreground">{suggestion.calories}</p>
                           <p className="text-[10px] text-muted-foreground">cal</p>
                         </div>
-                        <div className="text-center p-2 rounded-lg bg-primary/10">
+                        <div className="text-center p-2 rounded-lg bg-primary/15">
                           <p className="text-sm font-semibold text-primary">{suggestion.protein}g</p>
                           <p className="text-[10px] text-muted-foreground">protein</p>
                         </div>
-                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                        <div className="text-center p-2 rounded-lg bg-muted">
                           <p className="text-sm font-semibold text-foreground">{suggestion.carbs}g</p>
                           <p className="text-[10px] text-muted-foreground">carbs</p>
                         </div>
-                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                        <div className="text-center p-2 rounded-lg bg-muted">
                           <p className="text-sm font-semibold text-foreground">{suggestion.fat}g</p>
                           <p className="text-[10px] text-muted-foreground">fat</p>
                         </div>
@@ -1592,13 +1598,13 @@ export default function DashboardPage() {
         {/* Side by Side: Today's Total + Meals Logged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Today's Total */}
-          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col h-full">
+          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col h-full">
             <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
             {!macros ? (
               // Skeleton loading state
               <div className="grid grid-cols-2 gap-4 flex-1">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20 animate-pulse">
+                  <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30 animate-pulse">
                     <div className="w-20 h-20 rounded-full bg-muted" />
                     <div className="h-4 w-12 bg-muted rounded mt-2" />
                     <div className="h-3 w-16 bg-muted rounded mt-1" />
@@ -1608,7 +1614,7 @@ export default function DashboardPage() {
             ) : (
               <div className="grid grid-cols-2 gap-4 flex-1">
                 {/* Calories */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -1628,7 +1634,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Protein */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -1648,7 +1654,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Carbs */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -1668,7 +1674,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Fat */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
+                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
                   <div className="relative w-20 h-20">
                     <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
@@ -1691,7 +1697,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Meals Logged */}
-          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
+          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col">
             {/* Meals Logged Header */}
             <p className="text-base font-medium text-muted-foreground mb-4">Meals Logged</p>
 
@@ -1821,7 +1827,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
             href="/restaurants"
-            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
+            className="bg-card rounded-xl p-4 border border-border shadow-sm hover:border-primary/50 hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -1836,7 +1842,7 @@ export default function DashboardPage() {
 
           <Link
             href="/my-path"
-            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
+            className="bg-card rounded-xl p-4 border border-border shadow-sm hover:border-primary/50 hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">

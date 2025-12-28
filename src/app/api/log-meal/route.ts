@@ -51,15 +51,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     const date = searchParams.get('date') // YYYY-MM-DD format
+    const timezone = searchParams.get('timezone') || 'America/Los_Angeles'
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Get today's date if no date provided
-    const targetDate = date ? new Date(date) : new Date()
-    const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0))
-    const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999))
+    // Get today's date in user's timezone if no date provided
+    let startOfDay: Date
+    let endOfDay: Date
+
+    if (date) {
+      const targetDate = new Date(date)
+      startOfDay = new Date(targetDate.setHours(0, 0, 0, 0))
+      endOfDay = new Date(targetDate.setHours(23, 59, 59, 999))
+    } else {
+      // Calculate today in user's timezone
+      const now = new Date()
+      const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+      startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
+      endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999)
+    }
 
     // Get meal logs for the specified date with related data
     const mealLogs = await prisma.mealLog.findMany({

@@ -202,10 +202,17 @@ export async function GET(request: NextRequest) {
     const travelParam = searchParams.get('travel')
     const travelMode: 'walk' | 'drive' = travelParam === 'walk' ? 'walk' : 'drive'
     const maxDistance = TRAVEL_DISTANCES[travelMode]
+    const timezone = searchParams.get('timezone') || 'America/Los_Angeles'
+    const currentHourParam = searchParams.get('currentHour')
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
     }
+
+    // Use passed currentHour or calculate from timezone
+    const currentHour = currentHourParam
+      ? parseInt(currentHourParam)
+      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
 
     // Get user profile
     const profile = await prisma.profile.findUnique({
@@ -216,9 +223,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    // Get today's date range
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Get today's date range in user's timezone
+    const now = new Date()
+    const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
@@ -283,11 +291,10 @@ export async function GET(request: NextRequest) {
       fat: Math.max(0, targets.fat - currentFat)
     }
 
-    // Determine meal time first (needed for scoring)
-    const hour = new Date().getHours()
+    // Determine meal time from passed hour (needed for scoring)
     let mealTime: 'breakfast' | 'lunch' | 'dinner' = 'dinner'
-    if (hour < 11) mealTime = 'breakfast'
-    else if (hour < 16) mealTime = 'lunch'
+    if (currentHour < 11) mealTime = 'breakfast'
+    else if (currentHour < 16) mealTime = 'lunch'
 
     // Fetch user patterns for personalized recommendations
     const patterns = await getUserPatterns(userId)

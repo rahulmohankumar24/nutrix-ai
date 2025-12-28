@@ -226,8 +226,8 @@ Return this exact JSON structure with 5 VARIED meals:
       "buildInstructions": "Order: base + DOUBLE PROTEIN + all toppings (guac, cheese, etc.)"
     }
   ],
-  "overallAdvice": "${mealDistribution.reasoning} Choose the option that best fits your hunger level and remaining targets.",
-  "restaurantTips": "Use portion sizes and add-ons to customize calories and protein to your needs"
+  "overallAdvice": "Write 1-2 sentences of friendly, narrative advice. Focus on WHAT to prioritize (e.g., 'Go for the protein-packed option' or 'Keep it light here') and WHAT to watch out for (e.g., 'Skip the extra cheese if you want room for dinner'). NO numbers, NO calculations, NO percentages. Just clear, simple guidance like a friend would give.",
+  "coachingNote": "One short actionable tip specific to this restaurant (e.g., 'Double protein is your best friend here' or 'The bowls give you more control than wraps')"
 }`
 
     console.log('')

@@ -91,7 +91,12 @@ export function ChatWidget({ userId, userName, onMealLogged }: ChatWidgetProps) 
       const response = await fetch('/api/nutrition-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText, userId })
+        body: JSON.stringify({
+          message: messageText,
+          userId,
+          currentHour: new Date().getHours(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
       })
 
       if (!response.ok) throw new Error('Failed to process')

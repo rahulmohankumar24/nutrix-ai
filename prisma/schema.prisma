@@ -44,6 +44,7 @@ model Profile {
   wakeTime      String
   lunchTime     String
   dinnerTime    String
+  isPro         Boolean @default(false) // Pro subscription status
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -263,6 +264,20 @@ model PatternInsight {
   @@index([userId, isActive])
   @@index([userId, category])
   @@map("pattern_insights")
+}
+
+// Weekly Insight Cache - stores AI-generated weekly summaries
+model WeeklyInsightCache {
+  id           String   @id @default(cuid())
+  userId       String
+  weekStartDate String  // YYYY-MM-DD format for the Monday of the week
+  summary      String   // AI-generated summary
+  daysData     String   // JSON string of days array
+  generatedAt  DateTime @default(now())
+
+  @@unique([userId, weekStartDate])
+  @@index([userId])
+  @@map("weekly_insight_cache")
 }
 
 // Pantry/Inventory System

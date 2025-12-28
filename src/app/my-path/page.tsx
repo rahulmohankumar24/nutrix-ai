@@ -8,6 +8,7 @@ import {
   Sparkles, ChevronRight, Zap, Brain, Trophy,
   ArrowUpRight, BarChart3
 } from "lucide-react"
+import { AnalyticsChat } from "@/components/analytics-chat"
 
 interface WeeklyData {
   label: string
@@ -55,6 +56,7 @@ export default function MyPathPage() {
   const [loadingPatterns, setLoadingPatterns] = useState(true)
   const [daysAnalyzed, setDaysAnalyzed] = useState(0)
   const [weeklyInsight, setWeeklyInsight] = useState<string>("")
+  const [isPro, setIsPro] = useState(false)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -67,8 +69,22 @@ export default function MyPathPage() {
       fetchWeeklyData()
       fetchStats()
       fetchPatternInsights()
+      fetchProStatus()
     }
   }, [isLoaded, isSignedIn, router, user?.id])
+
+  const fetchProStatus = async () => {
+    if (!user?.id) return
+    try {
+      const response = await fetch(`/api/profile?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setIsPro(data.profile?.isPro === true)
+      }
+    } catch (error) {
+      console.error('Failed to fetch pro status:', error)
+    }
+  }
 
   const fetchWeeklyData = async () => {
     if (!user?.id) return
@@ -327,6 +343,11 @@ export default function MyPathPage() {
         {/* AI Insight Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+          {/* Ask AI Coach - Pro Feature */}
+          {user?.id && (
+            <AnalyticsChat userId={user.id} isPro={isPro} />
+          )}
+
           {/* Your Strengths */}
           <Link href="/insights/strengths" className="group">
             <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-green-500/30 hover:shadow-lg transition-all h-full">
@@ -450,6 +471,7 @@ export default function MyPathPage() {
               <p className="text-xs text-muted-foreground mt-2">Tap to see detailed breakdown</p>
             </div>
           </Link>
+
         </div>
 
       </main>

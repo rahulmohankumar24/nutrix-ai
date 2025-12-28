@@ -31,7 +31,7 @@ export default function CoachPage() {
 
   const fetchMacros = async (userId: string) => {
     try {
-      const response = await fetch(`/api/macro-progress?userId=${userId}`)
+      const response = await fetch(`/api/macro-progress?userId=${userId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       if (response.ok) {
         const data = await response.json()
         setMacros(data)

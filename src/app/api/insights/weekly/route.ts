@@ -6,6 +6,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
 
+// Helper to get today's date string at midnight
+function getTodayDateString(): string {
+  const today = new Date()
+  return today.toISOString().split('T')[0]
+}
+
+// Helper to check if cache was generated today (after midnight)
+function isCacheFromToday(generatedAt: Date): boolean {
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  return generatedAt >= todayStart
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await request.json()
@@ -14,7 +27,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Get the past 7 days
+    const todayStr = getTodayDateString()
+
+    // Check for cached insight from today
+    const cachedInsight = await prisma.weeklyInsightCache.findUnique({
+      where: {
+        userId_weekStartDate: {
+          userId,
+          weekStartDate: todayStr
+        }
+      }
+    })
+
+    // If cache exists and was generated today, return it immediately
+    if (cachedInsight && isCacheFromToday(cachedInsight.generatedAt)) {
+      const cachedDays = JSON.parse(cachedInsight.daysData)
+      return NextResponse.json({
+        days: cachedDays,
+        summary: cachedInsight.summary,
+        cached: true
+      })
+    }
+
+    // No valid cache - generate fresh data
     const days: { dayName: string; date: string; calories: number; caloriesTarget: number; protein: number; proteinTarget: number; summary: string }[] = []
 
     const today = new Date()
@@ -116,9 +151,31 @@ Give a brief, friendly summary of their week.`
       }
     }
 
+    // Cache the result for today
+    await prisma.weeklyInsightCache.upsert({
+      where: {
+        userId_weekStartDate: {
+          userId,
+          weekStartDate: todayStr
+        }
+      },
+      update: {
+        summary,
+        daysData: JSON.stringify(days),
+        generatedAt: new Date()
+      },
+      create: {
+        userId,
+        weekStartDate: todayStr,
+        summary,
+        daysData: JSON.stringify(days)
+      }
+    })
+
     return NextResponse.json({
       days,
-      summary
+      summary,
+      cached: false
     })
   } catch (error) {
     console.error('Failed to generate weekly data:', error)
