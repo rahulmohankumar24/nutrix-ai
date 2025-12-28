@@ -52,9 +52,17 @@ export default function LandingPage() {
               />
               <span className="text-2xl font-semibold text-foreground tracking-tight leading-none">rovia</span>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm font-medium text-primary">Coming Soon</span>
+            <div className="flex items-center gap-4">
+              <a
+                href="mailto:rovianutrition@gmail.com"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Contact
+              </a>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm font-medium text-primary">Coming Soon</span>
+              </div>
             </div>
           </div>
         </header>
@@ -459,15 +467,21 @@ export default function LandingPage() {
         <footer className="px-6 py-8 border-t border-border">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <Image
-              src="/logo.png"
+              src="/notext.png"
               alt="Rovia"
               width={100}
               height={32}
-              className="h-6 w-auto opacity-50"
+              className="h-8 w-auto opacity-50"
             />
             <p className="text-sm text-muted-foreground">
               Personalized nutrition, powered by AI.
             </p>
+            <a
+              href="mailto:rovianutrition@gmail.com"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              rovianutrition@gmail.com
+            </a>
           </div>
         </footer>
       </div>
