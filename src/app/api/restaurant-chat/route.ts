@@ -45,18 +45,16 @@ GUIDELINES:
 
 Remember: You're helping them make a quick decision about what to eat, not writing an essay.`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
+    const completion = await openai.responses.create({
+      model: 'gpt-5.2',
+      input: [
         { role: 'system', content: systemPrompt },
         ...historyMessages,
         { role: 'user', content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 300
+      ]
     })
 
-    const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.'
+    const response = completion.output_text || 'Sorry, I could not generate a response.'
 
     return NextResponse.json({ response })
   } catch (error) {

@@ -46,12 +46,7 @@ USER CONTEXT:
     const currentHour = new Date().getHours()
     const timeContext = currentHour < 11 ? 'morning' : currentHour < 16 ? 'afternoon' : 'evening'
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are Rovia, a friendly nutrition coach. You can help users log meals AND answer nutrition questions.
+    const systemPrompt = `You are Rovia, a friendly nutrition coach. You can help users log meals AND answer nutrition questions.
 
 Current time: ${timeContext}
 ${userContext}
@@ -87,26 +82,17 @@ For MEAL logging:
 - Estimate realistic macro values
 - Account for servings mentioned
 
-Examples:
-User: "I had 2 eggs and toast"
-→ {"type": "meal", "message": "Got it!", "mealData": {"mealName": "Eggs and Toast", "estimatedCalories": 350, "estimatedProtein": 18, "estimatedCarbs": 28, "estimatedFat": 18, "servings": 1}}
+Respond with valid JSON only.`
 
-User: "What should I eat for dinner?"
-→ {"type": "advice", "message": "You have 800 cal and 60g protein left. A grilled chicken breast with veggies would be perfect - about 400 cal and 45g protein."}
-
-User: "Am I on track today?"
-→ {"type": "advice", "message": "You're at 65% of calories and 70% of protein. Looking good! Focus on protein-rich foods for your remaining meals."}`
-        },
-        {
-          role: 'user',
-          content: message
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7
+    const completion = await openai.responses.create({
+      model: 'gpt-5.2',
+      input: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ]
     })
 
-    const responseText = completion.choices[0]?.message?.content
+    const responseText = completion.output_text
     if (!responseText) {
       throw new Error('No response from OpenAI')
     }

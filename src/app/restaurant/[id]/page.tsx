@@ -511,12 +511,15 @@ export default function RestaurantPage() {
   }
 
   const getRestaurantInfo = () => {
-    if (!restaurant) return { type: 'Restaurant', address: '', hours: '' }
+    if (!restaurant) return { type: 'Restaurant', address: '', hours: '', isCustomSearch: false }
+
+    const isCustomSearch = (restaurant as any).isCustomSearch === true
 
     return {
       type: restaurant.tags?.cuisine || 'Restaurant',
-      address: `${restaurant.distance.toFixed(1)} mi away`,
-      hours: 'Open now'
+      address: restaurant.distance != null ? `${restaurant.distance.toFixed(1)} mi away` : 'Search result',
+      hours: isCustomSearch ? '' : 'Open now',
+      isCustomSearch
     }
   }
 
@@ -588,25 +591,45 @@ export default function RestaurantPage() {
         <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:pr-72">
           {/* Restaurant Info */}
           <div>
-            <h1 className="text-2xl font-semibold text-foreground mb-2">{restaurant.name}</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl font-semibold text-foreground">{restaurant.name}</h1>
+              {restaurantInfo.isCustomSearch && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+                  <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                  <span className="text-xs font-medium text-purple-600">AI Analysis</span>
+                </span>
+              )}
+            </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
               <span>{restaurantInfo.type}</span>
-              <span>•</span>
-              <span>$$</span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />
-                {restaurantInfo.address}
-              </span>
+              {!restaurantInfo.isCustomSearch && (
+                <>
+                  <span>•</span>
+                  <span>$$</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {restaurantInfo.address}
+                  </span>
+                </>
+              )}
             </div>
 
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {restaurantInfo.hours}
-              </span>
-            </div>
+            {!restaurantInfo.isCustomSearch && restaurantInfo.hours && (
+              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  {restaurantInfo.hours}
+                </span>
+              </div>
+            )}
+
+            {restaurantInfo.isCustomSearch && (
+              <p className="text-sm text-muted-foreground">
+                Real-time menu analysis powered by AI
+              </p>
+            )}
           </div>
 
           {/* AI Coaching Advice */}
@@ -647,9 +670,15 @@ export default function RestaurantPage() {
           {aiLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary/20 border-t-primary mx-auto"></div>
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Finding your best meal options...
+                <div className="relative">
+                  <div className="animate-spin rounded-full h-12 w-12 border-2 border-purple-500/20 border-t-purple-500 mx-auto"></div>
+                  <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-5 w-5 text-purple-500" />
+                </div>
+                <p className="mt-4 text-sm font-medium text-foreground">
+                  {restaurantInfo.isCustomSearch ? 'Analyzing menu with AI...' : 'Finding your best meal options...'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {restaurantInfo.isCustomSearch ? 'Searching menus and calculating nutrition' : 'Personalizing recommendations for you'}
                 </p>
               </div>
             </div>

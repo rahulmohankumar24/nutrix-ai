@@ -279,6 +279,30 @@ export function RestaurantsList() {
     router.push(`/restaurant/${restaurant.id}`)
   }
 
+  const handleSearchAnyRestaurant = (restaurantName: string) => {
+    // Create a custom ID for the searched restaurant
+    const customId = `search_${encodeURIComponent(restaurantName.toLowerCase().replace(/\s+/g, '-'))}`
+
+    // Save restaurant data to localStorage
+    localStorage.setItem(`restaurant_${customId}`, JSON.stringify({
+      id: customId,
+      name: restaurantName,
+      distance: null, // Unknown distance
+      tags: { cuisine: 'Restaurant' },
+      isKnown: false,
+      isCustomSearch: true // Flag to indicate this was a custom search
+    }))
+
+    // Set a flag to show loading state immediately on the restaurant page
+    sessionStorage.setItem('generatingMeals', 'true')
+
+    // Clear the search query
+    setSearchQuery('')
+
+    // Navigate to restaurant page
+    router.push(`/restaurant/${customId}`)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -386,11 +410,30 @@ export function RestaurantsList() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search restaurants or cuisine..."
+          placeholder="Search any restaurant..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
         />
+
+        {/* Search Any Restaurant Option */}
+        {searchQuery.trim().length >= 2 && (
+          <div className="absolute top-full left-0 right-0 mt-1 z-50">
+            <button
+              onClick={() => handleSearchAnyRestaurant(searchQuery.trim())}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-purple-500/30 bg-card hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:border-purple-500/50 transition-all text-left shadow-lg"
+            >
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-foreground">Search "{searchQuery.trim()}"</p>
+                <p className="text-xs text-muted-foreground">Get AI-powered meal recommendations</p>
+              </div>
+              <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Transport & Distance Controls - Always Visible */}

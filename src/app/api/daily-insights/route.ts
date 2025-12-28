@@ -102,43 +102,54 @@ export async function GET(request: NextRequest) {
     const mealsRemaining = hour < 11 ? 3 : hour < 16 ? 2 : 1
 
     // Generate AI insights
-    const prompt = `You are a helpful nutrition coach. Provide 2-3 brief, practical insights.
+    // Calculate percentages for context
+    const caloriePercent = Math.round((current.calories / targets.calories) * 100)
+    const proteinPercent = Math.round((current.protein / targets.protein) * 100)
+    const isOverCalories = current.calories > targets.calories
+    const isOverFat = current.fat > targets.fat
 
-User Goal: ${profile.goal === 'recomp' ? 'body recomposition' : profile.goal === 'lean_bulk' ? 'lean muscle gain' : 'fat loss'}
+    const prompt = `You are a friendly nutrition coach giving a brief daily check-in. Write conversationally, like texting a friend.
 
-Today's Progress:
-- Calories: ${current.calories}/${targets.calories} (${remaining.calories} remaining)
-- Protein: ${current.protein}g/${targets.protein}g (${remaining.protein}g remaining)
-- Carbs: ${current.carbs}g/${targets.carbs}g
-- Fat: ${current.fat}g/${targets.fat}g
+USER CONTEXT:
+Goal: ${profile.goal === 'recomp' ? 'body recomposition' : profile.goal === 'lean_bulk' ? 'lean muscle gain' : 'fat loss'}
+Time: ${timeOfDay} (${mealsRemaining} meal${mealsRemaining > 1 ? 's' : ''} left today)
+Meals so far: ${mealNames.length > 0 ? mealNames.join(', ') : 'None yet'}
 
-Meals eaten today: ${mealNames.length > 0 ? mealNames.join(', ') : 'None yet'}
-Time: ${timeOfDay} (roughly ${mealsRemaining} meal${mealsRemaining > 1 ? 's' : ''} left)
+TODAY'S STATUS:
+- Calories: ${caloriePercent}% of target ${isOverCalories ? '(over by ' + (current.calories - targets.calories) + ')' : ''}
+- Protein: ${proteinPercent}% of target
+- Fat: ${isOverFat ? 'a bit high' : 'on track'}
 
-Respond with a JSON object with these fields:
-- "status": "on_track"
-- "headline": A short 3-5 word summary (e.g., "Solid start so far", "Protein focus ahead", "On pace today")
-- "insights": Array of 2-3 brief insights (max 12 words each):
-  1. A quick factual note on progress so far
-  2. What to focus on for remaining meals with specific numbers
-  3. A practical tip if helpful
+Respond with JSON:
+{
+  "status": "on_track",
+  "headline": "3-5 words max",
+  "insights": ["insight 1", "insight 2"]
+}
 
-TONE:
-- Be honest and realistic about the numbers
-- Focus on what to do next rather than criticizing what's done
-- Matter-of-fact and helpful, like a friendly coach
-- No harsh criticism, but don't sugarcoat either
-- Example: "About ${remaining.protein}g protein to go - aim for a protein-rich dinner"`
+WRITING RULES:
+- NO numbers, percentages, or calorie counts in your response
+- Use descriptive words instead: "you're over", "right on track", "a bit high", "plenty of room"
+- 2 insights max, each under 15 words
+- Sound like a supportive friend, not a calculator
+- Focus on actionable next steps in plain language
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      max_tokens: 200,
-      temperature: 0.7
+GOOD examples:
+- "You've eaten a bit more than planned, but protein is solid."
+- "Go light for dinner - lean protein and veggies would be perfect."
+- "You're right on track. Keep doing what you're doing."
+
+BAD examples (don't do this):
+- "You're +1230 calories; protein met at 95%"
+- "Aim for 0-300 calories, 10-15g protein"
+- "Last meal: ≤10g carbs, 0-10g fat"`
+
+    const completion = await openai.responses.create({
+      model: 'gpt-5.2',
+      input: [{ role: 'user', content: prompt + '\n\nRespond with valid JSON only.' }]
     })
 
-    const response = JSON.parse(completion.choices[0].message.content || '{}')
+    const response = JSON.parse(completion.output_text || '{}')
 
     return NextResponse.json({
       status: response.status || 'on_track',

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateTargets, calculateDistance } from '@/lib/calculations'
 import { KNOWN_CHAINS } from '@/lib/chains'
 import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
+import { getUserPatterns } from '@/lib/patterns/detector'
 
 // Categorize chains by dining type and value
 const TAKEOUT_FRIENDLY_CHAINS = [
@@ -113,10 +114,11 @@ function scoreMeal(
   meal: any,
   remaining: { calories: number; protein: number; carbs: number; fat: number },
   mealTime: 'breakfast' | 'lunch' | 'dinner',
-  size: 'light' | 'regular' | 'hearty' = 'regular'
+  size: 'light' | 'regular' | 'hearty' = 'regular',
+  patternBoost: number = 0 // Additional boost from user patterns (0-30)
 ) {
   const requirements = MEAL_REQUIREMENTS[size][mealTime]
-  let score = 0
+  let score = patternBoost
 
   // CRITICAL: If meal exceeds remaining calories by more than 15%, reject it
   // This ensures we don't suggest 800cal meals when user has 450cal left
@@ -180,6 +182,12 @@ function scoreMeal(
   return Math.max(0, score)
 }
 
+// Distance thresholds by travel mode (in miles)
+const TRAVEL_DISTANCES = {
+  walk: 1.0,   // ~20 min walk
+  drive: 8.0   // ~15-20 min drive
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -191,6 +199,9 @@ export async function GET(request: NextRequest) {
       sizeParam === 'light' || sizeParam === 'hearty' ? sizeParam : 'regular'
     const diningParam = searchParams.get('dining')
     const dining: 'takeout' | 'dine-in' = diningParam === 'dine-in' ? 'dine-in' : 'takeout'
+    const travelParam = searchParams.get('travel')
+    const travelMode: 'walk' | 'drive' = travelParam === 'walk' ? 'walk' : 'drive'
+    const maxDistance = TRAVEL_DISTANCES[travelMode]
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -278,16 +289,52 @@ export async function GET(request: NextRequest) {
     if (hour < 11) mealTime = 'breakfast'
     else if (hour < 16) mealTime = 'lunch'
 
+    // Fetch user patterns for personalized recommendations
+    const patterns = await getUserPatterns(userId)
+    const restaurantBoosts: Record<string, number> = {}
+    const restaurantReasons: Record<string, string> = {}
+
+    // Process restaurant patterns
+    for (const pattern of patterns) {
+      if (pattern.patternType === 'restaurant') {
+        const value = pattern.patternValue as Record<string, unknown>
+        const restaurantKey = pattern.patternKey
+        const successRate = Math.round((value.successRate as number || 0) * 100)
+
+        // High success restaurants get a significant boost
+        if (value.isHighSuccess && (value.successRate as number) >= 0.7) {
+          restaurantBoosts[restaurantKey] = 25
+          restaurantReasons[restaurantKey] = `${successRate}% success rate here`
+        } else if ((value.successRate as number) >= 0.5) {
+          restaurantBoosts[restaurantKey] = 15
+          restaurantReasons[restaurantKey] = `You do well here (${successRate}% on track)`
+        }
+
+        // If this is the user's typical day for this restaurant, extra boost
+        if (value.hasDayPreference) {
+          const todayDayNum = new Date().getDay()
+          if (value.dominantDay === todayDayNum) {
+            restaurantBoosts[restaurantKey] = (restaurantBoosts[restaurantKey] || 0) + 10
+            const dayName = value.dominantDayName as string
+            restaurantReasons[restaurantKey] = `Your ${dayName} spot`
+          }
+        }
+      }
+    }
+
+    const hasPersonalizedData = Object.keys(restaurantBoosts).length > 0
+
     // Find nearby restaurants if location provided
     let nearbyChains: string[] = []
     const chainDistances: Record<string, number> = {}
     const userLat = lat ? parseFloat(lat) : null
     const userLng = lng ? parseFloat(lng) : null
+    let locationVerified = false
 
     if (userLat && userLng) {
       try {
-        // Query Overpass for nearby restaurants
-        const radiusMeters = 8000 // 5 miles
+        // Query Overpass for nearby restaurants - use max drive distance for query, filter later
+        const radiusMeters = Math.round(TRAVEL_DISTANCES.drive * 1609) // Convert miles to meters
         const overpassQuery = `
           [out:json][timeout:10];
           (
@@ -305,13 +352,17 @@ export async function GET(request: NextRequest) {
 
         if (response.ok) {
           const data = await response.json()
+          locationVerified = true
 
-          // Process restaurants with distance
+          // Process restaurants with distance - ONLY include those within travel mode distance
           data.elements.forEach((el: any) => {
             const name = el.tags?.name?.toLowerCase()
             if (!name || !el.lat || !el.lon) return
 
             const distance = calculateDistance(userLat, userLng, el.lat, el.lon)
+
+            // IMPORTANT: Only include restaurants within the user's travel mode distance
+            if (distance > maxDistance) return
 
             // Check if this is a known chain
             const matchedChain = KNOWN_CHAINS.find(chain => name.includes(chain))
@@ -330,12 +381,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If no nearby chains found, use popular defaults based on dining mode
-    if (nearbyChains.length === 0) {
-      nearbyChains = dining === 'takeout'
-        ? ['chipotle', 'cava', 'sweetgreen', 'chick-fil-a', 'subway', 'panera']
-        : ['applebees', 'chilis', 'olive garden', 'buffalo wild wings', 'red robin', 'dennys']
-    }
+    // IMPORTANT: Don't fall back to default chains if location was verified but no restaurants found
+    // This prevents suggesting restaurants that don't exist in the user's area
+    const noNearbyRestaurants = locationVerified && nearbyChains.length === 0
 
     // Filter and prioritize chains based on dining preference
     const preferredChains = dining === 'takeout' ? TAKEOUT_FRIENDLY_CHAINS : DINE_IN_CHAINS
@@ -359,11 +407,18 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Score and sort meals based on meal time appropriateness
-    const scoredMeals = meals.map(meal => ({
-      ...meal,
-      score: scoreMeal(meal, remaining, mealTime, size)
-    }))
+    // Score and sort meals based on meal time appropriateness and patterns
+    const scoredMeals = meals.map(meal => {
+      // Get pattern boost for this restaurant
+      const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
+      const patternBoost = restaurantBoosts[normalizedBrand] || 0
+
+      return {
+        ...meal,
+        score: scoreMeal(meal, remaining, mealTime, size, patternBoost),
+        patternBoosted: patternBoost > 0
+      }
+    })
     .filter(meal => meal.score > 0) // Remove snacks/inappropriate sized meals
     .sort((a, b) => b.score - a.score)
 
@@ -377,8 +432,10 @@ export async function GET(request: NextRequest) {
 
       usedRestaurants.add(meal.restaurantBrand)
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
+      const brandKey = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
       const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
       const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
+      const personalizedReason = restaurantReasons[brandKey] || null
       suggestions.push({
         id: meal.id,
         name: meal.title,
@@ -390,7 +447,9 @@ export async function GET(request: NextRequest) {
         fat: meal.fat,
         score: meal.score,
         distance,
-        estimatedPrice
+        estimatedPrice,
+        isPersonalized: meal.patternBoosted || false,
+        personalizedReason
       })
     }
 
@@ -401,8 +460,10 @@ export async function GET(request: NextRequest) {
         if (suggestions.some(s => s.id === meal.id)) continue
 
         const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
+        const brandKey = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
         const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
         const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
+        const personalizedReason = restaurantReasons[brandKey] || null
         suggestions.push({
           id: meal.id,
           name: meal.title,
@@ -414,14 +475,29 @@ export async function GET(request: NextRequest) {
           fat: meal.fat,
           score: meal.score,
           distance,
-          estimatedPrice
+          estimatedPrice,
+          isPersonalized: meal.patternBoosted || false,
+          personalizedReason
         })
       }
     }
 
-    // Check if user is close to their goals
-    const isNearGoal = remaining.calories < 300 ||
-      (remaining.calories < 500 && remaining.protein < 15)
+    // Check if user achieved their goals or is close
+    const goalAchieved = remaining.calories <= 50 && remaining.protein <= 5
+    const isNearGoal = !goalAchieved && (remaining.calories < 300 ||
+      (remaining.calories < 500 && remaining.protein < 15))
+
+    // Build appropriate message
+    let message = null
+    if (noNearbyRestaurants) {
+      message = travelMode === 'walk'
+        ? `No restaurants found within walking distance (${maxDistance} mi). Try switching to drive mode.`
+        : `No known restaurant chains found within ${maxDistance} miles. Try the restaurant search to find local spots.`
+    } else if (goalAchieved) {
+      message = `You hit your targets today! Great job staying on track.`
+    } else if (isNearGoal) {
+      message = `You're close to your goals! Only ${remaining.calories} cal and ${remaining.protein}g protein left.`
+    }
 
     return NextResponse.json({
       suggestions,
@@ -429,11 +505,14 @@ export async function GET(request: NextRequest) {
       mealTime,
       size,
       dining,
+      travelMode,
+      maxDistance,
       nearbyChains: nearbyChains.slice(0, 5),
+      goalAchieved,
       isNearGoal,
-      message: isNearGoal
-        ? `You're close to your goals! Only ${remaining.calories} cal and ${remaining.protein}g protein left.`
-        : null
+      hasPersonalizedData,
+      noNearbyRestaurants,
+      message
     })
 
   } catch (error) {

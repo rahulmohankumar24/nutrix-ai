@@ -56,6 +56,15 @@ interface UserProfile {
   goal: string
 }
 
+interface PatternInsight {
+  id: string
+  headline: string
+  body: string
+  tone: 'positive' | 'neutral' | 'curious'
+  category: string
+  confidence: number
+}
+
 export default function MyPathPage() {
   const router = useRouter()
   const { user, isLoaded, isSignedIn } = useUser()
@@ -69,6 +78,10 @@ export default function MyPathPage() {
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [stats, setStats] = useState<WeeklyStats | null>(null)
   const [loadingData, setLoadingData] = useState(true)
+  const [patternInsights, setPatternInsights] = useState<PatternInsight[]>([])
+  const [loadingPatterns, setLoadingPatterns] = useState(true)
+  const [daysAnalyzed, setDaysAnalyzed] = useState(0)
+  const [nutritionDNA, setNutritionDNA] = useState<{ trait: string; icon: string; color: string }[]>([])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -81,6 +94,7 @@ export default function MyPathPage() {
       fetchUserProfile()
       fetchWeeklyData()
       fetchStats()
+      fetchPatternInsights()
     }
   }, [isLoaded, isSignedIn, router, user?.id])
 
@@ -112,6 +126,55 @@ export default function MyPathPage() {
       console.error('Failed to fetch stats:', error)
     } finally {
       setLoadingData(false)
+    }
+  }
+
+  const fetchPatternInsights = async () => {
+    if (!user?.id) return
+    setLoadingPatterns(true)
+    try {
+      // First trigger pattern analysis
+      const analyzeResponse = await fetch('/api/patterns/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, reanalyze: true })
+      })
+
+      if (analyzeResponse.ok) {
+        const analyzeData = await analyzeResponse.json()
+        setDaysAnalyzed(analyzeData.daysAnalyzed || 0)
+      }
+
+      // Then fetch all insights
+      const response = await fetch(`/api/patterns/insights?userId=${user.id}&context=my-path&limit=10`)
+      if (response.ok) {
+        const data = await response.json()
+        const insights = data.insights || []
+        setPatternInsights(insights)
+
+        // Derive nutrition DNA traits from insights
+        const dnaTraits: { trait: string; icon: string; color: string }[] = []
+
+        for (const insight of insights) {
+          if (insight.category === 'success' && insight.headline.includes('game is strong')) {
+            dnaTraits.push({ trait: insight.headline, icon: '💪', color: 'green' })
+          } else if (insight.category === 'restaurant' && insight.headline.includes('your spot')) {
+            dnaTraits.push({ trait: insight.headline, icon: '🏆', color: 'yellow' })
+          } else if (insight.category === 'timing' && insight.headline.includes('dialed in')) {
+            dnaTraits.push({ trait: insight.headline, icon: '⏰', color: 'blue' })
+          } else if (insight.category === 'recovery' && insight.headline.includes('balance')) {
+            dnaTraits.push({ trait: 'Natural balancer', icon: '⚖️', color: 'purple' })
+          } else if (insight.headline.includes('Breakfast')) {
+            dnaTraits.push({ trait: 'Morning momentum builder', icon: '🌅', color: 'orange' })
+          }
+        }
+
+        setNutritionDNA(dnaTraits.slice(0, 4)) // Max 4 traits
+      }
+    } catch (error) {
+      console.error('Failed to fetch pattern insights:', error)
+    } finally {
+      setLoadingPatterns(false)
     }
   }
 
@@ -364,6 +427,18 @@ export default function MyPathPage() {
     }
   }
 
+  const getPatternToneStyles = (tone: 'positive' | 'neutral' | 'curious') => {
+    switch (tone) {
+      case 'positive':
+        return { bg: 'bg-green-500/10', border: 'border-green-500/20', icon: 'text-green-500' }
+      case 'curious':
+        return { bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: 'text-amber-500' }
+      case 'neutral':
+      default:
+        return { bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'text-purple-500' }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-6xl px-8 py-12 space-y-10">
@@ -372,6 +447,41 @@ export default function MyPathPage() {
           <h1 className="text-4xl font-semibold text-foreground">My Path</h1>
           <p className="text-lg text-muted-foreground mt-2">Your personalized nutrition journey</p>
         </div>
+
+        {/* Your Nutrition DNA - shown when patterns exist */}
+        {nutritionDNA.length > 0 && (
+          <div className="bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-emerald-500/10 rounded-3xl p-8 border border-purple-500/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                <span className="text-xl">🧬</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Your Nutrition DNA</h2>
+                <p className="text-sm text-muted-foreground">What makes you, you</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {nutritionDNA.map((trait, index) => {
+                const colorClasses: Record<string, string> = {
+                  green: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700',
+                  yellow: 'bg-amber-500/10 border-amber-500/20 text-amber-700',
+                  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-700',
+                  purple: 'bg-purple-500/10 border-purple-500/20 text-purple-700',
+                  orange: 'bg-orange-500/10 border-orange-500/20 text-orange-700'
+                }
+                return (
+                  <div
+                    key={index}
+                    className={`rounded-2xl p-4 border ${colorClasses[trait.color] || colorClasses.purple} text-center`}
+                  >
+                    <span className="text-2xl block mb-2">{trait.icon}</span>
+                    <p className="text-sm font-medium">{trait.trait}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Goal + AI Insights Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -445,6 +555,71 @@ export default function MyPathPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* What I've Learned About You - Pattern Insights */}
+        <div className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent rounded-3xl p-8 border border-purple-500/20">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">What I've Learned About You</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {daysAnalyzed >= 7
+                      ? `Based on ${daysAnalyzed} days of data`
+                      : daysAnalyzed > 0
+                        ? `${daysAnalyzed} days logged (need 7+ for patterns)`
+                        : 'Patterns from your eating history'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {loadingPatterns ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="rounded-xl p-4 bg-muted/20 animate-pulse">
+                    <div className="h-4 w-2/3 bg-muted rounded mb-2" />
+                    <div className="h-3 w-full bg-muted rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : patternInsights.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {patternInsights.map((insight) => {
+                  const styles = getPatternToneStyles(insight.tone)
+                  return (
+                    <div
+                      key={insight.id}
+                      className={`rounded-xl p-4 border ${styles.bg} ${styles.border} transition-all hover:scale-[1.02]`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 ${styles.icon}`}>
+                          {insight.tone === 'positive' ? (
+                            <CheckCircle className="h-5 w-5" />
+                          ) : insight.tone === 'curious' ? (
+                            <Lightbulb className="h-5 w-5" />
+                          ) : (
+                            <Sparkles className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{insight.headline}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{insight.body}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Keep logging meals to discover your eating patterns!</p>
+                <p className="text-xs text-muted-foreground/60 mt-2">We need at least 7 days of data to find patterns</p>
+              </div>
+            )}
         </div>
 
         {/* Personal Info Card */}

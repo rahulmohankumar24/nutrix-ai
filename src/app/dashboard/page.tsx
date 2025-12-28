@@ -1,13 +1,65 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
+
+// Cache utilities - avoid redundant AI calls
+const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+
+function getTimePeriod(): string {
+  const hour = new Date().getHours()
+  if (hour < 11) return 'morning'
+  if (hour < 16) return 'afternoon'
+  return 'evening'
+}
+
+function getCacheKey(type: string, userId: string, extras: Record<string, any> = {}): string {
+  const date = new Date().toISOString().split('T')[0]
+  const timePeriod = getTimePeriod()
+  return `rovia_cache_${type}_${userId}_${date}_${timePeriod}_${JSON.stringify(extras)}`
+}
+
+function getCache<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    const { data, timestamp, mealCount } = JSON.parse(cached)
+    // Check if expired
+    if (Date.now() - timestamp > CACHE_TTL) {
+      localStorage.removeItem(key)
+      return null
+    }
+    // Return data and mealCount for validation
+    return { ...data, _cachedMealCount: mealCount } as T
+  } catch {
+    return null
+  }
+}
+
+function setCache(key: string, data: any, mealCount: number): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+      mealCount
+    }))
+  } catch {
+    // localStorage full or unavailable
+  }
+}
+
+function invalidateCache(userId: string): void {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(`rovia_cache_`) && k.includes(userId))
+    keys.forEach(k => localStorage.removeItem(k))
+  } catch {}
+}
 
 interface MealLogEntry {
   id: string
@@ -63,6 +115,28 @@ interface MealSuggestion {
   fat: number
   distance?: number | null
   estimatedPrice?: number | null
+  personalizedReason?: string | null
+  isPersonalized?: boolean
+}
+
+interface HomeMealSuggestion {
+  name: string
+  description: string
+  prepTime: string
+  ingredients: string[]
+  instructions: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+interface ReadyToEatItem {
+  name: string
+  portion: string
+  calories: number
+  protein: number
+  note?: string
 }
 
 interface DailyInsights {
@@ -70,6 +144,14 @@ interface DailyInsights {
   headline: string
   insights: string[]
   loading?: boolean
+}
+
+interface PatternInsight {
+  id: string
+  headline: string
+  body: string
+  tone: 'positive' | 'neutral' | 'curious'
+  category: string
 }
 
 export default function DashboardPage() {
@@ -85,9 +167,22 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<DailyInsights | null>(null)
   const [mealSize, setMealSize] = useState<'light' | 'regular' | 'hearty'>('regular')
   const [diningMode, setDiningMode] = useState<'takeout' | 'dine-in'>('takeout')
+  const [travelMode, setTravelMode] = useState<'walk' | 'drive'>('drive')
   const [suggestionMessage, setSuggestionMessage] = useState<string | null>(null)
   const [isNearGoal, setIsNearGoal] = useState(false)
+  const [goalAchieved, setGoalAchieved] = useState(false)
   const [flippedCardIndex, setFlippedCardIndex] = useState<number | null>(null)
+  const [patternInsight, setPatternInsight] = useState<PatternInsight | null>(null)
+  const [patternProgress, setPatternProgress] = useState<{ daysLogged: number; hasPatterns: boolean }>({ daysLogged: 0, hasPatterns: false })
+  const [hasPersonalizedSuggestions, setHasPersonalizedSuggestions] = useState(false)
+  const [unlockCelebration, setUnlockCelebration] = useState<{ show: boolean; message: string } | null>(null)
+
+  // Home meals state
+  const [mealSource, setMealSource] = useState<'restaurant' | 'home'>('restaurant')
+  const [homeMeals, setHomeMeals] = useState<HomeMealSuggestion[]>([])
+  const [readyToEat, setReadyToEat] = useState<ReadyToEatItem[]>([])
+  const [homeMessage, setHomeMessage] = useState<string | null>(null)
+  const [pantryCount, setPantryCount] = useState(0)
 
   // Inline chat state
   const [showChatInput, setShowChatInput] = useState(false)
@@ -115,19 +210,25 @@ export default function DashboardPage() {
     setLoading(false)
 
     if (user?.id) {
-      // Run sync and data load in parallel for faster loading
-      Promise.all([
-        fetch('/api/sync-user', { method: 'POST' }).catch(() => {}),
-        loadDashboardData(user.id)
-      ])
-      // Get location and load suggestions
-      getUserLocationAndSuggestions(user.id)
-      // Load AI insights
-      loadInsights(user.id)
+      // Load dashboard data FIRST (quick, no AI), then load AI-powered features
+      // This ensures mealLogs is populated before cache checks happen
+      const initializeDashboard = async () => {
+        // Sync user and load meal data in parallel
+        const results = await Promise.all([
+          fetch('/api/sync-user', { method: 'POST' }).catch(() => {}),
+          loadDashboardData(user.id)
+        ])
+        const mealCount = results[1] as number // Get meal count for cache validation
+        // NOW load AI-powered features (with valid mealCount for cache checks)
+        getUserLocationAndSuggestions(user.id, mealCount)
+        loadInsights(user.id, false, mealCount)
+        loadPatternInsight(user.id)
+      }
+      initializeDashboard()
     }
   }, [user, isLoaded, isSignedIn, router])
 
-  const getUserLocationAndSuggestions = async (userId: string) => {
+  const getUserLocationAndSuggestions = async (userId: string, mealCount?: number) => {
     setLoadingSuggestions(true)
 
     // Try to get user's location
@@ -136,16 +237,16 @@ export default function DashboardPage() {
         (position) => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude }
           setUserLocation(loc)
-          loadSuggestions(userId, loc)
+          loadSuggestions(userId, loc, 'regular', 'takeout', 'drive', false, mealCount)
         },
         () => {
           // Location denied, load suggestions without location
-          loadSuggestions(userId, null)
+          loadSuggestions(userId, null, 'regular', 'takeout', 'drive', false, mealCount)
         },
         { timeout: 5000 }
       )
     } else {
-      loadSuggestions(userId, null)
+      loadSuggestions(userId, null, 'regular', 'takeout', 'drive', false, mealCount)
     }
   }
 
@@ -153,11 +254,38 @@ export default function DashboardPage() {
     userId: string,
     location: { lat: number; lng: number } | null,
     size: 'light' | 'regular' | 'hearty' = 'regular',
-    dining: 'takeout' | 'dine-in' = 'takeout'
+    dining: 'takeout' | 'dine-in' = 'takeout',
+    travel: 'walk' | 'drive' = 'drive',
+    forceRefresh: boolean = false,
+    knownMealCount?: number
   ) => {
+    // Round location to avoid cache misses from tiny GPS changes
+    const roundedLoc = location ? {
+      lat: Math.round(location.lat * 100) / 100,
+      lng: Math.round(location.lng * 100) / 100
+    } : null
+
+    const cacheKey = getCacheKey('suggestions', userId, { size, dining, travel, loc: roundedLoc })
+    const currentMealCount = knownMealCount ?? mealLogs?.count ?? 0
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = getCache<any>(cacheKey)
+      if (cached && cached._cachedMealCount === currentMealCount) {
+        setSuggestions(cached.suggestions || [])
+        setSuggestionMealTime(cached.mealTime || 'lunch')
+        setSuggestionMessage(cached.message || null)
+        setIsNearGoal(cached.isNearGoal || false)
+        setGoalAchieved(cached.goalAchieved || false)
+        setHasPersonalizedSuggestions(cached.hasPersonalizedData || false)
+        setLoadingSuggestions(false)
+        return
+      }
+    }
+
     setLoadingSuggestions(true)
     try {
-      let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}`
+      let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}&travel=${travel}`
       if (location) {
         url += `&lat=${location.lat}&lng=${location.lng}`
       }
@@ -168,6 +296,10 @@ export default function DashboardPage() {
         setSuggestionMealTime(data.mealTime || 'lunch')
         setSuggestionMessage(data.message || null)
         setIsNearGoal(data.isNearGoal || false)
+        setGoalAchieved(data.goalAchieved || false)
+        setHasPersonalizedSuggestions(data.hasPersonalizedData || false)
+        // Cache the result
+        setCache(cacheKey, data, currentMealCount)
       }
     } catch (error) {
       console.error('Failed to load suggestions:', error)
@@ -179,18 +311,102 @@ export default function DashboardPage() {
   const handleMealSizeChange = (size: 'light' | 'regular' | 'hearty') => {
     setMealSize(size)
     if (user?.id) {
-      loadSuggestions(user.id, userLocation, size, diningMode)
+      // Force refresh when user changes settings
+      loadSuggestions(user.id, userLocation, size, diningMode, travelMode, true)
     }
   }
 
   const handleDiningModeChange = (mode: 'takeout' | 'dine-in') => {
     setDiningMode(mode)
     if (user?.id) {
-      loadSuggestions(user.id, userLocation, mealSize, mode)
+      // Force refresh when user changes settings
+      loadSuggestions(user.id, userLocation, mealSize, mode, travelMode, true)
     }
   }
 
-  const loadInsights = async (userId: string) => {
+  const handleTravelModeChange = (mode: 'walk' | 'drive') => {
+    setTravelMode(mode)
+    if (user?.id) {
+      // Force refresh when user changes settings
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, mode, true)
+    }
+  }
+
+  const handleMealSourceChange = (source: 'restaurant' | 'home') => {
+    setMealSource(source)
+    if (source === 'home' && user?.id) {
+      loadHomeMeals(user.id)
+    }
+  }
+
+  const handleRefreshSuggestions = () => {
+    if (!user?.id) return
+    if (mealSource === 'home') {
+      loadHomeMeals(user.id, true)
+    } else {
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, true)
+    }
+    loadInsights(user.id, true)
+  }
+
+  const loadHomeMeals = async (userId: string, forceRefresh: boolean = false, knownMealCount?: number) => {
+    const cacheKey = getCacheKey('homeMeals', userId)
+    const currentMealCount = knownMealCount ?? mealLogs?.count ?? 0
+
+    // Check cache first
+    if (!forceRefresh) {
+      const cached = getCache<any>(cacheKey)
+      if (cached && cached._cachedMealCount === currentMealCount) {
+        setHomeMeals(cached.meals || [])
+        setReadyToEat(cached.readyToEat || [])
+        setHomeMessage(cached.message || null)
+        setPantryCount(cached.pantryItemCount || 0)
+        setLoadingSuggestions(false)
+        return
+      }
+    }
+
+    setLoadingSuggestions(true)
+    try {
+      const response = await fetch('/api/pantry/suggest-meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setHomeMeals(data.meals || [])
+        setReadyToEat(data.readyToEat || [])
+        setHomeMessage(data.message || null)
+        setPantryCount(data.pantryItemCount || 0)
+        // Cache the result
+        setCache(cacheKey, data, currentMealCount)
+      }
+    } catch (error) {
+      console.error('Failed to load home meals:', error)
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }
+
+  const loadInsights = async (userId: string, forceRefresh: boolean = false, knownMealCount?: number) => {
+    const cacheKey = getCacheKey('insights', userId)
+    const currentMealCount = knownMealCount ?? mealLogs?.count ?? 0
+
+    // Check cache first
+    if (!forceRefresh) {
+      const cached = getCache<any>(cacheKey)
+      if (cached && cached._cachedMealCount === currentMealCount) {
+        setInsights({
+          status: cached.status || 'on_track',
+          headline: cached.headline || 'Keep going',
+          insights: cached.insights || [],
+          loading: false
+        })
+        return
+      }
+    }
+
     // Show loading state
     setInsights({ status: 'on_track', headline: '', insights: [], loading: true })
 
@@ -204,10 +420,71 @@ export default function DashboardPage() {
           insights: data.insights || [],
           loading: false
         })
+        // Cache the result
+        setCache(cacheKey, data, currentMealCount)
       }
     } catch (error) {
       console.error('Failed to load insights:', error)
       setInsights(null)
+    }
+  }
+
+  const loadPatternInsight = async (userId: string) => {
+    try {
+      // Get stored pattern count from localStorage
+      const storedPatternCount = parseInt(localStorage.getItem(`patternCount_${userId}`) || '0')
+
+      // First trigger pattern analysis and get progress
+      const analyzeResponse = await fetch('/api/patterns/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, reanalyze: true })
+      })
+
+      if (analyzeResponse.ok) {
+        const analyzeData = await analyzeResponse.json()
+        const newPatternCount = analyzeData.patternsDetected || 0
+
+        setPatternProgress({
+          daysLogged: analyzeData.daysAnalyzed || 0,
+          hasPatterns: newPatternCount > 0
+        })
+
+        // Check if new patterns were discovered
+        if (newPatternCount > storedPatternCount && storedPatternCount > 0) {
+          // New pattern unlocked!
+          const newInsights = analyzeData.insights || []
+          const latestInsight = newInsights[0]
+          if (latestInsight) {
+            setUnlockCelebration({
+              show: true,
+              message: latestInsight.headline || 'New pattern discovered!'
+            })
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => setUnlockCelebration(null), 5000)
+          }
+        }
+
+        // Store new count
+        localStorage.setItem(`patternCount_${userId}`, String(newPatternCount))
+      }
+
+      // Then fetch the daily insight
+      const response = await fetch(`/api/patterns/insights?userId=${userId}&daily=true`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.insight) {
+          setPatternInsight(data.insight)
+          // Mark as displayed
+          fetch('/api/patterns/insights', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ insightId: data.insight.id })
+          }).catch(() => {})
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load pattern insight:', error)
     }
   }
 
@@ -229,9 +506,12 @@ export default function DashboardPage() {
       if (mealLogResponse.ok) {
         const mealLogData = await mealLogResponse.json()
         setMealLogs(mealLogData)
+        return mealLogData.count || 0 // Return meal count for cache validation
       }
+      return 0
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
+      return 0
     } finally {
       setLoading(false)
     }
@@ -524,6 +804,25 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Unlock Celebration Banner */}
+      {unlockCelebration?.show && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3">
+            <span className="text-xl">🎉</span>
+            <div>
+              <p className="font-medium text-sm">New insight unlocked!</p>
+              <p className="text-xs opacity-90">{unlockCelebration.message}</p>
+            </div>
+            <button
+              onClick={() => setUnlockCelebration(null)}
+              className="ml-2 text-white/80 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
 
         {/* Header with Remaining Summary */}
@@ -567,48 +866,132 @@ export default function DashboardPage() {
           <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-purple-500" />
+              <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${mealSource === 'home' ? 'bg-green-500/10' : 'bg-purple-500/10'}`}>
+                {mealSource === 'home' ? (
+                  <Home className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                )}
               </div>
               <div>
-                <h2 className="text-base font-medium text-foreground">
-                  Suggested for {suggestionMealTime.charAt(0).toUpperCase() + suggestionMealTime.slice(1)}
-                </h2>
-                <p className="text-xs text-muted-foreground">Real meals from nearby restaurants</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-medium text-foreground">
+                    {mealSource === 'home'
+                      ? 'From Your Pantry'
+                      : hasPersonalizedSuggestions
+                        ? 'Suggested for You'
+                        : `Suggested for ${suggestionMealTime.charAt(0).toUpperCase() + suggestionMealTime.slice(1)}`}
+                  </h2>
+                  {mealSource === 'home' && pantryCount > 0 && (
+                    <span className="text-[10px] font-medium text-green-600 bg-green-500/10 px-1.5 py-0.5 rounded-full">
+                      {pantryCount} items
+                    </span>
+                  )}
+                  {mealSource === 'restaurant' && hasPersonalizedSuggestions && (
+                    <span className="text-[10px] font-medium text-purple-600 bg-purple-500/10 px-1.5 py-0.5 rounded-full">
+                      Personalized
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {mealSource === 'home'
+                    ? 'Meals you can make at home'
+                    : patternProgress.daysLogged >= 7
+                      ? 'Based on your eating patterns'
+                      : patternProgress.daysLogged > 0
+                        ? `Learning your patterns... ${patternProgress.daysLogged}/7 days`
+                        : 'Real meals from nearby restaurants'}
+                </p>
               </div>
             </div>
             <button
-              onClick={() => user?.id && loadSuggestions(user.id, userLocation, mealSize, diningMode)}
+              onClick={handleRefreshSuggestions}
               disabled={loadingSuggestions}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
+              <RefreshCw className={`h-3 w-3 ${loadingSuggestions ? 'animate-spin' : ''}`} />
               {loadingSuggestions ? 'Loading...' : 'Refresh'}
             </button>
           </div>
 
           {/* Filters Row */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            {/* Dining Mode */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
-                {([
-                  { value: 'takeout', label: 'Takeout' },
-                  { value: 'dine-in', label: 'Dine-in' }
-                ] as const).map((option) => (
+            {/* Meal Source Toggle */}
+            <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+              <button
+                onClick={() => handleMealSourceChange('restaurant')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  mealSource === 'restaurant'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Utensils className="h-3 w-3" />
+                Restaurant
+              </button>
+              <button
+                onClick={() => handleMealSourceChange('home')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  mealSource === 'home'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Home className="h-3 w-3" />
+                Home
+              </button>
+            </div>
+
+            {/* Restaurant-specific filters */}
+            {mealSource === 'restaurant' && (
+              <>
+                {/* Dining Mode */}
+                <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+                  {([
+                    { value: 'takeout', label: 'Takeout' },
+                    { value: 'dine-in', label: 'Dine-in' }
+                  ] as const).map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleDiningModeChange(option.value)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        diningMode === option.value
+                          ? 'bg-card text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Travel Mode */}
+                <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
                   <button
-                    key={option.value}
-                    onClick={() => handleDiningModeChange(option.value)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      diningMode === option.value
+                    onClick={() => handleTravelModeChange('walk')}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      travelMode === 'walk'
                         ? 'bg-card text-foreground shadow-sm'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {option.label}
+                    <Footprints className="h-3 w-3" />
+                    Walk
                   </button>
-                ))}
-              </div>
-            </div>
+                  <button
+                    onClick={() => handleTravelModeChange('drive')}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      travelMode === 'drive'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Car className="h-3 w-3" />
+                    Drive
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* Meal Size Selector */}
             <div className="flex items-center gap-2">
@@ -646,6 +1029,251 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : mealSource === 'home' ? (
+            // Home meals content
+            <div className="flex-1 space-y-4 overflow-y-auto">
+              {/* Empty pantry state */}
+              {homeMeals.length === 0 && readyToEat.length === 0 && (
+                <div className="flex flex-col items-center justify-center text-center py-8">
+                  <div className="h-12 w-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
+                    <Home className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground mb-1">
+                    {homeMessage || 'Your pantry is empty'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Add items to get meal suggestions
+                  </p>
+                  <Link
+                    href="/pantry"
+                    className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Go to Pantry →
+                  </Link>
+                </div>
+              )}
+
+              {/* Ready to Eat Items - with flip cards */}
+              {readyToEat.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Ready to Eat
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {readyToEat.slice(0, 4).map((item, index) => {
+                      const isFlipped = flippedCardIndex === 200 + index
+                      return (
+                        <div
+                          key={index}
+                          className="relative h-28 cursor-pointer [perspective:1000px]"
+                          onClick={() => setFlippedCardIndex(isFlipped ? null : 200 + index)}
+                        >
+                          <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+                            {/* Front */}
+                            <div className="absolute inset-0 bg-card rounded-xl p-3 border border-border/50 hover:border-green-500/30 [backface-visibility:hidden]">
+                              <p className="text-sm font-medium text-foreground line-clamp-1">{item.name}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {item.portion}
+                              </p>
+                              <div className="flex gap-1.5 mt-2">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                  {item.calories} cal
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">
+                                  {item.protein}g pro
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-muted-foreground mt-1.5">Tap to log</p>
+                            </div>
+
+                            {/* Back */}
+                            <div className="absolute inset-0 bg-card rounded-xl p-3 border border-green-500/30 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-foreground line-clamp-1">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">{item.portion}</p>
+                              </div>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (!user?.id) return
+                                  const hour = new Date().getHours()
+                                  const mealType = hour < 11 ? 'breakfast' : hour < 16 ? 'lunch' : 'snack'
+                                  try {
+                                    const response = await fetch('/api/log-meal-direct', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        userId: user.id,
+                                        name: item.name,
+                                        calories: item.calories,
+                                        protein: item.protein,
+                                        carbs: 0,
+                                        fat: 0,
+                                        servings: 1,
+                                        mealType
+                                      })
+                                    })
+                                    if (response.ok) {
+                                      setFlippedCardIndex(null)
+                                      await loadDashboardData(user.id)
+                                      loadInsights(user.id)
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to log:', error)
+                                  }
+                                }}
+                                className="w-full py-2 rounded-lg bg-green-600 text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                              >
+                                Log Snack
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Home Cooked Meals - with flip cards */}
+              {homeMeals.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Recipes You Can Make
+                  </p>
+                  <div className="space-y-3">
+                    {homeMeals.slice(0, 3).map((meal, index) => {
+                      const isFlipped = flippedCardIndex === 100 + index
+                      return (
+                        <div
+                          key={index}
+                          className="relative h-40 cursor-pointer [perspective:1000px]"
+                          onClick={() => setFlippedCardIndex(isFlipped ? null : 100 + index)}
+                        >
+                          <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+                            {/* Front of card */}
+                            <div className="absolute inset-0 p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-green-500/30 hover:bg-muted/20 transition-all [backface-visibility:hidden]">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-semibold text-green-600 bg-green-500/10 px-2 py-1 rounded-md">
+                                  {meal.prepTime}
+                                </span>
+                              </div>
+                              <h3 className="font-medium text-foreground text-sm line-clamp-2 mb-2">
+                                {meal.name}
+                              </h3>
+                              <div className="flex flex-wrap gap-2">
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                  {meal.calories} cal
+                                </span>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">
+                                  {meal.protein}g protein
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-muted-foreground mt-2">Tap for details</p>
+                            </div>
+
+                            {/* Back of card */}
+                            <div className="absolute inset-0 p-4 rounded-xl border border-green-500/30 bg-card [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col">
+                              <div className="flex-1">
+                                {/* Macros grid */}
+                                <div className="grid grid-cols-4 gap-1.5 mb-2">
+                                  <div className="text-center p-1 rounded-lg bg-muted/30">
+                                    <p className="text-[10px] font-semibold text-foreground">{meal.calories}</p>
+                                    <p className="text-[8px] text-muted-foreground">cal</p>
+                                  </div>
+                                  <div className="text-center p-1 rounded-lg bg-green-500/10">
+                                    <p className="text-[10px] font-semibold text-green-600">{meal.protein}g</p>
+                                    <p className="text-[8px] text-muted-foreground">pro</p>
+                                  </div>
+                                  <div className="text-center p-1 rounded-lg bg-muted/30">
+                                    <p className="text-[10px] font-semibold text-foreground">{meal.carbs}g</p>
+                                    <p className="text-[8px] text-muted-foreground">carb</p>
+                                  </div>
+                                  <div className="text-center p-1 rounded-lg bg-muted/30">
+                                    <p className="text-[10px] font-semibold text-foreground">{meal.fat}g</p>
+                                    <p className="text-[8px] text-muted-foreground">fat</p>
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground line-clamp-2">{meal.description}</p>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    if (!user?.id) return
+                                    const hour = new Date().getHours()
+                                    const mealType = hour < 11 ? 'breakfast' : hour < 16 ? 'lunch' : 'dinner'
+                                    try {
+                                      const response = await fetch('/api/log-meal-direct', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          userId: user.id,
+                                          name: meal.name,
+                                          calories: meal.calories,
+                                          protein: meal.protein,
+                                          carbs: meal.carbs,
+                                          fat: meal.fat,
+                                          servings: 1,
+                                          mealType
+                                        })
+                                      })
+                                      if (response.ok) {
+                                        setFlippedCardIndex(null)
+                                        await loadDashboardData(user.id)
+                                        loadInsights(user.id)
+                                        loadHomeMeals(user.id)
+                                      }
+                                    } catch (error) {
+                                      console.error('Failed to log meal:', error)
+                                    }
+                                  }}
+                                  className="flex-1 py-2 rounded-lg bg-green-600 text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                                >
+                                  Log Meal
+                                </button>
+                                <a
+                                  href={`https://www.google.com/search?q=${encodeURIComponent(meal.name + ' recipe')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-3 py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Recipe
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Link to pantry */}
+              {(homeMeals.length > 0 || readyToEat.length > 0) && (
+                <Link
+                  href="/pantry"
+                  className="flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-2"
+                >
+                  Manage pantry <ChevronRight className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+          ) : goalAchieved ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
+              <div className="h-14 w-14 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3">
+                <Check className="h-7 w-7 text-emerald-500" />
+              </div>
+              <p className="text-base font-semibold text-foreground mb-1">You did it!</p>
+              <p className="text-sm text-muted-foreground">
+                {suggestionMessage || "You hit your targets today. Great job!"}
+              </p>
             </div>
           ) : isNearGoal ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
@@ -725,6 +1353,12 @@ export default function DashboardPage() {
                           {suggestion.protein}g protein
                         </span>
                       </div>
+                      {suggestion.personalizedReason && (
+                        <p className="text-[10px] text-purple-600 mt-2 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          {suggestion.personalizedReason}
+                        </p>
+                      )}
                     </div>
 
                     {/* Back of card - click anywhere to flip back */}
@@ -781,7 +1415,7 @@ export default function DashboardPage() {
                               setFlippedCardIndex(null)
                               await loadDashboardData(user.id)
                               loadInsights(user.id)
-                              loadSuggestions(user.id, userLocation, mealSize, diningMode)
+                              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode)
                             }
                           } catch (error) {
                             console.error('Failed to log meal:', error)
@@ -803,6 +1437,21 @@ export default function DashboardPage() {
           )}
           </div>
         </div>
+
+        {/* Pattern Insight Card */}
+        {patternInsight && (
+          <div className="bg-purple-500/5 rounded-2xl p-5 border border-purple-500/10 hover:border-purple-500/20 transition-all">
+            <div className="flex items-start gap-3">
+              <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">{patternInsight.headline}</p>
+                <p className="text-sm text-muted-foreground mt-1">{patternInsight.body}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Side by Side: Today's Total + Meals Logged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

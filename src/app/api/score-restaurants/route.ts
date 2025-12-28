@@ -50,19 +50,17 @@ Rate each restaurant 1-100 based on:
 
 Respond with ONLY a JSON array of scores in order, like: [85, 72, 90, 65, ...]`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
+    const completion = await openai.responses.create({
+      model: 'gpt-5.2',
+      input: [
         {
           role: 'user',
           content: prompt
         }
-      ],
-      temperature: 0.3,
-      max_tokens: 200
+      ]
     })
 
-    const responseText = completion.choices[0].message.content?.trim() || '[]'
+    const responseText = completion.output_text?.trim() || '[]'
 
     // Parse the scores
     let scores: number[]

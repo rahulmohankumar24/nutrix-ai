@@ -126,19 +126,17 @@ IMPORTANT:
 - Suggest modifications if helpful (e.g., "ask for extra chicken, no cheese")
 - Be honest if nutrition info is estimated vs actual`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
+    const completion = await openai.responses.create({
+      model: 'gpt-5.2',
+      input: [
         {
           role: 'user',
           content: prompt
         }
-      ],
-      temperature: 0.3,
-      max_tokens: 2000
+      ]
     })
 
-    const responseText = completion.choices[0].message.content?.trim() || '{}'
+    const responseText = completion.output_text?.trim() || '{}'
 
     console.log('Raw AI Response:', responseText)
 

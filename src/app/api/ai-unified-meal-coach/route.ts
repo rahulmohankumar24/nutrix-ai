@@ -6,6 +6,7 @@ import { parseAIResponse } from '@/lib/ai-utils'
 import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
 import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 import { rateMealForTarget } from '@/lib/meal-rating'
+import { getPatternContextForAI } from '@/lib/patterns/detector'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -176,6 +177,15 @@ export async function POST(request: NextRequest) {
       topMeals: scoredMeals.slice(0, 5).map(m => `${m.title}: ${m.calories}cal, ${m.protein}g protein (score: ${m.quickScore})`)
     })
 
+    // Get user pattern context for personalized recommendations
+    let patternContext = ''
+    if (userId) {
+      patternContext = await getPatternContextForAI(userId)
+      if (patternContext) {
+        console.log('🧠 User patterns found for AI context')
+      }
+    }
+
     if (!useAI) {
       return NextResponse.json({
         success: true,
@@ -198,6 +208,7 @@ ${restaurantBrand} ${mealDistribution.mealType} meal analysis. User has ${userTa
 IMPORTANT: This is a proper ${timeOfDay} meal (breakfast/lunch/dinner) - NOT a snack. Recommend complete, substantial meals.
 
 CONTEXT: ${mealDistribution.reasoning}
+${patternContext ? `\n${patternContext}\nFactor these learned patterns into your recommendations when relevant.\n` : ''}
 
 CRITICAL COACHING INSTRUCTIONS:
 - PROVIDE 5-6 VARIED OPTIONS at different calorie/protein levels to give user choice
@@ -234,14 +245,12 @@ Analyze & return JSON with 5-6 VARIED meal recommendations:
   "coachingNote": "Brief personalized tip about hitting targets at this restaurant"
 }`
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-      max_tokens: 2000, // Increased for 5-6 varied meal options
+    const completion = await openai.responses.create({
+      model: "gpt-5.2",
+      input: [{ role: "user", content: prompt }]
     })
 
-    const aiResponse = completion.choices[0]?.message?.content
+    const aiResponse = completion.output_text
     if (!aiResponse) {
       return NextResponse.json({ error: 'No response from AI coach' }, { status: 500 })
     }

@@ -22,6 +22,9 @@ model User {
   mealLogs     MealLog[]
   reminders    Reminder[]
   restaurantContributions RestaurantContribution[]
+  userPatterns UserPattern[]
+  patternInsights PatternInsight[]
+  pantryItems  PantryItem[]
 
   @@map("users")
 }
@@ -217,4 +220,74 @@ model MealFeedback {
   @@index([aiGeneratedMealId])
   @@index([createdAt])
   @@map("meal_feedback")
+}
+
+// Personal Pattern Learning System
+model UserPattern {
+  id            String   @id @default(cuid())
+  userId        String
+  patternType   String   // timing | restaurant | success | recovery
+  patternKey    String   // e.g., "weekday_breakfast", "chipotle_frequency"
+  patternValue  Json     // Flexible JSON for pattern-specific data
+  confidence    Float    @default(0.5) // 0-1, how confident we are in this pattern
+  occurrences   Int      @default(1)   // How many data points support this pattern
+  lastUpdated   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, patternType, patternKey])
+  @@index([userId])
+  @@index([userId, patternType])
+  @@map("user_patterns")
+}
+
+model PatternInsight {
+  id             String    @id @default(cuid())
+  userId         String
+  category       String    // timing | restaurant | success | recovery
+  headline       String    // Short observation: "Your Monday game is strong"
+  body           String    // Longer explanation
+  tone           String    // positive | neutral | curious
+  confidence     Float     @default(0.5)
+  relevanceScore Float     @default(0.5) // How relevant this insight is today
+  patternIds     String    @default("[]") // JSON array of pattern IDs that generated this
+  displayedCount Int       @default(0)
+  lastDisplayed  DateTime?
+  expiresAt      DateTime? // Optional expiration for time-sensitive insights
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([userId, category])
+  @@map("pattern_insights")
+}
+
+// Pantry/Inventory System
+model PantryItem {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  category     String    // protein | carb | vegetable | fruit | dairy | snack | condiment | other
+  quantity     String?   // "2 lbs", "1 bag", "6 pack", etc.
+  calories     Int?      // per serving, if known
+  protein      Int?
+  carbs        Int?
+  fat          Int?
+  servingSize  String?   // "1 cup", "100g", etc.
+  expiresAt    DateTime? // Optional expiration date
+  source       String    @default("manual") // manual | receipt_scan | barcode
+  isStaple     Boolean   @default(false) // Items that are always restocked
+  inStock      Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, category])
+  @@index([userId, inStock])
+  @@map("pantry_items")
 }

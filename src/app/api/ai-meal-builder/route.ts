@@ -236,14 +236,12 @@ Return this exact JSON structure with 5 VARIED meals:
     console.log(prompt.substring(0, 800) + '...[truncated]')
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 4000, // Increased for 5 varied meal options
+    const completion = await openai.responses.create({
+      model: "gpt-5.2",
+      input: [{ role: "user", content: prompt }]
     })
 
-    const aiResponse = completion.choices[0]?.message?.content
+    const aiResponse = completion.output_text
 
     console.log('')
     console.log('🤖 AI RESPONSE RECEIVED')
