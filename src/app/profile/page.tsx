@@ -6,7 +6,7 @@ import { useUser, SignOutButton } from "@clerk/nextjs"
 import {
   Target, Flame, Calendar, TrendingUp, Utensils,
   Moon, Dumbbell, Droplets, Brain, Heart, Settings,
-  ChevronRight, Sparkles
+  Send, Sparkles, ChevronRight
 } from "lucide-react"
 
 interface UserGoals {
@@ -53,6 +53,9 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [personalizedPlan, setPersonalizedPlan] = useState<PersonalizedTip[]>([])
   const [loadingPlan, setLoadingPlan] = useState(false)
+  const [chatInput, setChatInput] = useState("")
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatMessage, setChatMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -113,6 +116,51 @@ export default function ProfilePage() {
     }
   }
 
+  const handleMacroChat = async () => {
+    if (!chatInput.trim() || !user?.id || !userGoals) return
+
+    setChatLoading(true)
+    setChatMessage(null)
+
+    try {
+      const response = await fetch('/api/adjust-macros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          message: chatInput,
+          currentTargets: {
+            calories: userGoals.targetCalories,
+            protein: userGoals.targetProtein,
+            carbs: userGoals.targetCarbs,
+            fat: userGoals.targetFat
+          }
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.newTargets) {
+          setUserGoals(prev => prev ? {
+            ...prev,
+            targetCalories: data.newTargets.calories,
+            targetProtein: data.newTargets.protein,
+            targetCarbs: data.newTargets.carbs,
+            targetFat: data.newTargets.fat
+          } : null)
+          setChatMessage(data.message || "Targets updated!")
+        }
+      } else {
+        setChatMessage("Couldn't understand that. Try something like 'increase protein by 20g'")
+      }
+    } catch (error) {
+      setChatMessage("Something went wrong. Please try again.")
+    } finally {
+      setChatLoading(false)
+      setChatInput("")
+    }
+  }
+
   const formatGoal = (goal: string) => {
     const goalMap: Record<string, string> = {
       'cut': 'Lose Fat',
@@ -139,84 +187,79 @@ export default function ProfilePage() {
     setLoadingPlan(true)
     const tips: PersonalizedTip[] = []
 
-    // Sleep recommendation based on goal
     if (profile.goal === 'cut' || profile.goal === 'recomp') {
       tips.push({
         icon: Moon,
         title: "Prioritize 7-9 Hours of Sleep",
-        description: "Sleep is crucial for fat loss and muscle preservation. Poor sleep increases cortisol and hunger hormones, making it harder to stick to your deficit.",
+        description: "Sleep is crucial for fat loss and muscle preservation. Poor sleep increases cortisol and hunger hormones.",
         color: "purple"
       })
     } else {
       tips.push({
         icon: Moon,
         title: "Sleep for Recovery",
-        description: "Aim for 7-9 hours. Growth hormone is released during deep sleep, essential for muscle repair and growth.",
+        description: "Aim for 7-9 hours. Growth hormone is released during deep sleep, essential for muscle repair.",
         color: "purple"
       })
     }
 
-    // Training recommendation based on lifting days
     if (profile.liftingDays >= 4) {
       tips.push({
         icon: Dumbbell,
         title: "Progressive Overload",
-        description: `With ${profile.liftingDays} lifting days, focus on gradually increasing weight or reps each week. Track your lifts to ensure consistent progress.`,
+        description: `With ${profile.liftingDays} lifting days, focus on gradually increasing weight or reps each week.`,
         color: "orange"
       })
     } else if (profile.liftingDays >= 2) {
       tips.push({
         icon: Dumbbell,
         title: "Full Body Focus",
-        description: `With ${profile.liftingDays} days, prioritize compound movements (squats, deadlifts, bench, rows) to maximize muscle stimulation per session.`,
+        description: `With ${profile.liftingDays} days, prioritize compound movements to maximize muscle stimulation.`,
         color: "orange"
       })
     } else {
       tips.push({
         icon: Dumbbell,
-        title: "Consider Adding Resistance Training",
-        description: "Even 2-3 days of lifting can significantly improve body composition and metabolic health.",
+        title: "Add Resistance Training",
+        description: "Even 2-3 days of lifting can significantly improve body composition.",
         color: "orange"
       })
     }
 
-    // Hydration
     const waterOz = Math.round(profile.weightLb * 0.5)
     tips.push({
       icon: Droplets,
-      title: `Aim for ${waterOz}+ oz Water Daily`,
-      description: "Proper hydration supports metabolism, workout performance, and helps control appetite. Drink more on training days.",
+      title: `${waterOz}+ oz Water Daily`,
+      description: "Proper hydration supports metabolism, workout performance, and appetite control.",
       color: "blue"
     })
 
-    // Protein timing
     tips.push({
       icon: Brain,
-      title: "Spread Protein Throughout the Day",
-      description: `With a ${Math.round(profile.weightLb * 0.8)}g target, aim for 30-50g per meal. This optimizes muscle protein synthesis better than one large dose.`,
+      title: "Spread Protein Throughout Day",
+      description: "Aim for 30-50g per meal to optimize muscle protein synthesis.",
       color: "green"
     })
 
-    // Steps/NEAT based on activity level
     if (profile.stepsLevel === 'low') {
       tips.push({
         icon: Heart,
         title: "Increase Daily Movement",
-        description: "Try to add 2,000-3,000 more steps daily. NEAT (non-exercise activity) is a major factor in maintaining a healthy metabolism.",
+        description: "Add 2,000-3,000 more steps. NEAT is key for metabolism.",
         color: "red"
       })
     } else if (profile.stepsLevel === 'high') {
       tips.push({
         icon: Heart,
         title: "Great Activity Level",
-        description: "Your high step count supports calorie burn and cardiovascular health. Just ensure you're fueling adequately for recovery.",
+        description: "Your step count supports calorie burn. Ensure adequate fueling.",
         color: "red"
       })
     } else {
       tips.push({
         icon: Heart,
         title: "Maintain Your Activity",
-        description: "Your moderate activity is solid. Consider a daily walk after meals to aid digestion and boost NEAT.",
+        description: "Consider a daily walk after meals to boost NEAT.",
         color: "red"
       })
     }
@@ -261,119 +304,56 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
+      <main className="mx-auto max-w-4xl px-6 py-10 space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-semibold text-primary">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-semibold text-primary">
               {user?.firstName?.charAt(0) || user?.emailAddresses?.[0]?.emailAddress?.charAt(0) || 'U'}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                {user?.firstName || 'Your Profile'}
+              <h1 className="text-xl font-semibold text-foreground">
+                {user?.firstName || 'Profile'}
               </h1>
               <p className="text-sm text-muted-foreground">{user?.emailAddresses?.[0]?.emailAddress}</p>
             </div>
           </div>
-          <button
-            onClick={() => router.push('/onboarding')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-          >
-            <Settings className="h-4 w-4" />
-            Edit Goals
-          </button>
+          <SignOutButton>
+            <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Sign Out
+            </button>
+          </SignOutButton>
         </div>
 
-        {/* Goal Card */}
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Target className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">{displayGoals.goal}</h2>
-                <p className="text-sm text-muted-foreground">{displayGoals.strategy}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-3">
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold text-foreground">{displayGoals.targetCalories}</p>
-              <p className="text-xs text-muted-foreground">Cal/day</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-primary/10">
-              <p className="text-2xl font-bold text-primary">{displayGoals.targetProtein}g</p>
-              <p className="text-xs text-muted-foreground">Protein</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold text-foreground">{displayGoals.targetCarbs}g</p>
-              <p className="text-xs text-muted-foreground">Carbs</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold text-foreground">{displayGoals.targetFat}g</p>
-              <p className="text-xs text-muted-foreground">Fat</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Milestones */}
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <h3 className="font-semibold text-foreground mb-4">Your Milestones</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20">
-              <Flame className="h-6 w-6 text-orange-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{displayStats.longestStreak}</p>
-              <p className="text-xs text-muted-foreground">Best Streak</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-              <Calendar className="h-6 w-6 text-primary mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{displayStats.totalDaysLogged}</p>
-              <p className="text-xs text-muted-foreground">Days Logged</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20">
-              <TrendingUp className="h-6 w-6 text-green-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</p>
-              <p className="text-xs text-muted-foreground">Protein Eaten</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20">
-              <Utensils className="h-6 w-6 text-blue-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgCalories * displayStats.totalDaysLogged / 1000)}k</p>
-              <p className="text-xs text-muted-foreground">Calories Logged</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Personalized Plan */}
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <div className="flex items-center gap-2 mb-5">
+        {/* Your Plan - Personalized Tips */}
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Your Personalized Plan</h3>
+            <h2 className="font-semibold text-foreground">Your Plan</h2>
           </div>
 
           {loadingPlan ? (
-            <div className="text-center py-8">
-              <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+            <div className="text-center py-6">
+              <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {personalizedPlan.map((tip, index) => {
                 const Icon = tip.icon
                 const colors = colorClasses[tip.color] || colorClasses.blue
                 return (
                   <div
                     key={index}
-                    className={`rounded-xl p-4 border ${colors.split(' ')[2]} bg-gradient-to-r ${colors.split(' ')[0]} to-transparent`}
+                    className={`rounded-xl p-3 border ${colors.split(' ')[2]} ${colors.split(' ')[0]}`}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className={`h-10 w-10 rounded-lg ${colors.split(' ')[0]} flex items-center justify-center flex-shrink-0`}>
-                        <Icon className={`h-5 w-5 ${colors.split(' ')[1]}`} />
+                    <div className="flex items-start gap-3">
+                      <div className={`h-8 w-8 rounded-lg ${colors.split(' ')[0]} flex items-center justify-center flex-shrink-0`}>
+                        <Icon className={`h-4 w-4 ${colors.split(' ')[1]}`} />
                       </div>
-                      <div>
-                        <h4 className="font-medium text-foreground mb-1">{tip.title}</h4>
-                        <p className="text-sm text-muted-foreground">{tip.description}</p>
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-foreground text-sm">{tip.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{tip.description}</p>
                       </div>
                     </div>
                   </div>
@@ -383,38 +363,130 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Quick Stats */}
-        {userProfile && (
-          <div className="bg-card rounded-2xl p-6 border border-border/50">
-            <h3 className="font-semibold text-foreground mb-4">Your Stats</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-bold text-foreground">{userProfile.age}</p>
-                <p className="text-xs text-muted-foreground">Age</p>
+        {/* Daily Targets with Chat */}
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Target className="h-5 w-5 text-primary" />
               </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-bold text-foreground">{userProfile.heightFt}'{userProfile.heightIn}"</p>
-                <p className="text-xs text-muted-foreground">Height</p>
+              <div>
+                <h2 className="font-semibold text-foreground">{displayGoals.goal}</h2>
+                <p className="text-xs text-muted-foreground">{displayGoals.strategy}</p>
               </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-bold text-foreground">{userProfile.weightLb} lbs</p>
-                <p className="text-xs text-muted-foreground">Weight</p>
+            </div>
+            <button
+              onClick={() => router.push('/onboarding')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          </div>
+
+          {/* Macro Grid */}
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-xl font-bold text-foreground">{displayGoals.targetCalories}</p>
+              <p className="text-xs text-muted-foreground">Calories</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-primary/10">
+              <p className="text-xl font-bold text-primary">{displayGoals.targetProtein}g</p>
+              <p className="text-xs text-muted-foreground">Protein</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-xl font-bold text-foreground">{displayGoals.targetCarbs}g</p>
+              <p className="text-xs text-muted-foreground">Carbs</p>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-xl font-bold text-foreground">{displayGoals.targetFat}g</p>
+              <p className="text-xs text-muted-foreground">Fat</p>
+            </div>
+          </div>
+
+          {/* Chat Input for Adjustments */}
+          <div className="relative">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleMacroChat()}
+              placeholder="Adjust targets... e.g. 'increase protein by 20g'"
+              className="w-full px-4 py-3 pr-12 rounded-xl bg-muted/30 border border-border/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+              disabled={chatLoading}
+            />
+            <button
+              onClick={handleMacroChat}
+              disabled={chatLoading || !chatInput.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 disabled:opacity-50 transition-all"
+            >
+              {chatLoading ? (
+                <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          {chatMessage && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">{chatMessage}</p>
+          )}
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Milestones */}
+          <div className="bg-card rounded-2xl p-5 border border-border/50">
+            <h3 className="font-semibold text-foreground text-sm mb-3">Milestones</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  <span className="text-sm text-muted-foreground">Best Streak</span>
+                </div>
+                <span className="font-semibold text-foreground">{displayStats.longestStreak} days</span>
               </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-bold text-foreground">{userProfile.liftingDays}x</p>
-                <p className="text-xs text-muted-foreground">Lifting/week</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="text-sm text-muted-foreground">Days Logged</span>
+                </div>
+                <span className="font-semibold text-foreground">{displayStats.totalDaysLogged}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-muted-foreground">Protein Eaten</span>
+                </div>
+                <span className="font-semibold text-foreground">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</span>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Sign Out */}
-        <div className="flex justify-center">
-          <SignOutButton>
-            <button className="text-sm text-muted-foreground hover:text-red-500 transition-colors">
-              Sign Out
-            </button>
-          </SignOutButton>
+          {/* Body Stats */}
+          {userProfile && (
+            <div className="bg-card rounded-2xl p-5 border border-border/50">
+              <h3 className="font-semibold text-foreground text-sm mb-3">Your Stats</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Age</span>
+                  <span className="font-semibold text-foreground">{userProfile.age}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Height</span>
+                  <span className="font-semibold text-foreground">{userProfile.heightFt}'{userProfile.heightIn}"</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Weight</span>
+                  <span className="font-semibold text-foreground">{userProfile.weightLb} lbs</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Lifting</span>
+                  <span className="font-semibold text-foreground">{userProfile.liftingDays}x/week</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
       </main>

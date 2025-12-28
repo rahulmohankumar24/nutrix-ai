@@ -51,13 +51,14 @@ export function Navbar() {
         <Link
           href="/profile"
           className={cn(
-            "h-10 w-10 rounded-full flex items-center justify-center transition-all",
+            "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
             pathname === "/profile"
-              ? "bg-primary/10 text-primary ring-2 ring-primary/30"
+              ? "bg-primary/10 text-primary"
               : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >
-          <User className="h-5 w-5" />
+          <User className="h-4 w-4" />
+          <span>Profile</span>
         </Link>
       </div>
     </header>

@@ -19,7 +19,60 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    return NextResponse.json(profile)
+    // Get today's targets
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    let targets = await prisma.dailyTarget.findUnique({
+      where: {
+        userId_date: {
+          userId,
+          date: today
+        }
+      }
+    })
+
+    // If no targets for today, calculate them
+    if (!targets) {
+      const calculatedTargets = calculateTargets(
+        profile.heightIn,
+        profile.weightLb,
+        profile.age || 27,
+        profile.sex as 'male' | 'female' | 'other',
+        profile.goal as 'recomp' | 'lean_bulk' | 'cut',
+        profile.liftingDays,
+        profile.stepsLevel as 'low' | 'med' | 'high'
+      )
+
+      targets = await prisma.dailyTarget.create({
+        data: {
+          userId,
+          date: today,
+          calories: calculatedTargets.calories,
+          protein: calculatedTargets.protein,
+          carbs: calculatedTargets.carbs,
+          fat: calculatedTargets.fat
+        }
+      })
+    }
+
+    // Convert heightIn to feet and inches for display
+    const heightFt = Math.floor(profile.heightIn / 12)
+    const heightIn = profile.heightIn % 12
+
+    return NextResponse.json({
+      profile: {
+        ...profile,
+        heightFt,
+        heightIn
+      },
+      targets: {
+        calories: targets.calories,
+        protein: targets.protein,
+        carbs: targets.carbs,
+        fat: targets.fat
+      }
+    })
   } catch (error) {
     console.error('Failed to fetch profile:', error)
     return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })

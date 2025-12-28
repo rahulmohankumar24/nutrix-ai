@@ -26,6 +26,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checkingProfile, setCheckingProfile] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -57,8 +58,24 @@ export default function OnboardingPage() {
       if (response.ok) {
         const result = await response.json()
         if (result.profile) {
-          router.push('/dashboard')
-          return
+          // Pre-fill form with existing data for editing
+          setIsEditing(true)
+          const profile = result.profile
+          setFormData({
+            sex: profile.sex || 'male',
+            heightFt: profile.heightFt || 5,
+            heightIn: profile.heightIn || 8,
+            weightLb: profile.weightLb || 150,
+            goal: profile.goal || 'recomp',
+            liftingDays: profile.liftingDays || 3,
+            stepsLevel: profile.stepsLevel || 'med',
+            constraints: profile.constraints ? JSON.parse(profile.constraints) : [],
+            dislikes: profile.dislikes || '',
+            wakeTime: profile.wakeTime || '07:00',
+            lunchTime: profile.lunchTime || '12:00',
+            dinnerTime: profile.dinnerTime || '18:00',
+            freeText: ''
+          })
         }
       }
     } catch (error) {
@@ -79,20 +96,51 @@ export default function OnboardingPage() {
 
       const validatedData = OnboardingSchema.parse(formData)
 
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...validatedData,
-          userId: user.id
+      if (isEditing) {
+        // Update existing profile
+        const totalHeightIn = validatedData.heightFt * 12 + validatedData.heightIn
+        const response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            sex: validatedData.sex,
+            age: validatedData.age,
+            heightIn: totalHeightIn,
+            weightLb: validatedData.weightLb,
+            goal: validatedData.goal,
+            liftingDays: validatedData.liftingDays,
+            stepsLevel: validatedData.stepsLevel,
+            constraints: JSON.stringify(validatedData.constraints),
+            dislikes: validatedData.dislikes,
+            wakeTime: validatedData.wakeTime,
+            lunchTime: validatedData.lunchTime,
+            dinnerTime: validatedData.dinnerTime
+          })
         })
-      })
 
-      if (!response.ok) {
-        throw new Error('Failed to create profile')
+        if (!response.ok) {
+          throw new Error('Failed to update profile')
+        }
+
+        router.push('/profile')
+      } else {
+        // Create new profile
+        const response = await fetch('/api/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...validatedData,
+            userId: user.id
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to create profile')
+        }
+
+        router.push('/welcome')
       }
-
-      router.push('/welcome')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -126,7 +174,9 @@ export default function OnboardingPage() {
         {/* Header */}
         <div className="text-center mb-10">
           <span className="text-4xl font-normal text-foreground tracking-[0.08em]">rovia</span>
-          <p className="text-muted-foreground mt-4">Tell us about yourself</p>
+          <p className="text-muted-foreground mt-4">
+            {isEditing ? 'Update your goals' : 'Tell us about yourself'}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -303,17 +353,19 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          {/* Tell us more */}
-          <div className="bg-card rounded-2xl p-6 border border-border">
-            <h2 className="text-sm font-medium text-muted-foreground mb-4">Anything else?</h2>
-            <textarea
-              value={formData.freeText}
-              onChange={(e) => setFormData(prev => ({ ...prev, freeText: e.target.value }))}
-              className={`${inputClass} h-28 resize-none`}
-              placeholder="Tell us about your goals, schedule, or anything that might help us personalize your plan..."
-              required
-            />
-          </div>
+          {/* Tell us more - only show for new profiles */}
+          {!isEditing && (
+            <div className="bg-card rounded-2xl p-6 border border-border">
+              <h2 className="text-sm font-medium text-muted-foreground mb-4">Anything else?</h2>
+              <textarea
+                value={formData.freeText}
+                onChange={(e) => setFormData(prev => ({ ...prev, freeText: e.target.value }))}
+                className={`${inputClass} h-28 resize-none`}
+                placeholder="Tell us about your goals, schedule, or anything that might help us personalize your plan..."
+                required
+              />
+            </div>
+          )}
 
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-destructive text-sm">
@@ -326,7 +378,10 @@ export default function OnboardingPage() {
             disabled={loading}
             className="w-full bg-primary text-primary-foreground py-4 px-6 rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-all"
           >
-            {loading ? 'Creating your plan...' : 'Get started'}
+            {loading
+              ? (isEditing ? 'Updating your plan...' : 'Creating your plan...')
+              : (isEditing ? 'Save changes' : 'Get started')
+            }
           </button>
         </form>
       </div>
