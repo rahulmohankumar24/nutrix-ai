@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Flame, Dumbbell } from 'lucide-react'
 
 interface MealData {
   time: string
@@ -20,9 +20,17 @@ interface InsightsData {
   loading?: boolean
 }
 
+interface TotalsData {
+  calories: number
+  protein: number
+  targetCalories?: number
+  targetProtein?: number
+}
+
 interface PathwayVisualizationProps {
   dailyData?: MealData[]
   insights?: InsightsData
+  totals?: TotalsData
 }
 
 export function PathwayVisualization({
@@ -32,6 +40,7 @@ export function PathwayVisualization({
     { time: "Dinner", percentage: 0 },
   ],
   insights,
+  totals,
 }: PathwayVisualizationProps) {
   const data = dailyData
 
@@ -39,11 +48,64 @@ export function PathwayVisualization({
   const insightColor = 'text-purple-500'
   const insightBgColor = 'bg-purple-500/10'
 
+  // Calculate progress percentages
+  const calorieProgress = totals?.targetCalories ? Math.min(100, (totals.calories / totals.targetCalories) * 100) : 0
+  const proteinProgress = totals?.targetProtein ? Math.min(100, (totals.protein / totals.targetProtein) * 100) : 0
+
   return (
     <div className="bg-card rounded-2xl border border-border/50 p-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="mb-4">
-        <p className="text-base text-muted-foreground tracking-wide">your path today</p>
+      {/* Header with Totals */}
+      <div className="flex items-center justify-between gap-4 mb-5">
+        <h2 className="text-xl font-semibold text-foreground flex-1">your path today</h2>
+
+        {/* Today's Totals - inline */}
+        {totals && (
+          <div className="flex gap-3">
+            {/* Calories */}
+            <div className="bg-primary/5 rounded-xl px-4 py-3 border border-primary/20 min-w-[120px]">
+              <div className="flex items-center gap-2 mb-1">
+                <Flame className="h-4 w-4 text-primary/70" />
+                <span className="text-xs font-medium text-primary/70 uppercase tracking-wide">Calories</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-foreground">{totals.calories.toLocaleString()}</span>
+                {totals.targetCalories && (
+                  <span className="text-sm text-muted-foreground">/ {totals.targetCalories.toLocaleString()}</span>
+                )}
+              </div>
+              {totals.targetCalories && (
+                <div className="mt-2 h-1.5 bg-primary/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary/60 rounded-full transition-all duration-500"
+                    style={{ width: `${calorieProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Protein */}
+            <div className="bg-primary/5 rounded-xl px-4 py-3 border border-primary/20 min-w-[120px]">
+              <div className="flex items-center gap-2 mb-1">
+                <Dumbbell className="h-4 w-4 text-primary/70" />
+                <span className="text-xs font-medium text-primary/70 uppercase tracking-wide">Protein</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-foreground">{totals.protein}g</span>
+                {totals.targetProtein && (
+                  <span className="text-sm text-muted-foreground">/ {totals.targetProtein}g</span>
+                )}
+              </div>
+              {totals.targetProtein && (
+                <div className="mt-2 h-1.5 bg-primary/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary/60 rounded-full transition-all duration-500"
+                    style={{ width: `${proteinProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* AI Insights */}

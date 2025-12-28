@@ -99,7 +99,22 @@ export async function GET(request: NextRequest) {
 
     const hour = new Date().getHours()
     const timeOfDay = hour < 11 ? 'morning' : hour < 16 ? 'afternoon' : 'evening'
-    const mealsRemaining = hour < 11 ? 3 : hour < 16 ? 2 : 1
+
+    // Check which meals are actually logged
+    const loggedMealTypes = new Set(mealLogs.map(log => log.mealType || ''))
+    const hasBreakfast = loggedMealTypes.has('breakfast')
+    const hasLunch = loggedMealTypes.has('lunch')
+    const hasDinner = loggedMealTypes.has('dinner')
+
+    // Calculate actual meals remaining based on time AND what's been logged
+    let mealsRemaining = 0
+    if (hour < 11) {
+      mealsRemaining = (hasBreakfast ? 0 : 1) + (hasLunch ? 0 : 1) + (hasDinner ? 0 : 1)
+    } else if (hour < 16) {
+      mealsRemaining = (hasLunch ? 0 : 1) + (hasDinner ? 0 : 1)
+    } else {
+      mealsRemaining = hasDinner ? 0 : 1
+    }
 
     // Generate AI insights
     // Calculate percentages for context
@@ -108,11 +123,16 @@ export async function GET(request: NextRequest) {
     const isOverCalories = current.calories > targets.calories
     const isOverFat = current.fat > targets.fat
 
+    // Build the meal context string
+    const mealContextString = mealsRemaining === 0
+      ? 'All meals logged for today'
+      : `${mealsRemaining} meal${mealsRemaining > 1 ? 's' : ''} left today`
+
     const prompt = `You are a friendly nutrition coach giving a brief daily check-in. Write conversationally, like texting a friend.
 
 USER CONTEXT:
 Goal: ${profile.goal === 'recomp' ? 'body recomposition' : profile.goal === 'lean_bulk' ? 'lean muscle gain' : 'fat loss'}
-Time: ${timeOfDay} (${mealsRemaining} meal${mealsRemaining > 1 ? 's' : ''} left today)
+Time: ${timeOfDay} (${mealContextString})
 Meals so far: ${mealNames.length > 0 ? mealNames.join(', ') : 'None yet'}
 
 TODAY'S STATUS:
@@ -133,16 +153,19 @@ WRITING RULES:
 - 2 insights max, each under 15 words
 - Sound like a supportive friend, not a calculator
 - Focus on actionable next steps in plain language
+- IMPORTANT: If all meals are logged, do NOT reference specific meal times like "dinner" or "lunch". Instead, say "any more food" or "if you eat anything else"
 
 GOOD examples:
 - "You've eaten a bit more than planned, but protein is solid."
-- "Go light for dinner - lean protein and veggies would be perfect."
+- "Go light for dinner - lean protein and veggies would be perfect." (only if dinner NOT logged)
 - "You're right on track. Keep doing what you're doing."
+- "If you have any more food, keep it light." (when all meals logged)
 
 BAD examples (don't do this):
 - "You're +1230 calories; protein met at 95%"
 - "Aim for 0-300 calories, 10-15g protein"
-- "Last meal: ≤10g carbs, 0-10g fat"`
+- "Last meal: ≤10g carbs, 0-10g fat"
+- "Go light for dinner" (when dinner is already logged)`
 
     const completion = await openai.responses.create({
       model: 'gpt-5.2',

@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 // Cache utilities - avoid redundant AI calls
@@ -185,7 +185,6 @@ export default function DashboardPage() {
   const [pantryCount, setPantryCount] = useState(0)
 
   // Inline chat state
-  const [showChatInput, setShowChatInput] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingMeal, setPendingMeal] = useState<PendingMeal | null>(null)
@@ -660,21 +659,28 @@ export default function DashboardPage() {
   const getMealsByType = () => {
     if (!mealLogs || mealLogs.mealLogs.length === 0) return { breakfast: [], lunch: [], dinner: [] }
 
+    const meals = mealLogs.mealLogs.map(log => {
+      const baseCalories = log.orderTemplate?.calories || log.foodCatalogItem?.calories || 0
+      const baseProtein = log.orderTemplate?.protein || log.foodCatalogItem?.protein || 0
+      return {
+        id: log.id,
+        name: log.orderTemplate?.title || log.foodCatalogItem?.name || 'Unknown',
+        source: log.orderTemplate?.restaurantBrand || log.foodCatalogItem?.source || '',
+        baseCalories,
+        baseProtein,
+        servings: log.servings || 1,
+        calories: Math.round(baseCalories * log.servings),
+        protein: Math.round(baseProtein * log.servings),
+        mealType: log.mealType || 'dinner',
+        datetime: log.datetime
+      }
+    })
+
     const grouped: { breakfast: typeof meals; lunch: typeof meals; dinner: typeof meals } = {
       breakfast: [],
       lunch: [],
       dinner: []
     }
-
-    const meals = mealLogs.mealLogs.map(log => ({
-      id: log.id,
-      name: log.orderTemplate?.title || log.foodCatalogItem?.name || 'Unknown',
-      source: log.orderTemplate?.restaurantBrand || log.foodCatalogItem?.source || '',
-      calories: Math.round((log.orderTemplate?.calories || log.foodCatalogItem?.calories || 0) * log.servings),
-      protein: Math.round((log.orderTemplate?.protein || log.foodCatalogItem?.protein || 0) * log.servings),
-      mealType: log.mealType || 'meal',
-      datetime: log.datetime
-    }))
 
     meals.forEach(meal => {
       if (meal.mealType === 'breakfast') {
@@ -756,7 +762,6 @@ export default function DashboardPage() {
       await loadDashboardData(user.id)
       loadInsights(user.id)
       setPendingMeal(null)
-      setShowChatInput(false)
       setChatInput('')
     } catch (error) {
       console.error('Failed to log meal:', error)
@@ -792,6 +797,97 @@ export default function DashboardPage() {
     }
   }
 
+  const [updatingMealId, setUpdatingMealId] = useState<string | null>(null)
+
+  const updateMealServings = async (mealId: string, newServings: number) => {
+    if (!user?.id || newServings < 0.5) return
+
+    setUpdatingMealId(mealId)
+
+    try {
+      const response = await fetch('/api/log-meal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealLogId: mealId,
+          userId: user.id,
+          servings: newServings
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to update meal')
+
+      // Refresh data
+      await loadDashboardData(user.id)
+    } catch (error) {
+      console.error('Failed to update meal:', error)
+    } finally {
+      setUpdatingMealId(null)
+    }
+  }
+
+  const updateMealType = async (mealId: string, newMealType: string) => {
+    if (!user?.id) return
+
+    setUpdatingMealId(mealId)
+
+    try {
+      const response = await fetch('/api/log-meal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealLogId: mealId,
+          userId: user.id,
+          mealType: newMealType
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to update meal type')
+
+      // Refresh data
+      await loadDashboardData(user.id)
+    } catch (error) {
+      console.error('Failed to update meal type:', error)
+    } finally {
+      setUpdatingMealId(null)
+    }
+  }
+
+  // Drag and drop state
+  const [draggedMeal, setDraggedMeal] = useState<{ id: string; mealType: string } | null>(null)
+  const [dragOverType, setDragOverType] = useState<string | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, mealId: string, mealType: string) => {
+    setDraggedMeal({ id: mealId, mealType })
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, mealType: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverType(mealType)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverType(null)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetMealType: string) => {
+    e.preventDefault()
+    setDragOverType(null)
+
+    if (draggedMeal && draggedMeal.mealType !== targetMealType) {
+      await updateMealType(draggedMeal.id, targetMealType)
+    }
+
+    setDraggedMeal(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedMeal(null)
+    setDragOverType(null)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -825,42 +921,109 @@ export default function DashboardPage() {
 
       <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
 
-        {/* Header with Remaining Summary */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              {getGreeting()}, {userName}
-            </h1>
-            <p className="text-base text-muted-foreground mt-1">Let's find your path today</p>
-          </div>
+        {/* Header with Chat Bar */}
+        <div className="space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Greeting */}
+            <div className="flex-shrink-0">
+              <h1 className="text-2xl font-semibold text-foreground whitespace-nowrap">
+                {getGreeting()}, {userName}
+              </h1>
+            </div>
 
-          {/* Remaining Summary Pill */}
-          {!macros ? (
-            <div className="bg-muted/50 rounded-full px-5 py-2.5 flex items-center gap-4 animate-pulse">
-              <div className="h-5 w-16 bg-muted rounded" />
-              <div className="w-px h-5 bg-border" />
-              <div className="h-5 w-20 bg-muted rounded" />
-            </div>
-          ) : macros.remaining.calories > 0 ? (
-            <div className="bg-primary/10 rounded-full px-5 py-2.5 flex items-center gap-4 text-base">
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold text-lg">{macros.remaining.calories}</span>
-                <span className="text-muted-foreground">cal</span>
+            {/* Chat Bar - Right aligned, above meal suggestions */}
+            {!pendingMeal ? (
+              <form onSubmit={handleChatSubmit} className="w-full lg:w-[calc(50%-10px)]">
+                <div className="flex items-center gap-3 bg-card rounded-2xl border border-border/50 px-4 py-3.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                  <MessageCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Log a meal or ask a question..."
+                    className="flex-1 min-w-0 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/50"
+                  />
+                  {chatInput.trim() && (
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+            ) : (
+              <div className="w-full lg:w-[calc(50%-10px)] bg-card rounded-2xl border border-primary/30 px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground text-sm truncate">{pendingMeal.name}</p>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <span>{pendingMeal.calories} cal</span>
+                      <span className="text-primary font-medium">{pendingMeal.protein}g pro</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setSelectedMealType(type)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all capitalize ${
+                          selectedMealType === type
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={confirmMeal}
+                      disabled={isLogging}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                    >
+                      {isLogging ? (
+                        <div className="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                      Log
+                    </button>
+                    <button
+                      onClick={cancelMeal}
+                      disabled={isLogging}
+                      className="p-1 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="w-px h-5 bg-border" />
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold text-lg">{macros.remaining.protein}g</span>
-                <span className="text-muted-foreground">protein</span>
-              </div>
-              <span className="text-muted-foreground">left</span>
-            </div>
-          ) : null}
+            )}
+          </div>
         </div>
 
         {/* Pathway + Suggestions Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Pathway - Your Path Today */}
-          <PathwayVisualization dailyData={getDailyMealPath()} insights={insights || undefined} />
+          <PathwayVisualization
+            dailyData={getDailyMealPath()}
+            insights={insights || undefined}
+            totals={macros ? {
+              calories: macros.current.calories,
+              protein: macros.current.protein,
+              targetCalories: macros.targets.calories,
+              targetProtein: macros.targets.protein
+            } : undefined}
+          />
 
           {/* AI Meal Suggestions */}
           <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
@@ -880,7 +1043,7 @@ export default function DashboardPage() {
                       ? 'From Your Pantry'
                       : hasPersonalizedSuggestions
                         ? 'Suggested for You'
-                        : `Suggested for ${suggestionMealTime.charAt(0).toUpperCase() + suggestionMealTime.slice(1)}`}
+                        : 'Meal Suggestions'}
                   </h2>
                   {mealSource === 'home' && pantryCount > 0 && (
                     <span className="text-[10px] font-medium text-green-600 bg-green-500/10 px-1.5 py-0.5 rounded-full">
@@ -896,11 +1059,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">
                   {mealSource === 'home'
                     ? 'Meals you can make at home'
-                    : patternProgress.daysLogged >= 7
-                      ? 'Based on your eating patterns'
-                      : patternProgress.daysLogged > 0
-                        ? `Learning your patterns... ${patternProgress.daysLogged}/7 days`
-                        : 'Real meals from nearby restaurants'}
+                    : 'Real meals from nearby restaurants'}
                 </p>
               </div>
             </div>
@@ -914,88 +1073,38 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Filters Row */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            {/* Meal Source Toggle */}
-            <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+          {/* Filters */}
+          <div className="space-y-3 mb-5">
+            {/* Primary: Meal Source Toggle */}
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleMealSourceChange('restaurant')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
                   mealSource === 'restaurant'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-primary/10 text-primary border-2 border-primary/30'
+                    : 'bg-muted/30 text-muted-foreground border-2 border-transparent hover:bg-muted/50'
                 }`}
               >
-                <Utensils className="h-3 w-3" />
+                <Utensils className="h-4 w-4" />
                 Restaurant
               </button>
               <button
                 onClick={() => handleMealSourceChange('home')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
                   mealSource === 'home'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-primary/10 text-primary border-2 border-primary/30'
+                    : 'bg-muted/30 text-muted-foreground border-2 border-transparent hover:bg-muted/50'
                 }`}
               >
-                <Home className="h-3 w-3" />
+                <Home className="h-4 w-4" />
                 Home
               </button>
             </div>
 
-            {/* Restaurant-specific filters */}
-            {mealSource === 'restaurant' && (
-              <>
-                {/* Dining Mode */}
-                <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
-                  {([
-                    { value: 'takeout', label: 'Takeout' },
-                    { value: 'dine-in', label: 'Dine-in' }
-                  ] as const).map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleDiningModeChange(option.value)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                        diningMode === option.value
-                          ? 'bg-card text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Travel Mode */}
-                <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
-                  <button
-                    onClick={() => handleTravelModeChange('walk')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      travelMode === 'walk'
-                        ? 'bg-card text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Footprints className="h-3 w-3" />
-                    Walk
-                  </button>
-                  <button
-                    onClick={() => handleTravelModeChange('drive')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      travelMode === 'drive'
-                        ? 'bg-card text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Car className="h-3 w-3" />
-                    Drive
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Meal Size Selector */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+            {/* Secondary: Context-specific options */}
+            <div className="flex gap-2">
+              {/* Meal Size - Always visible */}
+              <div className="flex-1 flex bg-muted/20 rounded-xl p-1">
                 {([
                   { value: 'light', label: 'Light' },
                   { value: 'regular', label: 'Regular' },
@@ -1004,7 +1113,7 @@ export default function DashboardPage() {
                   <button
                     key={option.value}
                     onClick={() => handleMealSizeChange(option.value)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${
                       mealSize === option.value
                         ? 'bg-card text-foreground shadow-sm'
                         : 'text-muted-foreground hover:text-foreground'
@@ -1014,6 +1123,34 @@ export default function DashboardPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Restaurant-specific: Travel Mode */}
+              {mealSource === 'restaurant' && (
+                <div className="flex bg-muted/20 rounded-xl p-1">
+                  <button
+                    onClick={() => handleTravelModeChange('walk')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                      travelMode === 'walk'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Footprints className="h-3.5 w-3.5" />
+                    Walk
+                  </button>
+                  <button
+                    onClick={() => handleTravelModeChange('drive')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                      travelMode === 'drive'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Car className="h-3.5 w-3.5" />
+                    Drive
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1300,7 +1437,6 @@ export default function DashboardPage() {
                           fat: suggestion.fat,
                           servings: 1
                         })
-                        setShowChatInput(false)
                       }}
                     >
                       <div className="flex items-center justify-between">
@@ -1556,252 +1692,113 @@ export default function DashboardPage() {
 
           {/* Meals Logged */}
           <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
-            {/* Add Meal Button - Always visible at top */}
-            {!showChatInput && !pendingMeal && (
-              <button
-                onClick={() => setShowChatInput(true)}
-                className="w-full mb-4 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all group"
-              >
-                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
-                  <Plus className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <span className="text-sm font-medium text-primary">Add a meal</span>
-              </button>
-            )}
-
-            {/* Inline Chat Input */}
-            {showChatInput && !pendingMeal && (
-              <div className="mb-4 pb-4 border-b border-border/50">
-                <form onSubmit={handleChatSubmit}>
-                  <div className="flex items-center gap-2 rounded-lg bg-muted/50 border border-border px-3 py-1.5 focus-within:border-primary/50 transition-colors">
-                    <input
-                      type="text"
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="I had a chicken salad..."
-                      className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={!chatInput.trim() || isProcessing}
-                      className={`rounded-md p-1.5 transition-all ${
-                        chatInput.trim() && !isProcessing
-                          ? 'bg-primary text-primary-foreground hover:opacity-90'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {isProcessing ? (
-                        <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Send className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowChatInput(false)
-                        setChatInput('')
-                      }}
-                      className="rounded-md p-1.5 bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* Pending Meal Confirmation */}
-            {pendingMeal && (
-              <div className="mb-4 pb-4 border-b border-border/50">
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="font-medium text-foreground text-sm">{pendingMeal.name}</p>
-                  <div className="flex gap-2 mt-1.5 text-xs text-muted-foreground">
-                    <span>{pendingMeal.calories} cal</span>
-                    <span>{pendingMeal.protein}g pro</span>
-                    <span>{pendingMeal.carbs}g carbs</span>
-                    <span>{pendingMeal.fat}g fat</span>
-                  </div>
-
-                  {/* Meal type selector */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setSelectedMealType(type)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all capitalize ${
-                          selectedMealType === type
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={confirmMeal}
-                      disabled={isLogging}
-                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-                    >
-                      {isLogging ? (
-                        <div className="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Check className="h-3 w-3" />
-                      )}
-                      Log
-                    </button>
-                    <button
-                      onClick={cancelMeal}
-                      disabled={isLogging}
-                      className="px-2.5 py-1.5 rounded-md bg-muted text-muted-foreground text-xs hover:bg-muted/80 transition-colors disabled:opacity-50"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Meals Logged Header */}
             <p className="text-base font-medium text-muted-foreground mb-4">Meals Logged</p>
 
             {(() => {
               const mealsByType = getMealsByType()
-              const MAX_VISIBLE = 2
+              const MAX_VISIBLE = 3
+
+              const renderMealItem = (meal: typeof mealsByType.breakfast[0]) => (
+                <div
+                  key={meal.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, meal.id, meal.mealType)}
+                  onDragEnd={handleDragEnd}
+                  className={`bg-muted/30 rounded-xl p-3 group cursor-grab active:cursor-grabbing transition-all hover:bg-muted/50 ${
+                    draggedMeal?.id === meal.id ? 'opacity-50 scale-95' : ''
+                  } ${updatingMealId === meal.id ? 'opacity-70' : ''}`}
+                >
+                  {/* Top row: drag handle, name, delete */}
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <p className="text-sm font-medium text-foreground truncate flex-1">{meal.name}</p>
+                    <button
+                      onClick={() => deleteMeal(meal.id)}
+                      disabled={deletingMealId === meal.id}
+                      className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                    >
+                      {deletingMealId === meal.id ? (
+                        <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Bottom row: macros and quantity controls */}
+                  <div className="flex items-center justify-between mt-2 pl-6">
+                    {/* Macros */}
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="text-muted-foreground">{meal.calories} cal</span>
+                      <span className="text-primary font-medium">{meal.protein}g protein</span>
+                    </div>
+
+                    {/* Quantity controls */}
+                    <div className="flex items-center gap-1 bg-background/50 rounded-lg px-1 py-0.5">
+                      <button
+                        onClick={() => updateMealServings(meal.id, meal.servings - 0.5)}
+                        disabled={updatingMealId === meal.id || meal.servings <= 0.5}
+                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-sm font-medium text-foreground w-8 text-center">
+                        {meal.servings % 1 === 0 ? meal.servings : meal.servings.toFixed(1)}x
+                      </span>
+                      <button
+                        onClick={() => updateMealServings(meal.id, meal.servings + 0.5)}
+                        disabled={updatingMealId === meal.id}
+                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+
+              const renderMealSection = (type: 'breakfast' | 'lunch' | 'dinner', label: string, meals: typeof mealsByType.breakfast) => (
+                <div
+                  onDragOver={(e) => handleDragOver(e, type)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, type)}
+                  className={`rounded-xl p-2 transition-all ${
+                    dragOverType === type ? 'bg-primary/5 ring-2 ring-primary/30 ring-dashed' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+                    {meals.length > 0 && (
+                      <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded-full">{meals.length}</span>
+                    )}
+                  </div>
+                  {meals.length > 0 ? (
+                    <div className="space-y-2">
+                      {meals.slice(0, MAX_VISIBLE).map(renderMealItem)}
+                      {meals.length > MAX_VISIBLE && (
+                        <Link href="/meals" className="text-xs text-primary hover:text-primary/80 transition-colors block text-center py-1">
+                          +{meals.length - MAX_VISIBLE} more
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={`text-center py-4 rounded-lg border-2 border-dashed ${
+                      dragOverType === type ? 'border-primary/40 bg-primary/5' : 'border-border/30'
+                    }`}>
+                      <p className="text-xs text-muted-foreground/50">
+                        {dragOverType === type ? 'Drop meal here' : 'No meals yet'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )
 
               return (
                 <div className="space-y-4 flex-1">
-                  {/* Breakfast */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Breakfast</p>
-                      {mealsByType.breakfast.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.breakfast.length}</span>
-                      )}
-                    </div>
-                    {mealsByType.breakfast.length > 0 ? (
-                      <div className="space-y-2">
-                        {mealsByType.breakfast.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
-                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-2 text-sm ml-2">
-                              <span className="text-muted-foreground">{meal.calories}</span>
-                              <span className="text-primary font-medium">{meal.protein}g</span>
-                              <button
-                                onClick={() => deleteMeal(meal.id)}
-                                disabled={deletingMealId === meal.id}
-                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
-                              >
-                                {deletingMealId === meal.id ? (
-                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {mealsByType.breakfast.length > MAX_VISIBLE && (
-                          <Link href="/meals" className="text-sm text-primary hover:text-primary/80 transition-colors">
-                            +{mealsByType.breakfast.length - MAX_VISIBLE} more
-                          </Link>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
-                    )}
-                  </div>
-
-                  <div className="border-t border-border/30" />
-
-                  {/* Lunch */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Lunch</p>
-                      {mealsByType.lunch.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.lunch.length}</span>
-                      )}
-                    </div>
-                    {mealsByType.lunch.length > 0 ? (
-                      <div className="space-y-2">
-                        {mealsByType.lunch.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
-                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-2 text-sm ml-2">
-                              <span className="text-muted-foreground">{meal.calories}</span>
-                              <span className="text-primary font-medium">{meal.protein}g</span>
-                              <button
-                                onClick={() => deleteMeal(meal.id)}
-                                disabled={deletingMealId === meal.id}
-                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
-                              >
-                                {deletingMealId === meal.id ? (
-                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {mealsByType.lunch.length > MAX_VISIBLE && (
-                          <Link href="/meals" className="text-sm text-primary hover:text-primary/80 transition-colors">
-                            +{mealsByType.lunch.length - MAX_VISIBLE} more
-                          </Link>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
-                    )}
-                  </div>
-
-                  <div className="border-t border-border/30" />
-
-                  {/* Dinner */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-foreground uppercase tracking-wider">Dinner</p>
-                      {mealsByType.dinner.length > 0 && (
-                        <span className="text-sm text-primary font-medium">{mealsByType.dinner.length}</span>
-                      )}
-                    </div>
-                    {mealsByType.dinner.length > 0 ? (
-                      <div className="space-y-2">
-                        {mealsByType.dinner.slice(0, MAX_VISIBLE).map((meal) => (
-                          <div key={meal.id} className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group">
-                            <p className="text-sm text-foreground truncate flex-1">{meal.name}</p>
-                            <div className="flex items-center gap-2 text-sm ml-2">
-                              <span className="text-muted-foreground">{meal.calories}</span>
-                              <span className="text-primary font-medium">{meal.protein}g</span>
-                              <button
-                                onClick={() => deleteMeal(meal.id)}
-                                disabled={deletingMealId === meal.id}
-                                className="ml-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
-                              >
-                                {deletingMealId === meal.id ? (
-                                  <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {mealsByType.dinner.length > MAX_VISIBLE && (
-                          <Link href="/meals" className="text-sm text-primary hover:text-primary/80 transition-colors">
-                            +{mealsByType.dinner.length - MAX_VISIBLE} more
-                          </Link>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground/40 py-1">No meals logged</p>
-                    )}
-                  </div>
+                  {renderMealSection('breakfast', 'Breakfast', mealsByType.breakfast)}
+                  {renderMealSection('lunch', 'Lunch', mealsByType.lunch)}
+                  {renderMealSection('dinner', 'Dinner', mealsByType.dinner)}
                 </div>
               )
             })()}

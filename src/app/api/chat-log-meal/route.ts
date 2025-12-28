@@ -49,7 +49,17 @@ MEAL TYPE INFERENCE:
 - If user explicitly says "for breakfast/lunch/dinner", use that regardless of time
 
 Be conversational and friendly. If the user is just saying hello or asking a question, set shouldLog to false.
-If they mention eating something, parse it and provide reasonable nutrition estimates based on typical serving sizes.
+If they mention eating something, parse it and provide ACCURATE nutrition estimates.
+
+CRITICAL - ACCURACY GUIDELINES:
+- Use real nutritional data for known restaurants and foods
+- Fast food burgers: typically 400-600 cal each
+- Grilled cheese sandwiches: typically 300-500 cal each
+- In-N-Out grilled cheese (bun, cheese, veggies, no meat): ~380 cal, animal style adds ~100 cal
+- Chipotle burrito bowl: 600-900 cal depending on ingredients
+- Don't inflate or round up excessively - users depend on accuracy for their nutrition goals
+- When a quantity is specified (e.g., "2 tacos"), estimate per-item then multiply
+- When uncertain, use conservative middle-ground estimates
 
 Respond with valid JSON only.`
 
@@ -71,10 +81,44 @@ Respond with valid JSON only.`
     // If this is a meal to log
     if (parsedResponse.shouldLog) {
       const servings = parsedResponse.servings || 1
-      const totalCalories = Math.round(parsedResponse.estimatedCalories * servings)
-      const totalProtein = Math.round(parsedResponse.estimatedProtein * servings)
-      const totalCarbs = Math.round(parsedResponse.estimatedCarbs * servings)
-      const totalFat = Math.round(parsedResponse.estimatedFat * servings)
+      const mealName = parsedResponse.mealName?.toLowerCase() || ''
+
+      // Try to find a matching item in the database first (source of truth)
+      let dbMatch = null
+      const orderTemplates = await prisma.orderTemplate.findMany({
+        where: {
+          OR: [
+            { title: { contains: mealName, mode: 'insensitive' } },
+            { keywordsForDeliverySearch: { contains: mealName, mode: 'insensitive' } }
+          ]
+        },
+        take: 5
+      })
+
+      if (orderTemplates.length > 0) {
+        const scored = orderTemplates.map(t => {
+          const titleLower = t.title.toLowerCase()
+          const score = mealName.includes(titleLower) || titleLower.includes(mealName) ? 2 :
+                       mealName.split(' ').filter((w: string) => titleLower.includes(w)).length
+          return { template: t, score }
+        }).sort((a, b) => b.score - a.score)
+
+        if (scored[0]?.score > 0) {
+          dbMatch = scored[0].template
+        }
+      }
+
+      // Use database match if found, otherwise use AI estimate
+      const finalCalories = dbMatch ? dbMatch.calories : parsedResponse.estimatedCalories
+      const finalProtein = dbMatch ? dbMatch.protein : parsedResponse.estimatedProtein
+      const finalCarbs = dbMatch ? dbMatch.carbs : parsedResponse.estimatedCarbs
+      const finalFat = dbMatch ? dbMatch.fat : parsedResponse.estimatedFat
+      const finalName = dbMatch ? dbMatch.title : parsedResponse.mealName
+
+      const totalCalories = Math.round(finalCalories * servings)
+      const totalProtein = Math.round(finalProtein * servings)
+      const totalCarbs = Math.round(finalCarbs * servings)
+      const totalFat = Math.round(finalFat * servings)
 
       // If parseOnly mode, just return the parsed data without logging
       if (parseOnly) {
@@ -82,26 +126,27 @@ Respond with valid JSON only.`
           success: true,
           mealParsed: true,
           parsedMeal: {
-            name: parsedResponse.mealName,
+            name: finalName,
             calories: totalCalories,
             protein: totalProtein,
             carbs: totalCarbs,
             fat: totalFat,
             servings
           },
-          message: parsedResponse.userMessage
+          message: parsedResponse.userMessage,
+          source: dbMatch ? 'database' : 'ai_estimate'
         })
       }
 
       // Otherwise, create and log the meal
       const foodCatalogItem = await prisma.foodCatalogItem.create({
         data: {
-          source: 'user_logged',
-          name: parsedResponse.mealName,
-          calories: parsedResponse.estimatedCalories,
-          protein: parsedResponse.estimatedProtein,
-          carbs: parsedResponse.estimatedCarbs,
-          fat: parsedResponse.estimatedFat,
+          source: dbMatch ? 'restaurant' : 'user_logged',
+          name: finalName,
+          calories: finalCalories,
+          protein: finalProtein,
+          carbs: finalCarbs,
+          fat: finalFat,
           tags: '[]'
         }
       })
@@ -126,13 +171,14 @@ Respond with valid JSON only.`
         message: parsedResponse.userMessage,
         mealLogged: true,
         mealData: {
-          name: parsedResponse.mealName,
+          name: finalName,
           calories: totalCalories,
           protein: totalProtein,
           carbs: totalCarbs,
           fat: totalFat,
           servings
-        }
+        },
+        source: dbMatch ? 'database' : 'ai_estimate'
       })
     }
 

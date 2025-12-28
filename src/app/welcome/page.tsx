@@ -8,7 +8,7 @@ const features = [
   {
     icon: Target,
     title: "Your Personalized Targets",
-    description: "We've calculated your optimal calories and macros based on your goals. Check them anytime in My Path.",
+    description: "We've calculated your optimal calories and macros based on your goals. Check them anytime in Analytics.",
     color: "bg-primary/10 text-primary"
   },
   {
@@ -26,7 +26,7 @@ const features = [
   {
     icon: TrendingUp,
     title: "Track Your Progress",
-    description: "See your journey unfold in My Path with weekly insights, streaks, and personalized tips.",
+    description: "See your journey unfold in Analytics with weekly insights, streaks, and personalized tips.",
     color: "bg-green-500/10 text-green-500"
   },
   {

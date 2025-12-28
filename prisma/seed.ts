@@ -177,6 +177,28 @@ async function main() {
       tags: JSON.stringify(['high-protein', 'california', 'max']),
       keywordsForDeliverySearch: '3x3 triple triple'
     },
+    {
+      restaurantBrand: 'in-n-out',
+      title: 'Grilled Cheese',
+      description: 'Two cheese slices, lettuce, tomato, onion, spread on bun (no meat)',
+      calories: 380,
+      protein: 16,
+      carbs: 41,
+      fat: 18,
+      tags: JSON.stringify(['vegetarian', 'california']),
+      keywordsForDeliverySearch: 'grilled cheese'
+    },
+    {
+      restaurantBrand: 'in-n-out',
+      title: 'Grilled Cheese Animal Style',
+      description: 'Two cheese slices, lettuce, tomato, grilled onions, extra spread, pickles on bun (no meat)',
+      calories: 480,
+      protein: 17,
+      carbs: 43,
+      fat: 26,
+      tags: JSON.stringify(['vegetarian', 'california', 'animal-style']),
+      keywordsForDeliverySearch: 'grilled cheese animal style'
+    },
 
     // Shake Shack (National, popular in NYC) - VERIFIED from shakeshack.com
     {

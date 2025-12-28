@@ -143,10 +143,14 @@ export async function DELETE(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { mealLogId, userId, servings } = body
+    const { mealLogId, userId, servings, mealType } = body
 
-    if (!mealLogId || !userId || servings === undefined) {
-      return NextResponse.json({ error: 'Meal log ID, user ID, and servings required' }, { status: 400 })
+    if (!mealLogId || !userId) {
+      return NextResponse.json({ error: 'Meal log ID and user ID required' }, { status: 400 })
+    }
+
+    if (servings === undefined && mealType === undefined) {
+      return NextResponse.json({ error: 'At least servings or mealType required' }, { status: 400 })
     }
 
     // Verify the meal log belongs to the user before updating
@@ -161,14 +165,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Meal log not found' }, { status: 404 })
     }
 
-    // Update the meal log servings
+    // Build update data
+    const updateData: { servings?: number; mealType?: string } = {}
+    if (servings !== undefined) {
+      updateData.servings = parseFloat(servings)
+    }
+    if (mealType !== undefined) {
+      updateData.mealType = mealType
+    }
+
+    // Update the meal log
     const updatedMealLog = await prisma.mealLog.update({
       where: {
         id: mealLogId
       },
-      data: {
-        servings: parseFloat(servings)
-      },
+      data: updateData,
       include: {
         orderTemplate: true,
         foodCatalogItem: true

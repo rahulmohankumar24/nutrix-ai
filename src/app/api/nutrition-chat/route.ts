@@ -79,8 +79,13 @@ For ADVICE questions, consider:
 - Keep responses concise (2-3 sentences max)
 
 For MEAL logging:
-- Estimate realistic macro values
-- Account for servings mentioned
+- BE ACCURATE with calorie estimates - this is critical for the user's goals
+- Use real nutritional data you know about fast food and restaurant items
+- A typical fast food burger is 400-600 cal, a grilled cheese sandwich is 300-500 cal
+- In-N-Out grilled cheese (no meat, just bun/cheese/veggies) is ~380 cal, animal style adds ~100 cal
+- Don't inflate estimates - users rely on accuracy to hit their targets
+- Account for servings/quantity mentioned (e.g., "2 tacos" = multiply by 2)
+- When uncertain, estimate conservatively based on typical portion sizes
 
 Respond with valid JSON only.`
 
@@ -101,6 +106,56 @@ Respond with valid JSON only.`
 
     if (parsed.type === 'meal' && parsed.mealData) {
       const servings = parsed.mealData.servings || 1
+      const mealName = parsed.mealData.mealName?.toLowerCase() || ''
+
+      // Try to find a matching item in the database first (source of truth)
+      let dbMatch = null
+
+      // Check OrderTemplates (restaurant meals)
+      const orderTemplates = await prisma.orderTemplate.findMany({
+        where: {
+          OR: [
+            { title: { contains: mealName, mode: 'insensitive' } },
+            { keywordsForDeliverySearch: { contains: mealName, mode: 'insensitive' } }
+          ]
+        },
+        take: 5
+      })
+
+      // Find best match based on name similarity
+      if (orderTemplates.length > 0) {
+        // Score matches by how closely they match the meal name
+        const scored = orderTemplates.map(t => {
+          const titleLower = t.title.toLowerCase()
+          const score = mealName.includes(titleLower) || titleLower.includes(mealName) ? 2 :
+                       mealName.split(' ').filter((w: string) => titleLower.includes(w)).length
+          return { template: t, score }
+        }).sort((a, b) => b.score - a.score)
+
+        if (scored[0]?.score > 0) {
+          dbMatch = scored[0].template
+        }
+      }
+
+      // If we found a database match, use its accurate data
+      if (dbMatch) {
+        return NextResponse.json({
+          success: true,
+          mealParsed: true,
+          parsedMeal: {
+            name: dbMatch.title,
+            calories: Math.round(dbMatch.calories * servings),
+            protein: Math.round(dbMatch.protein * servings),
+            carbs: Math.round(dbMatch.carbs * servings),
+            fat: Math.round(dbMatch.fat * servings),
+            servings
+          },
+          message: parsed.message,
+          source: 'database'
+        })
+      }
+
+      // Fall back to AI estimate if no database match
       return NextResponse.json({
         success: true,
         mealParsed: true,
@@ -112,7 +167,8 @@ Respond with valid JSON only.`
           fat: Math.round(parsed.mealData.estimatedFat * servings),
           servings
         },
-        message: parsed.message
+        message: parsed.message,
+        source: 'ai_estimate'
       })
     }
 

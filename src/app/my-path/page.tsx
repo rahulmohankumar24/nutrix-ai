@@ -3,8 +3,12 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
-import { TrendingUp, Flame, Target, Calendar, Lightbulb, AlertCircle, CheckCircle, Sparkles, User, Edit3, Check, X } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import Link from "next/link"
+import {
+  TrendingUp, Flame, Target, Calendar, Sparkles,
+  ChevronRight, Zap, Brain, Trophy, Clock,
+  Utensils, ArrowUpRight, BarChart3
+} from "lucide-react"
 
 interface WeeklyData {
   label: string
@@ -32,10 +36,13 @@ interface WeeklyStats {
   targetProtein: number
 }
 
-interface AIInsight {
-  type: "warning" | "success" | "tip"
-  title: string
-  description: string
+interface PatternInsight {
+  id: string
+  headline: string
+  body: string
+  tone: 'positive' | 'neutral' | 'curious'
+  category: string
+  confidence: number
 }
 
 interface UserGoals {
@@ -47,41 +54,18 @@ interface UserGoals {
   strategy: string
 }
 
-interface UserProfile {
-  age: number
-  heightFt: number
-  heightIn: number
-  weightLb: number
-  activityLevel: string
-  goal: string
-}
-
-interface PatternInsight {
-  id: string
-  headline: string
-  body: string
-  tone: 'positive' | 'neutral' | 'curious'
-  category: string
-  confidence: number
-}
-
 export default function MyPathPage() {
   const router = useRouter()
   const { user, isLoaded, isSignedIn } = useUser()
   const [loading, setLoading] = useState(true)
-  const [insights, setInsights] = useState<AIInsight[]>([])
-  const [loadingInsights, setLoadingInsights] = useState(false)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [userTargets, setUserTargets] = useState<UserGoals | null>(null)
-  const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null)
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [stats, setStats] = useState<WeeklyStats | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [patternInsights, setPatternInsights] = useState<PatternInsight[]>([])
   const [loadingPatterns, setLoadingPatterns] = useState(true)
   const [daysAnalyzed, setDaysAnalyzed] = useState(0)
-  const [nutritionDNA, setNutritionDNA] = useState<{ trait: string; icon: string; color: string }[]>([])
+  const [weeklyInsight, setWeeklyInsight] = useState<string>("")
 
   useEffect(() => {
     if (!isLoaded) return
@@ -105,8 +89,7 @@ export default function MyPathPage() {
       if (response.ok) {
         const data = await response.json()
         setWeeklyData(data.days || [])
-        // Generate insights based on real data
-        generateInsights(data.days || [])
+        generateWeeklyInsight(data.days || [])
       }
     } catch (error) {
       console.error('Failed to fetch weekly data:', error)
@@ -133,7 +116,6 @@ export default function MyPathPage() {
     if (!user?.id) return
     setLoadingPatterns(true)
     try {
-      // First trigger pattern analysis
       const analyzeResponse = await fetch('/api/patterns/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,31 +127,10 @@ export default function MyPathPage() {
         setDaysAnalyzed(analyzeData.daysAnalyzed || 0)
       }
 
-      // Then fetch all insights
-      const response = await fetch(`/api/patterns/insights?userId=${user.id}&context=my-path&limit=10`)
+      const response = await fetch(`/api/patterns/insights?userId=${user.id}&context=my-path&limit=6`)
       if (response.ok) {
         const data = await response.json()
-        const insights = data.insights || []
-        setPatternInsights(insights)
-
-        // Derive nutrition DNA traits from insights
-        const dnaTraits: { trait: string; icon: string; color: string }[] = []
-
-        for (const insight of insights) {
-          if (insight.category === 'success' && insight.headline.includes('game is strong')) {
-            dnaTraits.push({ trait: insight.headline, icon: '💪', color: 'green' })
-          } else if (insight.category === 'restaurant' && insight.headline.includes('your spot')) {
-            dnaTraits.push({ trait: insight.headline, icon: '🏆', color: 'yellow' })
-          } else if (insight.category === 'timing' && insight.headline.includes('dialed in')) {
-            dnaTraits.push({ trait: insight.headline, icon: '⏰', color: 'blue' })
-          } else if (insight.category === 'recovery' && insight.headline.includes('balance')) {
-            dnaTraits.push({ trait: 'Natural balancer', icon: '⚖️', color: 'purple' })
-          } else if (insight.headline.includes('Breakfast')) {
-            dnaTraits.push({ trait: 'Morning momentum builder', icon: '🌅', color: 'orange' })
-          }
-        }
-
-        setNutritionDNA(dnaTraits.slice(0, 4)) // Max 4 traits
+        setPatternInsights(data.insights || [])
       }
     } catch (error) {
       console.error('Failed to fetch pattern insights:', error)
@@ -178,103 +139,120 @@ export default function MyPathPage() {
     }
   }
 
-  const generateInsights = (days: WeeklyData[]) => {
-    setLoadingInsights(true)
-    const newInsights: AIInsight[] = []
-
-    // Analyze the data
+  const generateWeeklyInsight = (days: WeeklyData[]) => {
     const daysWithData = days.filter(d => d.calories > 0)
     if (daysWithData.length === 0) {
-      setInsights([{
-        type: 'tip',
-        title: 'Start logging meals',
-        description: 'Log your meals to get personalized insights about your eating patterns.'
-      }])
-      setLoadingInsights(false)
+      setWeeklyInsight("Start logging meals to see your weekly insights!")
       return
     }
 
-    // Calculate averages
     const avgCalories = Math.round(daysWithData.reduce((sum, d) => sum + d.calories, 0) / daysWithData.length)
     const avgProtein = Math.round(daysWithData.reduce((sum, d) => sum + d.protein, 0) / daysWithData.length)
     const targetCalories = daysWithData[0]?.caloriesTarget || 2000
     const targetProtein = daysWithData[0]?.proteinTarget || 150
 
-    // Check calorie consistency
-    const calPercent = (avgCalories / targetCalories) * 100
-    if (calPercent < 80) {
-      newInsights.push({
-        type: 'warning',
-        title: 'Under eating',
-        description: `You're averaging ${avgCalories} calories, which is ${Math.round(100 - calPercent)}% below your target. Consider adding more nutrient-dense foods.`
-      })
-    } else if (calPercent > 110) {
-      newInsights.push({
-        type: 'warning',
-        title: 'Over target',
-        description: `You're averaging ${avgCalories} calories, which is ${Math.round(calPercent - 100)}% above your target.`
-      })
+    // Helper to describe a day's eating
+    const describeDay = (d: WeeklyData): string => {
+      const calPercent = Math.round((d.calories / d.caloriesTarget) * 100)
+      const proteinPercent = Math.round((d.protein / d.proteinTarget) * 100)
+
+      let calDesc = ''
+      if (calPercent >= 90 && calPercent <= 110) calDesc = 'right on target'
+      else if (calPercent < 50) calDesc = 'a very light day'
+      else if (calPercent < 75) calDesc = 'on the lighter side'
+      else if (calPercent < 90) calDesc = 'slightly under'
+      else if (calPercent <= 120) calDesc = 'a bit over'
+      else calDesc = 'a bigger eating day'
+
+      let proteinDesc = ''
+      if (proteinPercent >= 90) proteinDesc = 'protein was solid'
+      else if (proteinPercent >= 70) proteinDesc = 'protein could use a boost'
+      else proteinDesc = 'protein fell short'
+
+      return `${d.dayName} was ${calDesc} — ${proteinDesc}`
+    }
+
+    // Find notable days
+    const bestCalorieDay = daysWithData.reduce((best, d) => {
+      const diff = Math.abs(d.calories - d.caloriesTarget)
+      const bestDiff = Math.abs(best.calories - best.caloriesTarget)
+      return diff < bestDiff ? d : best
+    }, daysWithData[0])
+
+    const highestCalorieDay = daysWithData.reduce((h, d) => d.calories > h.calories ? d : h, daysWithData[0])
+    const lowestCalorieDay = daysWithData.reduce((l, d) => d.calories < l.calories ? d : l, daysWithData[0])
+    const bestProteinDay = daysWithData.reduce((b, d) => d.protein > b.protein ? d : b, daysWithData[0])
+
+    // Check patterns
+    const proteinHits = daysWithData.filter(d => d.protein >= d.proteinTarget * 0.9).length
+    const calPercent = Math.round((avgCalories / targetCalories) * 100)
+
+    const weekendDays = daysWithData.filter(d => d.dayName === 'Sat' || d.dayName === 'Sun')
+    const weekdayDays = daysWithData.filter(d => d.dayName !== 'Sat' && d.dayName !== 'Sun')
+    const weekendAvg = weekendDays.length > 0 ? weekendDays.reduce((s, d) => s + d.calories, 0) / weekendDays.length : 0
+    const weekdayAvg = weekdayDays.length > 0 ? weekdayDays.reduce((s, d) => s + d.calories, 0) / weekdayDays.length : 0
+
+    // Build the story
+    const parts: string[] = []
+
+    // For 1-2 days, tell the story of each day
+    if (daysWithData.length <= 2) {
+      daysWithData.forEach(d => parts.push(describeDay(d) + '.'))
+
+      // Add overall context
+      if (calPercent < 70) {
+        parts.push("Overall, you're eating quite a bit under your needs.")
+      } else if (calPercent < 90) {
+        parts.push("You're running a little under — a snack or two could help.")
+      }
     } else {
-      newInsights.push({
-        type: 'success',
-        title: 'Great calorie balance',
-        description: `You're averaging ${avgCalories} calories, right on target. Keep it up!`
-      })
-    }
+      // Multiple days - tell a week story
 
-    // Check protein
-    const protPercent = (avgProtein / targetProtein) * 100
-    if (protPercent < 80) {
-      newInsights.push({
-        type: 'warning',
-        title: 'Protein opportunity',
-        description: `You're averaging ${avgProtein}g protein (${Math.round(protPercent)}% of target). Add protein sources like chicken, fish, eggs, or legumes.`
-      })
-    } else if (protPercent >= 90) {
-      newInsights.push({
-        type: 'success',
-        title: 'Protein on point',
-        description: `Great job hitting ${avgProtein}g protein on average! This supports your muscle and recovery goals.`
-      })
-    }
+      // Opening: overall vibe
+      if (calPercent >= 90 && calPercent <= 110) {
+        parts.push("Solid week overall — you stayed close to your targets.")
+      } else if (calPercent < 70) {
+        parts.push("This week ran pretty light on calories.")
+      } else if (calPercent < 90) {
+        parts.push("You came in a bit under this week.")
+      } else if (calPercent <= 120) {
+        parts.push("Slightly over target this week, but nothing major.")
+      } else {
+        parts.push("This was a bigger eating week.")
+      }
 
-    // Check logging consistency
-    if (daysWithData.length >= 6) {
-      newInsights.push({
-        type: 'success',
-        title: 'Consistent logging',
-        description: `You've logged ${daysWithData.length} out of 7 days this week. Consistency is key to progress!`
-      })
-    } else if (daysWithData.length <= 3) {
-      newInsights.push({
-        type: 'tip',
-        title: 'Log more consistently',
-        description: `You've only logged ${daysWithData.length} days this week. Try to log every meal for better insights.`
-      })
-    }
+      // Highlight the standout day
+      if (highestCalorieDay.calories > lowestCalorieDay.calories * 1.5) {
+        parts.push(`${highestCalorieDay.dayName} stood out as the biggest day, while ${lowestCalorieDay.dayName} was the lightest.`)
+      } else if (bestCalorieDay) {
+        const bestDiff = Math.abs(bestCalorieDay.calories - bestCalorieDay.caloriesTarget)
+        if (bestDiff < 100) {
+          parts.push(`${bestCalorieDay.dayName} was your most balanced day.`)
+        }
+      }
 
-    // Check weekend vs weekday patterns
-    const weekendDays = days.filter(d => d.dayName === 'Saturday' || d.dayName === 'Sunday')
-    const weekdayDays = days.filter(d => d.dayName !== 'Saturday' && d.dayName !== 'Sunday')
+      // Protein story
+      if (proteinHits === daysWithData.length) {
+        parts.push("Protein was consistent all week — nice work.")
+      } else if (proteinHits === 0) {
+        parts.push("Protein fell short each day — try adding a protein-rich snack or bigger portions at meals.")
+      } else if (proteinHits >= daysWithData.length / 2) {
+        parts.push(`${bestProteinDay.dayName} led on protein. Keep that momentum going.`)
+      } else {
+        parts.push("Protein was hit or miss — focus on getting more at each meal.")
+      }
 
-    const weekendCals = weekendDays.filter(d => d.calories > 0)
-    const weekdayCals = weekdayDays.filter(d => d.calories > 0)
-
-    if (weekendCals.length > 0 && weekdayCals.length > 0) {
-      const avgWeekend = weekendCals.reduce((sum, d) => sum + d.calories, 0) / weekendCals.length
-      const avgWeekday = weekdayCals.reduce((sum, d) => sum + d.calories, 0) / weekdayCals.length
-
-      if (avgWeekend < avgWeekday * 0.7) {
-        newInsights.push({
-          type: 'warning',
-          title: 'Weekend patterns',
-          description: `Your weekend calorie intake is ${Math.round((1 - avgWeekend/avgWeekday) * 100)}% lower than weekdays. Maintain consistency for best results.`
-        })
+      // Weekend pattern
+      if (weekendDays.length > 0 && weekdayDays.length > 0 && Math.abs(weekendAvg - weekdayAvg) > 300) {
+        if (weekendAvg > weekdayAvg) {
+          parts.push("Weekends tended to be bigger eating days.")
+        } else {
+          parts.push("You ate lighter on the weekend.")
+        }
       }
     }
 
-    setInsights(newInsights.slice(0, 4)) // Max 4 insights
-    setLoadingInsights(false)
+    setWeeklyInsight(parts.join(' '))
   }
 
   const fetchUserProfile = async () => {
@@ -284,14 +262,6 @@ export default function MyPathPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.profile) {
-          setUserProfile({
-            age: data.profile.age || 0,
-            heightFt: data.profile.heightFt || 5,
-            heightIn: data.profile.heightIn || 10,
-            weightLb: data.profile.weightLb || 150,
-            activityLevel: data.profile.stepsLevel || 'med',
-            goal: data.profile.goal || 'maintain'
-          })
           setUserTargets({
             goal: formatGoal(data.profile.goal),
             targetCalories: data.targets?.calories || 2000,
@@ -320,71 +290,15 @@ export default function MyPathPage() {
 
   const getGoalStrategy = (goal: string) => {
     const strategies: Record<string, string> = {
-      'cut': "We're keeping you in a caloric deficit with high protein to preserve muscle while losing fat. Focus on nutrient-dense foods.",
-      'maintain': "We're balancing your calories to maintain your current weight while optimizing protein for body composition.",
-      'lean_bulk': "We're keeping you in a slight surplus with high protein to build muscle while minimizing fat gain.",
-      'recomp': "We're optimizing your nutrition to build muscle while staying lean. High protein with strategic calorie timing.",
-      'bulk': "We're fueling your muscle growth with a caloric surplus and high protein to maximize gains."
+      'cut': "Caloric deficit with high protein to preserve muscle.",
+      'maintain': "Balanced calories to maintain your current weight.",
+      'lean_bulk': "Slight surplus with high protein to build muscle.",
+      'recomp': "Optimized nutrition to build muscle while staying lean.",
+      'bulk': "Caloric surplus with high protein to maximize gains."
     }
     return strategies[goal] || strategies['recomp']
   }
 
-  const formatActivityLevel = (level: string) => {
-    const levelMap: Record<string, string> = {
-      'low': 'Low Activity',
-      'med': 'Moderate Activity',
-      'high': 'High Activity'
-    }
-    return levelMap[level] || 'Moderate Activity'
-  }
-
-  const handleSaveProfile = async () => {
-    if (!user?.id || !editedProfile) return
-    try {
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          age: editedProfile.age,
-          heightFt: editedProfile.heightFt,
-          heightIn: editedProfile.heightIn,
-          weightLb: editedProfile.weightLb,
-          stepsLevel: editedProfile.activityLevel,
-          goal: editedProfile.goal
-        })
-      })
-      if (response.ok) {
-        setUserProfile(editedProfile)
-        setIsEditingProfile(false)
-        fetchUserProfile() // Refresh to get updated targets
-      }
-    } catch (error) {
-      console.error('Failed to save profile:', error)
-    }
-  }
-
-  const startEditing = () => {
-    setEditedProfile(userProfile)
-    setIsEditingProfile(true)
-  }
-
-  const cancelEditing = () => {
-    setEditedProfile(null)
-    setIsEditingProfile(false)
-  }
-
-  // Use fetched userTargets or fallback
-  const displayGoals = userTargets || {
-    goal: "Build lean muscle",
-    targetCalories: 2400,
-    targetProtein: 150,
-    targetCarbs: 250,
-    targetFat: 65,
-    strategy: "We're keeping you in a slight caloric surplus with high protein to support muscle growth while minimizing fat gain."
-  }
-
-  // Default stats if not loaded
   const displayStats = stats || {
     currentStreak: 0,
     longestStreak: 0,
@@ -397,6 +311,15 @@ export default function MyPathPage() {
     targetProtein: 150
   }
 
+  const displayGoals = userTargets || {
+    goal: "Build lean muscle",
+    targetCalories: 2400,
+    targetProtein: 150,
+    targetCarbs: 250,
+    targetFat: 65,
+    strategy: "Optimized nutrition to build muscle while staying lean."
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -405,575 +328,256 @@ export default function MyPathPage() {
     )
   }
 
-  const getInsightIcon = (type: AIInsight["type"]) => {
-    switch (type) {
-      case "warning":
-        return <AlertCircle className="h-5 w-5 text-amber-500" />
-      case "success":
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case "tip":
-        return <Lightbulb className="h-5 w-5 text-blue-500" />
-    }
-  }
-
-  const getInsightBg = (type: AIInsight["type"]) => {
-    switch (type) {
-      case "warning":
-        return "bg-amber-500/10 border-amber-500/20"
-      case "success":
-        return "bg-green-500/10 border-green-500/20"
-      case "tip":
-        return "bg-blue-500/10 border-blue-500/20"
-    }
-  }
-
-  const getPatternToneStyles = (tone: 'positive' | 'neutral' | 'curious') => {
-    switch (tone) {
-      case 'positive':
-        return { bg: 'bg-green-500/10', border: 'border-green-500/20', icon: 'text-green-500' }
-      case 'curious':
-        return { bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: 'text-amber-500' }
-      case 'neutral':
-      default:
-        return { bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'text-purple-500' }
-    }
-  }
+  // Categorize insights
+  const strengthInsights = patternInsights.filter(i => i.tone === 'positive').slice(0, 2)
+  const opportunityInsights = patternInsights.filter(i => i.tone === 'curious').slice(0, 2)
+  const patternCards = patternInsights.filter(i => i.tone === 'neutral').slice(0, 2)
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-6xl px-8 py-12 space-y-10">
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+
         {/* Header */}
-        <div>
-          <h1 className="text-4xl font-semibold text-foreground">My Path</h1>
-          <p className="text-lg text-muted-foreground mt-2">Your personalized nutrition journey</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+            <p className="text-muted-foreground mt-1">Your personalized nutrition insights</p>
+          </div>
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+          >
+            Edit Profile
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </div>
 
-        {/* Your Nutrition DNA - shown when patterns exist */}
-        {nutritionDNA.length > 0 && (
-          <div className="bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-emerald-500/10 rounded-3xl p-8 border border-purple-500/20">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                <span className="text-xl">🧬</span>
+        {/* Weekly Summary Hero */}
+        <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-2xl p-6 border border-primary/20">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-foreground">Your Nutrition DNA</h2>
-                <p className="text-sm text-muted-foreground">What makes you, you</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {nutritionDNA.map((trait, index) => {
-                const colorClasses: Record<string, string> = {
-                  green: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700',
-                  yellow: 'bg-amber-500/10 border-amber-500/20 text-amber-700',
-                  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-700',
-                  purple: 'bg-purple-500/10 border-purple-500/20 text-purple-700',
-                  orange: 'bg-orange-500/10 border-orange-500/20 text-orange-700'
-                }
-                return (
-                  <div
-                    key={index}
-                    className={`rounded-2xl p-4 border ${colorClasses[trait.color] || colorClasses.purple} text-center`}
-                  >
-                    <span className="text-2xl block mb-2">{trait.icon}</span>
-                    <p className="text-sm font-medium">{trait.trait}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Goal + AI Insights Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Your Goal Narrative */}
-          <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-3xl p-8 border border-primary/20 flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                <Target className="h-5 w-5 text-primary" />
-              </div>
-              <p className="text-sm font-medium text-primary uppercase tracking-wider">Your Goal</p>
-            </div>
-            <h2 className="text-2xl font-semibold text-foreground mb-3">{displayGoals.goal}</h2>
-            <p className="text-base text-muted-foreground leading-relaxed mb-6 flex-1">
-              {displayGoals.strategy}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-foreground">{displayGoals.targetCalories}</span>
-                <span className="text-sm text-muted-foreground ml-1">cal/day</span>
-              </div>
-              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-primary">{displayGoals.targetProtein}g</span>
-                <span className="text-sm text-muted-foreground ml-1">protein/day</span>
-              </div>
-              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-foreground">{displayGoals.targetCarbs}g</span>
-                <span className="text-sm text-muted-foreground ml-1">carbs/day</span>
-              </div>
-              <div className="bg-card/80 rounded-xl px-4 py-2 border border-border/50">
-                <span className="text-lg font-semibold text-foreground">{displayGoals.targetFat}g</span>
-                <span className="text-sm text-muted-foreground ml-1">fat/day</span>
+                <h2 className="text-lg font-semibold text-foreground">This Week</h2>
+                <p className="text-sm text-muted-foreground">{daysAnalyzed} days analyzed</p>
               </div>
             </div>
           </div>
 
-          {/* AI Insights */}
-          <div className="bg-card rounded-3xl p-8 border border-border/50 flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-purple-500" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">AI Insights</h2>
-                <p className="text-sm text-muted-foreground">From your eating patterns</p>
-              </div>
-            </div>
+          <p className="text-lg text-foreground mb-6">{weeklyInsight}</p>
 
-            {loadingInsights ? (
-              <div className="flex items-center justify-center py-12 flex-1">
+          {/* Quick Stats Row */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="bg-card/60 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-foreground">{displayStats.currentStreak}</p>
+              <p className="text-xs text-muted-foreground">Day Streak</p>
+            </div>
+            <div className="bg-card/60 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-foreground">{displayStats.daysOnTrack}/7</p>
+              <p className="text-xs text-muted-foreground">On Track</p>
+            </div>
+            <div className="bg-card/60 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-foreground">{displayStats.avgCalories}</p>
+              <p className="text-xs text-muted-foreground">Avg Cal</p>
+            </div>
+            <div className="bg-card/60 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-primary">{displayStats.avgProtein}g</p>
+              <p className="text-xs text-muted-foreground">Avg Protein</p>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Insight Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          {/* Your Strengths */}
+          <Link href="/insights/strengths" className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-green-500/30 hover:shadow-lg transition-all h-full">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <span className="text-muted-foreground">Analyzing...</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 flex-1">
-                {insights.map((insight, index) => (
-                  <div
-                    key={index}
-                    className={`rounded-xl p-4 border ${getInsightBg(insight.type)}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5">{getInsightIcon(insight.type)}</div>
-                      <div>
-                        <p className="font-medium text-foreground text-sm">{insight.title}</p>
-                        <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{insight.description}</p>
-                      </div>
-                    </div>
+                  <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <Trophy className="h-5 w-5 text-green-500" />
                   </div>
-                ))}
+                  <h3 className="font-semibold text-foreground">Your Strengths</h3>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-green-500 transition-colors" />
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* What I've Learned About You - Pattern Insights */}
-        <div className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent rounded-3xl p-8 border border-purple-500/20">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-purple-500" />
+              {loadingPatterns ? (
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">What I've Learned About You</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {daysAnalyzed >= 7
-                      ? `Based on ${daysAnalyzed} days of data`
-                      : daysAnalyzed > 0
-                        ? `${daysAnalyzed} days logged (need 7+ for patterns)`
-                        : 'Patterns from your eating history'}
-                  </p>
+              ) : strengthInsights.length > 0 ? (
+                <div className="space-y-2">
+                  {strengthInsights.map((insight, i) => (
+                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Keep logging to discover your strengths!</p>
+              )}
             </div>
+          </Link>
 
-            {loadingPatterns ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="rounded-xl p-4 bg-muted/20 animate-pulse">
-                    <div className="h-4 w-2/3 bg-muted rounded mb-2" />
-                    <div className="h-3 w-full bg-muted rounded" />
+          {/* Areas to Explore */}
+          <Link href="/insights/opportunities" className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-amber-500/30 hover:shadow-lg transition-all h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Zap className="h-5 w-5 text-amber-500" />
                   </div>
-                ))}
+                  <h3 className="font-semibold text-foreground">Areas to Explore</h3>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-amber-500 transition-colors" />
               </div>
-            ) : patternInsights.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {patternInsights.map((insight) => {
-                  const styles = getPatternToneStyles(insight.tone)
+
+              {loadingPatterns ? (
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                </div>
+              ) : opportunityInsights.length > 0 ? (
+                <div className="space-y-2">
+                  {opportunityInsights.map((insight, i) => (
+                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Log more meals to find opportunities!</p>
+              )}
+            </div>
+          </Link>
+
+          {/* Your Patterns */}
+          <Link href="/insights/patterns" className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-purple-500/30 hover:shadow-lg transition-all h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <Brain className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Your Patterns</h3>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-purple-500 transition-colors" />
+              </div>
+
+              {loadingPatterns ? (
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                </div>
+              ) : patternCards.length > 0 ? (
+                <div className="space-y-2">
+                  {patternCards.map((insight, i) => (
+                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Patterns emerge after 7+ days of logging.</p>
+              )}
+            </div>
+          </Link>
+
+          {/* Weekly Breakdown */}
+          <Link href="/insights/weekly" className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-blue-500/30 hover:shadow-lg transition-all h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <BarChart3 className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Weekly Breakdown</h3>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
+              </div>
+
+              {/* Mini bar chart preview */}
+              <div className="flex items-end gap-1 h-12">
+                {weeklyData.slice(0, 7).map((day, i) => {
+                  const height = day.caloriesTarget > 0
+                    ? Math.min(100, (day.calories / day.caloriesTarget) * 100)
+                    : 0
                   return (
                     <div
-                      key={insight.id}
-                      className={`rounded-xl p-4 border ${styles.bg} ${styles.border} transition-all hover:scale-[1.02]`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 ${styles.icon}`}>
-                          {insight.tone === 'positive' ? (
-                            <CheckCircle className="h-5 w-5" />
-                          ) : insight.tone === 'curious' ? (
-                            <Lightbulb className="h-5 w-5" />
-                          ) : (
-                            <Sparkles className="h-5 w-5" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{insight.headline}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{insight.body}</p>
-                        </div>
-                      </div>
-                    </div>
+                      key={i}
+                      className={`flex-1 rounded-t transition-all ${
+                        day.calories === 0 ? 'bg-muted/30' : 'bg-blue-500/60'
+                      }`}
+                      style={{ height: day.calories === 0 ? '4px' : `${height}%` }}
+                    />
                   )
                 })}
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Keep logging meals to discover your eating patterns!</p>
-                <p className="text-xs text-muted-foreground/60 mt-2">We need at least 7 days of data to find patterns</p>
-              </div>
-            )}
+              <p className="text-xs text-muted-foreground mt-2">Tap to see detailed breakdown</p>
+            </div>
+          </Link>
         </div>
 
-        {/* Personal Info Card */}
-        {userProfile && (
-          <div className="bg-card rounded-3xl p-8 border border-border/50">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
-                  <User className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Personal Info</h2>
-                  <p className="text-sm text-muted-foreground">Your profile details</p>
-                </div>
-              </div>
-              {isEditingProfile ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={cancelEditing}
-                    className="p-2 rounded-full hover:bg-muted transition-colors"
-                  >
-                    <X className="h-5 w-5 text-muted-foreground" />
-                  </button>
-                  <button
-                    onClick={handleSaveProfile}
-                    className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
-                  >
-                    <Check className="h-5 w-5 text-primary" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={startEditing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  Edit
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {/* Age */}
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Age</p>
-                {isEditingProfile && editedProfile ? (
-                  <Input
-                    type="number"
-                    value={editedProfile.age}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, age: parseInt(e.target.value) || 0 })}
-                    className="h-8 text-lg font-semibold bg-background"
-                  />
-                ) : (
-                  <p className="text-lg font-semibold text-foreground">{userProfile.age} yrs</p>
-                )}
-              </div>
-
-              {/* Height */}
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Height</p>
-                {isEditingProfile && editedProfile ? (
-                  <div className="flex gap-1">
-                    <Input
-                      type="number"
-                      value={editedProfile.heightFt}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, heightFt: parseInt(e.target.value) || 0 })}
-                      className="h-8 w-12 text-sm font-semibold bg-background"
-                    />
-                    <span className="text-sm self-center">'</span>
-                    <Input
-                      type="number"
-                      value={editedProfile.heightIn}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, heightIn: parseInt(e.target.value) || 0 })}
-                      className="h-8 w-12 text-sm font-semibold bg-background"
-                    />
-                    <span className="text-sm self-center">"</span>
-                  </div>
-                ) : (
-                  <p className="text-lg font-semibold text-foreground">{userProfile.heightFt}'{userProfile.heightIn}"</p>
-                )}
-              </div>
-
-              {/* Weight */}
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Weight</p>
-                {isEditingProfile && editedProfile ? (
-                  <Input
-                    type="number"
-                    value={editedProfile.weightLb}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, weightLb: parseInt(e.target.value) || 0 })}
-                    className="h-8 text-lg font-semibold bg-background"
-                  />
-                ) : (
-                  <p className="text-lg font-semibold text-foreground">{userProfile.weightLb} lbs</p>
-                )}
-              </div>
-
-              {/* Activity Level */}
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Activity</p>
-                {isEditingProfile && editedProfile ? (
-                  <select
-                    value={editedProfile.activityLevel}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, activityLevel: e.target.value })}
-                    className="h-8 w-full text-sm font-semibold bg-background border rounded-md px-2"
-                  >
-                    <option value="low">Low</option>
-                    <option value="med">Moderate</option>
-                    <option value="high">High</option>
-                  </select>
-                ) : (
-                  <p className="text-lg font-semibold text-foreground">{formatActivityLevel(userProfile.activityLevel)}</p>
-                )}
-              </div>
-
-              {/* Goal */}
-              <div className="bg-muted/30 rounded-xl p-4 col-span-2">
-                <p className="text-xs text-muted-foreground mb-1">Goal</p>
-                {isEditingProfile && editedProfile ? (
-                  <select
-                    value={editedProfile.goal}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, goal: e.target.value })}
-                    className="h-8 w-full text-sm font-semibold bg-background border rounded-md px-2"
-                  >
-                    <option value="cut">Lose Fat</option>
-                    <option value="maintain">Maintain Weight</option>
-                    <option value="lean_bulk">Lean Bulk</option>
-                    <option value="recomp">Build Lean Muscle</option>
-                    <option value="bulk">Build Muscle</option>
-                  </select>
-                ) : (
-                  <p className="text-lg font-semibold text-foreground">{formatGoal(userProfile.goal)}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="bg-card rounded-3xl p-6 border border-border/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-                <Flame className="h-5 w-5 text-orange-500" />
-              </div>
-            </div>
-            {loadingData ? (
-              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
-            ) : (
-              <p className="text-3xl font-bold text-foreground">{displayStats.currentStreak}</p>
-            )}
-            <p className="text-base text-muted-foreground mt-1">Day Streak</p>
-          </div>
-
-          <div className="bg-card rounded-3xl p-6 border border-border/50">
-            <div className="flex items-center gap-3 mb-4">
+        {/* Goal Card */}
+        <div className="bg-card rounded-2xl p-6 border border-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Target className="h-5 w-5 text-primary" />
               </div>
-            </div>
-            {loadingData ? (
-              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
-            ) : (
-              <p className="text-3xl font-bold text-foreground">{displayStats.daysOnTrack}/7</p>
-            )}
-            <p className="text-base text-muted-foreground mt-1">Days On Track</p>
-          </div>
-
-          <div className="bg-card rounded-3xl p-6 border border-border/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-blue-500" />
-              </div>
-            </div>
-            {loadingData ? (
-              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
-            ) : (
-              <p className="text-3xl font-bold text-foreground">{displayStats.avgCalories}</p>
-            )}
-            <p className="text-base text-muted-foreground mt-1">Avg. Calories</p>
-          </div>
-
-          <div className="bg-card rounded-3xl p-6 border border-border/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-green-500" />
-              </div>
-            </div>
-            {loadingData ? (
-              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
-            ) : (
-              <p className="text-3xl font-bold text-foreground">{displayStats.totalDaysLogged}</p>
-            )}
-            <p className="text-base text-muted-foreground mt-1">Days Logged</p>
-          </div>
-        </div>
-
-        {/* Weekly Chart */}
-        <div className="bg-card rounded-3xl p-8 border border-border/50">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">This Week</h2>
-              <p className="text-base text-muted-foreground mt-1">Your daily calorie intake</p>
-            </div>
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-primary" />
-                <span className="text-muted-foreground">Calories</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-muted" />
-                <span className="text-muted-foreground">Target</span>
+              <div>
+                <h3 className="font-semibold text-foreground">{displayGoals.goal}</h3>
+                <p className="text-sm text-muted-foreground">{displayGoals.strategy}</p>
               </div>
             </div>
           </div>
 
-          {/* Bar Chart */}
-          {weeklyData.length > 0 ? (
-            <div className="flex items-end justify-between gap-4 h-64">
-              {weeklyData.map((day) => {
-                const maxCalories = Math.max(...weeklyData.map(d => Math.max(d.calories, d.caloriesTarget)))
-                const height = maxCalories > 0 ? (day.calories / maxCalories) * 100 : 0
-                const targetHeight = maxCalories > 0 ? (day.caloriesTarget / maxCalories) * 100 : 0
-                const isOnTrack = day.calories >= day.caloriesTarget * 0.9 && day.calories <= day.caloriesTarget * 1.1
-
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-3">
-                    <div className="relative w-full flex justify-center" style={{ height: '200px' }}>
-                      {/* Target line */}
-                      <div
-                        className="absolute w-full border-t-2 border-dashed border-muted"
-                        style={{ bottom: `${targetHeight}%` }}
-                      />
-                      {/* Bar */}
-                      <div
-                        className={`w-full max-w-12 rounded-xl transition-all ${
-                          day.calories === 0 ? 'bg-muted/30' : isOnTrack ? 'bg-primary' : 'bg-primary/60'
-                        }`}
-                        style={{ height: day.calories === 0 ? '4px' : `${height}%` }}
-                      />
-                    </div>
-                    <div className="text-center">
-                      <p className={`text-base font-medium ${day.isCurrent ? 'text-primary' : 'text-foreground'}`}>{day.label}</p>
-                      <p className="text-sm text-muted-foreground">{day.calories > 0 ? day.calories : '-'}</p>
-                    </div>
-                  </div>
-                )
-              })}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-lg font-bold text-foreground">{displayGoals.targetCalories}</p>
+              <p className="text-xs text-muted-foreground">Cal/day</p>
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-muted-foreground">No data yet. Start logging meals to see your progress.</p>
+            <div className="text-center p-3 rounded-xl bg-primary/10">
+              <p className="text-lg font-bold text-primary">{displayGoals.targetProtein}g</p>
+              <p className="text-xs text-muted-foreground">Protein</p>
             </div>
-          )}
-        </div>
-
-        {/* Progress Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Weekly Goal Progress */}
-          <div className="bg-card rounded-3xl p-8 border border-border/50">
-            <h2 className="text-xl font-semibold text-foreground mb-6">Weekly Goal</h2>
-            <div className="flex items-center justify-center mb-6">
-              <div className="relative w-40 h-40">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10" className="text-muted" />
-                  <circle
-                    cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10"
-                    className="text-primary transition-all duration-500"
-                    strokeLinecap="round"
-                    strokeDasharray={`${displayStats.weeklyGoalHit * 2.64} 264`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-foreground">{displayStats.weeklyGoalHit}%</span>
-                </div>
-              </div>
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-lg font-bold text-foreground">{displayGoals.targetCarbs}g</p>
+              <p className="text-xs text-muted-foreground">Carbs</p>
             </div>
-            <p className="text-center text-base text-muted-foreground">
-              You hit your targets {displayStats.daysOnTrack} out of 7 days this week
-            </p>
-          </div>
-
-          {/* Protein Tracking */}
-          <div className="bg-card rounded-3xl p-8 border border-border/50">
-            <h2 className="text-xl font-semibold text-foreground mb-6">Protein This Week</h2>
-            {weeklyData.length > 0 ? (
-              <div className="space-y-4">
-                {weeklyData.map((day) => {
-                  const proteinGoal = day.proteinTarget || displayStats.targetProtein
-                  const percentage = proteinGoal > 0 ? Math.min(100, (day.protein / proteinGoal) * 100) : 0
-
-                  return (
-                    <div key={day.date} className="flex items-center gap-4">
-                      <span className={`text-base font-medium w-10 ${day.isCurrent ? 'text-primary' : 'text-foreground'}`}>{day.label}</span>
-                      <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-muted-foreground w-12 text-right">{day.protein > 0 ? `${day.protein}g` : '-'}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <p className="text-muted-foreground">No protein data yet</p>
-              </div>
-            )}
-            <p className="text-center text-base text-muted-foreground mt-6">
-              Avg: {displayStats.avgProtein}g / day
-            </p>
+            <div className="text-center p-3 rounded-xl bg-muted/30">
+              <p className="text-lg font-bold text-foreground">{displayGoals.targetFat}g</p>
+              <p className="text-xs text-muted-foreground">Fat</p>
+            </div>
           </div>
         </div>
 
         {/* Milestones */}
-        <div className="bg-card rounded-3xl p-8 border border-border/50">
-          <h2 className="text-xl font-semibold text-foreground mb-6">Milestones</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="text-center p-4 rounded-2xl bg-muted/30">
-              {loadingData ? (
-                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{displayStats.longestStreak}</p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">Longest Streak</p>
+        <div className="bg-card rounded-2xl p-6 border border-border/50">
+          <h3 className="font-semibold text-foreground mb-4">Milestones</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20">
+              <Flame className="h-6 w-6 text-orange-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-foreground">{displayStats.longestStreak}</p>
+              <p className="text-xs text-muted-foreground">Best Streak</p>
             </div>
-            <div className="text-center p-4 rounded-2xl bg-muted/30">
-              {loadingData ? (
-                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{displayStats.totalDaysLogged}</p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">Total Days</p>
+            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
+              <Calendar className="h-6 w-6 text-primary mx-auto mb-2" />
+              <p className="text-2xl font-bold text-foreground">{displayStats.totalDaysLogged}</p>
+              <p className="text-xs text-muted-foreground">Days Logged</p>
             </div>
-            <div className="text-center p-4 rounded-2xl bg-muted/30">
-              {loadingData ? (
-                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">Protein Eaten</p>
+            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20">
+              <TrendingUp className="h-6 w-6 text-green-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</p>
+              <p className="text-xs text-muted-foreground">Protein Eaten</p>
             </div>
-            <div className="text-center p-4 rounded-2xl bg-muted/30">
-              {loadingData ? (
-                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{Math.round(displayStats.avgCalories * displayStats.totalDaysLogged / 1000)}k</p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">Calories Logged</p>
+            <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20">
+              <Utensils className="h-6 w-6 text-blue-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-foreground">{Math.round(displayStats.avgCalories * displayStats.totalDaysLogged / 1000)}k</p>
+              <p className="text-xs text-muted-foreground">Calories Logged</p>
             </div>
           </div>
         </div>
+
       </main>
     </div>
   )

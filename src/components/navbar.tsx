@@ -13,7 +13,7 @@ export function Navbar() {
     { name: "Home", href: "/dashboard", icon: Home },
     { name: "Restaurants", href: "/restaurants", icon: Utensils },
     { name: "Pantry", href: "/pantry", icon: Package },
-    { name: "My Path", href: "/my-path", icon: TrendingUp },
+    { name: "Analytics", href: "/my-path", icon: TrendingUp },
   ]
 
   return (
