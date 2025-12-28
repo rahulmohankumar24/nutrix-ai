@@ -82,8 +82,8 @@ export default function PatternsPage() {
 
         {/* Icon */}
         <div className="flex justify-center mb-8">
-          <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center">
-            <Brain className="h-10 w-10 text-purple-500" />
+          <div className="h-20 w-20 rounded-2xl bg-sky-500/10 flex items-center justify-center">
+            <Brain className="h-10 w-10 text-sky-500" />
           </div>
         </div>
 
@@ -101,7 +101,7 @@ export default function PatternsPage() {
             </p>
             <div className="w-full bg-muted rounded-full h-2 mb-2">
               <div
-                className="bg-purple-500 h-2 rounded-full transition-all"
+                className="bg-sky-500 h-2 rounded-full transition-all"
                 style={{ width: `${Math.min(100, (daysLogged / 3) * 100)}%` }}
               />
             </div>
@@ -113,12 +113,12 @@ export default function PatternsPage() {
               insights.map((insight, index) => (
                 <div
                   key={index}
-                  className="bg-card rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-colors"
+                  className="bg-card rounded-2xl p-6 border border-sky-500/20 hover:border-sky-500/40 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4 mb-2">
                     <h3 className="font-semibold text-foreground">{insight.title}</h3>
                     {insight.frequency && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-purple-500/10 text-purple-600 whitespace-nowrap">
+                      <span className="text-xs px-2 py-1 rounded-full bg-sky-500/10 text-sky-600 whitespace-nowrap">
                         {insight.frequency}
                       </span>
                     )}

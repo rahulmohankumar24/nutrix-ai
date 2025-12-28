@@ -19,8 +19,8 @@
   --popover: oklch(0.995 0.003 85);
   --popover-foreground: oklch(0.25 0.01 60);
 
-  /* Soft sage green primary */
-  --primary: oklch(0.65 0.1 145);
+  /* Deeper sage green primary */
+  --primary: oklch(0.52 0.12 145);
   --primary-foreground: oklch(0.99 0.005 85);
 
   /* Warm neutral secondary */
@@ -44,7 +44,7 @@
   --input: oklch(0.92 0.005 85);
 
   /* Sage ring */
-  --ring: oklch(0.65 0.1 145);
+  --ring: oklch(0.52 0.12 145);
 
   /* Generous radius for soft feel */
   --radius: 1rem;
@@ -52,15 +52,15 @@
   /* Sidebar */
   --sidebar: oklch(0.98 0.005 85);
   --sidebar-foreground: oklch(0.25 0.01 60);
-  --sidebar-primary: oklch(0.65 0.1 145);
+  --sidebar-primary: oklch(0.52 0.12 145);
   --sidebar-primary-foreground: oklch(0.99 0.005 85);
   --sidebar-accent: oklch(0.94 0.005 85);
   --sidebar-accent-foreground: oklch(0.30 0.01 60);
   --sidebar-border: oklch(0.90 0.008 85);
-  --sidebar-ring: oklch(0.65 0.1 145);
+  --sidebar-ring: oklch(0.52 0.12 145);
 
   /* Charts - warm, muted palette */
-  --chart-1: oklch(0.65 0.1 145);
+  --chart-1: oklch(0.52 0.12 145);
   --chart-2: oklch(0.70 0.08 180);
   --chart-3: oklch(0.65 0.12 45);
   --chart-4: oklch(0.75 0.10 90);
@@ -149,7 +149,7 @@ input[type="range"].slider::-webkit-slider-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: oklch(0.65 0.1 145);
+  background: oklch(0.52 0.12 145);
   cursor: pointer;
   border: 3px solid oklch(0.995 0.003 85);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -165,7 +165,7 @@ input[type="range"].slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: oklch(0.65 0.1 145);
+  background: oklch(0.52 0.12 145);
   cursor: pointer;
   border: 3px solid oklch(0.995 0.003 85);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

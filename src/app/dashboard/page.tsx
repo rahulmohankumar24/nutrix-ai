@@ -909,7 +909,7 @@ export default function DashboardPage() {
       {/* Unlock Celebration Banner */}
       {unlockCelebration?.show && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3">
+          <div className="bg-gradient-to-r from-sky-500 to-blue-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3">
             <span className="text-xl">🎉</span>
             <div>
               <p className="font-medium text-sm">New insight unlocked!</p>
@@ -1032,52 +1032,44 @@ export default function DashboardPage() {
           />
 
           {/* AI Meal Suggestions */}
-          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${mealSource === 'home' ? 'bg-green-500/10' : 'bg-purple-500/10'}`}>
-                {mealSource === 'home' ? (
-                  <Home className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Sparkles className="h-4 w-4 text-purple-500" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-medium text-foreground">
-                    {mealSource === 'home'
-                      ? 'From Your Pantry'
-                      : hasPersonalizedSuggestions
-                        ? 'Suggested for You'
-                        : 'Meal Suggestions'}
-                  </h2>
-                  {mealSource === 'home' && pantryCount > 0 && (
-                    <span className="text-[10px] font-medium text-green-600 bg-green-500/10 px-1.5 py-0.5 rounded-full">
-                      {pantryCount} items
-                    </span>
-                  )}
-                  {mealSource === 'restaurant' && hasPersonalizedSuggestions && (
-                    <span className="text-[10px] font-medium text-purple-600 bg-purple-500/10 px-1.5 py-0.5 rounded-full">
-                      Personalized
-                    </span>
-                  )}
+          <div className="bg-card rounded-2xl border border-border shadow-sm flex flex-col overflow-hidden">
+          {/* AI Header */}
+          <div className="bg-gradient-to-r from-sky-100 to-blue-50 px-6 py-5 border-b border-sky-200/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-sky-500" />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {mealSource === 'home'
-                    ? 'Meals you can make at home'
-                    : 'Real meals from nearby restaurants'}
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-foreground">
+                      {mealSource === 'home'
+                        ? 'AI Pantry Suggestions'
+                        : 'AI Meal Picks'}
+                    </h2>
+                    <span className="text-[10px] font-medium text-sky-600 bg-sky-500/20 px-2 py-0.5 rounded-full">
+                      AI-Powered
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {mealSource === 'home'
+                      ? 'Personalized recipes from your pantry'
+                      : 'Optimized for your macros & goals'}
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={handleRefreshSuggestions}
+                disabled={loadingSuggestions}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/60 text-xs font-medium text-foreground/70 hover:bg-white hover:text-foreground transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingSuggestions ? 'animate-spin' : ''}`} />
+                {loadingSuggestions ? 'Loading...' : 'Refresh'}
+              </button>
             </div>
-            <button
-              onClick={handleRefreshSuggestions}
-              disabled={loadingSuggestions}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3 w-3 ${loadingSuggestions ? 'animate-spin' : ''}`} />
-              {loadingSuggestions ? 'Loading...' : 'Refresh'}
-            </button>
           </div>
+
+          <div className="p-6">
 
           {/* Filters */}
           <div className="space-y-3 mb-5">
@@ -1496,7 +1488,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       {suggestion.personalizedReason && (
-                        <p className="text-[10px] text-purple-600 mt-2 flex items-center gap-1">
+                        <p className="text-[10px] text-sky-600 mt-2 flex items-center gap-1">
                           <Sparkles className="h-3 w-3" />
                           {suggestion.personalizedReason}
                         </p>
@@ -1578,14 +1570,15 @@ export default function DashboardPage() {
             </p>
           )}
           </div>
+          </div>
         </div>
 
         {/* Pattern Insight Card */}
         {patternInsight && (
-          <div className="bg-purple-500/5 rounded-2xl p-5 border border-purple-500/10 hover:border-purple-500/20 transition-all">
+          <div className="bg-sky-500/5 rounded-2xl p-5 border border-sky-500/10 hover:border-sky-500/20 transition-all">
             <div className="flex items-start gap-3">
-              <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="h-4 w-4 text-purple-500" />
+              <div className="h-8 w-8 rounded-lg bg-sky-500/10 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-4 w-4 text-sky-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">{patternInsight.headline}</p>

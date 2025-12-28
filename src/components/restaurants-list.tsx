@@ -421,10 +421,10 @@ export function RestaurantsList() {
           <div className="absolute top-full left-0 right-0 mt-1 z-50">
             <button
               onClick={() => handleSearchAnyRestaurant(searchQuery.trim())}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border border-purple-500/30 bg-card hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:border-purple-500/50 transition-all text-left shadow-lg"
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-sky-500/30 bg-card hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:border-sky-500/50 transition-all text-left shadow-lg"
             >
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-purple-500" />
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-sky-500/20 to-blue-500/20 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-sky-500" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-foreground">Search "{searchQuery.trim()}"</p>

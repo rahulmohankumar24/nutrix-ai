@@ -296,7 +296,7 @@ export default function ProfilePage() {
   }
 
   const colorClasses: Record<string, string> = {
-    purple: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    purple: "bg-sky-500/10 text-sky-500 border-sky-500/20",
     orange: "bg-orange-500/10 text-orange-500 border-orange-500/20",
     blue: "bg-blue-500/10 text-blue-500 border-blue-500/20",
     green: "bg-green-500/10 text-green-500 border-green-500/20",

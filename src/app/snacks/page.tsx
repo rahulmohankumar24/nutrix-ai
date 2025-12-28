@@ -275,7 +275,7 @@ export default function SnacksPage() {
                     <div className="text-blue-400">{food.calories} cal</div>
                     <div className="text-green-400">{food.protein}g protein</div>
                     <div className="text-yellow-400">{food.carbs}g carbs</div>
-                    <div className="text-purple-400">{food.fat}g fat</div>
+                    <div className="text-sky-400">{food.fat}g fat</div>
                   </div>
 
                   {/* AI Reasoning */}

@@ -33,7 +33,7 @@ const features = [
     icon: Brain,
     title: "I Learn Your Patterns",
     description: "In 7 days, I'll know when you eat, where you succeed, and what works for you. The more you log, the smarter I get.",
-    color: "bg-purple-500/10 text-purple-500",
+    color: "bg-sky-500/10 text-sky-500",
     highlight: "🧠 Learning starts now"
   }
 ]
@@ -96,7 +96,7 @@ export default function WelcomePage() {
             <h2 className="text-2xl font-semibold text-foreground mb-3">{feature.title}</h2>
             <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
             {'highlight' in feature && feature.highlight && (
-              <div className="mt-4 inline-block bg-purple-500/10 text-purple-600 px-4 py-2 rounded-full text-sm font-medium">
+              <div className="mt-4 inline-block bg-sky-500/10 text-sky-600 px-4 py-2 rounded-full text-sm font-medium">
                 {feature.highlight}
               </div>
             )}

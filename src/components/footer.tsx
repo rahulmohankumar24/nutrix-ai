@@ -1,7 +1,9 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { Mail } from "lucide-react"
 
 export function Footer() {
   const pathname = usePathname()
@@ -13,34 +15,35 @@ export function Footer() {
   }
 
   return (
-    <footer className="border-t border-border/50 bg-card/50">
-      <div className="mx-auto max-w-4xl px-6 py-8">
+    <footer className="bg-primary/30 backdrop-blur-xl border-t border-primary/40">
+      <div className="mx-auto max-w-6xl px-8 py-6">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-3">
-            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-primary font-semibold text-xs">R</span>
+            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center p-1.5">
+              <Image
+                src="/notext.png"
+                alt="Rovia"
+                width={32}
+                height={32}
+                className="h-full w-full object-contain"
+              />
             </div>
-            <div>
-              <span className="text-sm font-medium text-foreground">Rovia</span>
-              <span className="text-sm text-muted-foreground ml-2">Find your path</span>
-            </div>
+            <span className="text-lg font-normal text-foreground tracking-[0.08em]">rovia</span>
           </div>
 
-          <nav className="flex items-center gap-6">
-            <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              About
-            </Link>
-            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Privacy
-            </Link>
-            <Link href="/support" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Support
-            </Link>
-          </nav>
+          <div className="flex items-center gap-6">
+            <a
+              href="mailto:rovianutrition@gmail.com"
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 text-foreground/70 text-sm font-medium hover:bg-white hover:text-primary transition-all"
+            >
+              <Mail className="h-4 w-4" />
+              <span>Contact</span>
+            </a>
+          </div>
         </div>
 
-        <div className="mt-6 text-center text-xs text-muted-foreground/70">
-          {new Date().getFullYear()} Rovia
+        <div className="mt-4 pt-4 border-t border-primary/20 text-center text-xs text-foreground/50">
+          {new Date().getFullYear()} Rovia. Personalized nutrition, powered by AI.
         </div>
       </div>
     </footer>

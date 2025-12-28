@@ -45,8 +45,8 @@ export function PathwayVisualization({
   const data = dailyData
 
   // Keep consistent, pleasant purple color for insights
-  const insightColor = 'text-purple-500'
-  const insightBgColor = 'bg-purple-500/10'
+  const insightColor = 'text-sky-500'
+  const insightBgColor = 'bg-sky-500/10'
 
   // Calculate progress percentages
   const calorieProgress = totals?.targetCalories ? Math.min(100, (totals.calories / totals.targetCalories) * 100) : 0

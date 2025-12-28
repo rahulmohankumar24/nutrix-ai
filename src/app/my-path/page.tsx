@@ -410,15 +410,15 @@ export default function MyPathPage() {
 
           {/* Your Patterns */}
           <Link href="/insights/patterns" className="group">
-            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-purple-500/30 hover:shadow-lg transition-all h-full">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-sky-500/30 hover:shadow-lg transition-all h-full">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                    <Brain className="h-5 w-5 text-purple-500" />
+                  <div className="h-10 w-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
+                    <Brain className="h-5 w-5 text-sky-500" />
                   </div>
                   <h3 className="font-semibold text-foreground">Your Patterns</h3>
                 </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-purple-500 transition-colors" />
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-sky-500 transition-colors" />
               </div>
 
               {loadingPatterns ? (

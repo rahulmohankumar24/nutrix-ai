@@ -81,7 +81,7 @@ const categoryColors: Record<string, string> = {
   fruit: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
   dairy: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   snack: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
-  condiment: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+  condiment: 'bg-sky-500/10 text-sky-600 border-sky-500/20',
   beverage: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
   other: 'bg-gray-500/10 text-gray-600 border-gray-500/20'
 }
@@ -572,11 +572,11 @@ export default function PantryPage() {
         )}
 
         {/* AI Meal Suggestions */}
-        <div className="bg-gradient-to-br from-purple-500/10 via-blue-500/5 to-transparent rounded-2xl p-5 border border-purple-500/20">
+        <div className="bg-gradient-to-br from-sky-500/10 via-blue-500/5 to-transparent rounded-2xl p-5 border border-sky-500/20">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <ChefHat className="h-5 w-5 text-purple-500" />
+              <div className="h-10 w-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                <ChefHat className="h-5 w-5 text-sky-500" />
               </div>
               <div>
                 <h2 className="font-semibold text-foreground">What Can I Make?</h2>
@@ -586,7 +586,7 @@ export default function PantryPage() {
             <button
               onClick={loadSuggestions}
               disabled={loadingSuggestions || inStockItems.length === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               {loadingSuggestions ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -617,7 +617,7 @@ export default function PantryPage() {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <UtensilsCrossed className="h-4 w-4 text-purple-500" />
+                              <UtensilsCrossed className="h-4 w-4 text-sky-500" />
                               <h3 className="font-medium text-foreground">{meal.name}</h3>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{meal.description}</p>
@@ -635,7 +635,7 @@ export default function PantryPage() {
                       </div>
 
                       {/* Back of card */}
-                      <div className="absolute inset-0 bg-card rounded-xl p-4 border border-purple-500/30 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col">
+                      <div className="absolute inset-0 bg-card rounded-xl p-4 border border-sky-500/30 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col">
                         <h3 className="font-medium text-foreground text-sm mb-2">{meal.name}</h3>
                         <p className="text-xs text-muted-foreground flex-1 overflow-y-auto">
                           {meal.instructions || meal.description}
@@ -681,7 +681,7 @@ export default function PantryPage() {
           )}
 
           {readyToEat.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-purple-500/20">
+            <div className="mt-4 pt-4 border-t border-sky-500/20">
               <h3 className="text-sm font-medium text-foreground mb-3">Ready to Eat</h3>
               <div className="grid grid-cols-2 gap-2">
                 {readyToEat.map((item, index) => {
@@ -704,7 +704,7 @@ export default function PantryPage() {
                             {item.portion} • {item.calories} cal • {item.protein}g protein
                           </p>
                           {item.note && (
-                            <p className="text-xs text-purple-500 mt-1">{item.note}</p>
+                            <p className="text-xs text-sky-500 mt-1">{item.note}</p>
                           )}
                           <p className="text-[10px] text-muted-foreground mt-2">Tap to log</p>
                         </div>
@@ -745,8 +745,8 @@ export default function PantryPage() {
           )}
 
           {aiMessage && (
-            <div className="mt-4 pt-4 border-t border-purple-500/20 flex items-start gap-2">
-              <ShoppingCart className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+            <div className="mt-4 pt-4 border-t border-sky-500/20 flex items-start gap-2">
+              <ShoppingCart className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-muted-foreground">{aiMessage}</p>
             </div>
           )}

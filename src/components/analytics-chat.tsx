@@ -114,8 +114,8 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
         </div>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-            <MessageCircle className="h-5 w-5 text-purple-500" />
+          <div className="h-10 w-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
+            <MessageCircle className="h-5 w-5 text-sky-500" />
           </div>
           <h3 className="font-semibold text-foreground">Ask AI Coach</h3>
         </div>
@@ -145,7 +145,7 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
 
   // Pro user - expandable chat card
   return (
-    <div className="bg-card rounded-2xl border border-border/50 hover:border-purple-500/30 hover:shadow-lg transition-all overflow-hidden">
+    <div className="bg-card rounded-2xl border border-border/50 hover:border-sky-500/30 hover:shadow-lg transition-all overflow-hidden">
       {/* Card Header - clickable to expand */}
       <div
         className="p-5 cursor-pointer"
@@ -153,8 +153,8 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-              <MessageCircle className="h-5 w-5 text-purple-500" />
+            <div className="h-10 w-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
+              <MessageCircle className="h-5 w-5 text-sky-500" />
             </div>
             <h3 className="font-semibold text-foreground">Ask AI Coach</h3>
           </div>
@@ -187,7 +187,7 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
                     <button
                       key={question}
                       onClick={() => handleSuggestionClick(question)}
-                      className="px-3 py-1.5 rounded-full bg-muted text-sm text-muted-foreground hover:text-foreground hover:bg-purple-500/10 hover:text-purple-600 transition-all"
+                      className="px-3 py-1.5 rounded-full bg-muted text-sm text-muted-foreground hover:text-foreground hover:bg-sky-500/10 hover:text-sky-600 transition-all"
                     >
                       {question}
                     </button>
@@ -206,8 +206,8 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
                   >
                     {message.role === "assistant" && (
                       <div className="flex-shrink-0 mr-2 mt-1">
-                        <div className="h-7 w-7 rounded-full bg-purple-500/10 flex items-center justify-center">
-                          <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        <div className="h-7 w-7 rounded-full bg-sky-500/10 flex items-center justify-center">
+                          <Sparkles className="h-3.5 w-3.5 text-sky-500" />
                         </div>
                       </div>
                     )}
@@ -227,8 +227,8 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
                 {isTyping && (
                   <div className="flex justify-start">
                     <div className="flex-shrink-0 mr-2 mt-1">
-                      <div className="h-7 w-7 rounded-full bg-purple-500/10 flex items-center justify-center">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                      <div className="h-7 w-7 rounded-full bg-sky-500/10 flex items-center justify-center">
+                        <Sparkles className="h-3.5 w-3.5 text-sky-500" />
                       </div>
                     </div>
                     <div className="rounded-2xl bg-muted px-4 py-2.5">
@@ -264,7 +264,7 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
                   className={cn(
                     "rounded-lg p-2 transition-all",
                     input.trim()
-                      ? "bg-purple-500 text-white hover:bg-purple-600"
+                      ? "bg-sky-500 text-white hover:bg-sky-600"
                       : "text-muted-foreground"
                   )}
                 >
