@@ -8,6 +8,12 @@ import { Home, Utensils, TrendingUp, Package, User } from "lucide-react"
 export function Navbar() {
   const pathname = usePathname()
 
+  // Hide navbar on landing page and auth pages
+  const hideOnPaths = ["/", "/auth/signin", "/auth/signup", "/auth/sso-callback"]
+  if (hideOnPaths.some(path => pathname === path || pathname.startsWith("/auth/"))) {
+    return null
+  }
+
   const navItems = [
     { name: "Home", href: "/dashboard", icon: Home },
     { name: "Restaurants", href: "/restaurants", icon: Utensils },

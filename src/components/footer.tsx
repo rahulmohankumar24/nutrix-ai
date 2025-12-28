@@ -1,6 +1,17 @@
+"use client"
+
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 export function Footer() {
+  const pathname = usePathname()
+
+  // Hide footer on landing page and auth pages
+  const hideOnPaths = ["/", "/auth/signin", "/auth/signup", "/auth/sso-callback"]
+  if (hideOnPaths.some(path => pathname === path || pathname.startsWith("/auth/"))) {
+    return null
+  }
+
   return (
     <footer className="border-t border-border/50 bg-card/50">
       <div className="mx-auto max-w-4xl px-6 py-8">
