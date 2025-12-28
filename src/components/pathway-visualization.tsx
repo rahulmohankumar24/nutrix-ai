@@ -35,17 +35,9 @@ export function PathwayVisualization({
 }: PathwayVisualizationProps) {
   const data = dailyData
 
-  const statusColors = {
-    on_track: 'text-primary',
-    needs_attention: 'text-amber-500',
-    great_job: 'text-emerald-500'
-  }
-
-  const statusBgColors = {
-    on_track: 'bg-primary/10',
-    needs_attention: 'bg-amber-500/10',
-    great_job: 'bg-emerald-500/10'
-  }
+  // Keep consistent, pleasant purple color for insights
+  const insightColor = 'text-purple-500'
+  const insightBgColor = 'bg-purple-500/10'
 
   return (
     <div className="bg-card rounded-2xl border border-border/50 p-6 h-full flex flex-col">
@@ -56,7 +48,7 @@ export function PathwayVisualization({
 
       {/* AI Insights */}
       {insights && (
-        <div className={`rounded-xl p-4 mb-5 ${statusBgColors[insights.status] || 'bg-muted/30'}`}>
+        <div className={`rounded-xl p-4 mb-5 ${insightBgColor}`}>
           {insights.loading ? (
             <div className="animate-pulse space-y-2">
               <div className="h-4 w-24 bg-muted rounded" />
@@ -66,8 +58,8 @@ export function PathwayVisualization({
           ) : (
             <>
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className={`h-4 w-4 ${statusColors[insights.status] || 'text-primary'}`} />
-                <span className={`text-sm font-semibold ${statusColors[insights.status] || 'text-primary'}`}>
+                <Sparkles className={`h-4 w-4 ${insightColor}`} />
+                <span className={`text-sm font-semibold ${insightColor}`}>
                   {insights.headline}
                 </span>
               </div>

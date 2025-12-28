@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 interface MealLogEntry {
@@ -62,6 +62,7 @@ interface MealSuggestion {
   carbs: number
   fat: number
   distance?: number | null
+  estimatedPrice?: number | null
 }
 
 interface DailyInsights {
@@ -83,8 +84,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<DailyInsights | null>(null)
   const [mealSize, setMealSize] = useState<'light' | 'regular' | 'hearty'>('regular')
+  const [diningMode, setDiningMode] = useState<'takeout' | 'dine-in'>('takeout')
   const [suggestionMessage, setSuggestionMessage] = useState<string | null>(null)
   const [isNearGoal, setIsNearGoal] = useState(false)
+  const [flippedCardIndex, setFlippedCardIndex] = useState<number | null>(null)
 
   // Inline chat state
   const [showChatInput, setShowChatInput] = useState(false)
@@ -146,10 +149,15 @@ export default function DashboardPage() {
     }
   }
 
-  const loadSuggestions = async (userId: string, location: { lat: number; lng: number } | null, size: 'light' | 'regular' | 'hearty' = 'regular') => {
+  const loadSuggestions = async (
+    userId: string,
+    location: { lat: number; lng: number } | null,
+    size: 'light' | 'regular' | 'hearty' = 'regular',
+    dining: 'takeout' | 'dine-in' = 'takeout'
+  ) => {
     setLoadingSuggestions(true)
     try {
-      let url = `/api/meal-suggestions?userId=${userId}&size=${size}`
+      let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}`
       if (location) {
         url += `&lat=${location.lat}&lng=${location.lng}`
       }
@@ -171,7 +179,14 @@ export default function DashboardPage() {
   const handleMealSizeChange = (size: 'light' | 'regular' | 'hearty') => {
     setMealSize(size)
     if (user?.id) {
-      loadSuggestions(user.id, userLocation, size)
+      loadSuggestions(user.id, userLocation, size, diningMode)
+    }
+  }
+
+  const handleDiningModeChange = (mode: 'takeout' | 'dine-in') => {
+    setDiningMode(mode)
+    if (user?.id) {
+      loadSuggestions(user.id, userLocation, mealSize, mode)
     }
   }
 
@@ -563,7 +578,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              onClick={() => user?.id && loadSuggestions(user.id, userLocation, mealSize)}
+              onClick={() => user?.id && loadSuggestions(user.id, userLocation, mealSize, diningMode)}
               disabled={loadingSuggestions}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
@@ -571,27 +586,51 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Meal Size Selector */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs text-muted-foreground">Portion:</span>
-            <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
-              {([
-                { value: 'light', label: 'Light' },
-                { value: 'regular', label: 'Regular' },
-                { value: 'hearty', label: 'Hearty' }
-              ] as const).map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleMealSizeChange(option.value)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    mealSize === option.value
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+          {/* Filters Row */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            {/* Dining Mode */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+                {([
+                  { value: 'takeout', label: 'Takeout' },
+                  { value: 'dine-in', label: 'Dine-in' }
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleDiningModeChange(option.value)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      diningMode === option.value
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Meal Size Selector */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+                {([
+                  { value: 'light', label: 'Light' },
+                  { value: 'regular', label: 'Regular' },
+                  { value: 'hearty', label: 'Hearty' }
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleMealSizeChange(option.value)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      mealSize === option.value
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -650,41 +689,109 @@ export default function DashboardPage() {
               {suggestions.map((suggestion, index) => (
                 <div
                   key={index}
-                  className="p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/30 hover:bg-muted/20 transition-all cursor-pointer group"
-                  onClick={() => {
-                    setPendingMeal({
-                      name: suggestion.name,
-                      calories: suggestion.calories,
-                      protein: suggestion.protein,
-                      carbs: suggestion.carbs,
-                      fat: suggestion.fat,
-                      servings: 1
-                    })
-                    setShowChatInput(false)
-                  }}
+                  className={`flip-card ${flippedCardIndex === index ? 'flipped' : ''}`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md uppercase tracking-wide">
-                      {suggestion.restaurant}
-                    </span>
-                    {suggestion.distance && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {suggestion.distance} mi
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-auto" />
-                  </div>
-                  <h3 className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2">
-                    {suggestion.name}
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {suggestion.calories} cal
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                      {suggestion.protein}g protein
-                    </span>
+                  <div className="flip-card-inner relative">
+                    {/* Front of card */}
+                    <div
+                      className="flip-card-front p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/30 hover:bg-muted/20 transition-all cursor-pointer group"
+                      onClick={() => setFlippedCardIndex(index)}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md uppercase tracking-wide">
+                          {suggestion.restaurant}
+                        </span>
+                        {suggestion.estimatedPrice && (
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md">
+                            ~${suggestion.estimatedPrice.toFixed(0)}
+                          </span>
+                        )}
+                        {suggestion.distance && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            {suggestion.distance} mi
+                          </span>
+                        )}
+                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-auto" />
+                      </div>
+                      <h3 className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                        {suggestion.name}
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {suggestion.calories} cal
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                          {suggestion.protein}g protein
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Back of card - click anywhere to flip back */}
+                    <div
+                      className="flip-card-back p-4 rounded-xl border border-primary/30 bg-card flex flex-col justify-center cursor-pointer"
+                      onClick={() => setFlippedCardIndex(null)}
+                    >
+                      {/* Full macros grid */}
+                      <div className="grid grid-cols-4 gap-2 mb-3">
+                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                          <p className="text-sm font-semibold text-foreground">{suggestion.calories}</p>
+                          <p className="text-[10px] text-muted-foreground">cal</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-primary/10">
+                          <p className="text-sm font-semibold text-primary">{suggestion.protein}g</p>
+                          <p className="text-[10px] text-muted-foreground">protein</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                          <p className="text-sm font-semibold text-foreground">{suggestion.carbs}g</p>
+                          <p className="text-[10px] text-muted-foreground">carbs</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-muted/30">
+                          <p className="text-sm font-semibold text-foreground">{suggestion.fat}g</p>
+                          <p className="text-[10px] text-muted-foreground">fat</p>
+                        </div>
+                      </div>
+
+                      {/* Log button */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!user?.id) return
+
+                          const hour = new Date().getHours()
+                          const mealType = hour < 11 ? 'breakfast' : hour < 16 ? 'lunch' : 'dinner'
+
+                          try {
+                            const response = await fetch('/api/log-meal-direct', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                userId: user.id,
+                                name: suggestion.name,
+                                calories: suggestion.calories,
+                                protein: suggestion.protein,
+                                carbs: suggestion.carbs,
+                                fat: suggestion.fat,
+                                servings: 1,
+                                mealType
+                              })
+                            })
+
+                            if (response.ok) {
+                              setFlippedCardIndex(null)
+                              await loadDashboardData(user.id)
+                              loadInsights(user.id)
+                              loadSuggestions(user.id, userLocation, mealSize, diningMode)
+                            }
+                          } catch (error) {
+                            console.error('Failed to log meal:', error)
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                      >
+                        Log Meal
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

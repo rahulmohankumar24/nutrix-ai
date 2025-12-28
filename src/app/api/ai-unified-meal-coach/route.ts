@@ -13,24 +13,58 @@ const openai = new OpenAI({
 
 // Force rebuild to apply AI utils fix
 
-// Efficient scoring for pre-filtering
-function quickScore(meal: any, targets: any, timeOfDay: string): number {
-  const { remaining } = targets
+// Efficient scoring for pre-filtering - uses calculated meal targets
+function quickScore(meal: any, targetCalories: number, targetProtein: number, mealsRemaining: number): number {
   let score = 0
 
-  // Protein fit (most important)
-  const proteinFit = Math.min(1, meal.protein / Math.max(remaining.protein * 0.7, 10))
-  score += proteinFit * 50
+  // CALORIE FIT (40% weight) - how close to target?
+  // Prefer meals within 70-130% of target, with bonus for hitting target
+  const calorieRatio = meal.calories / Math.max(targetCalories, 300)
+  let calorieFit = 0
+  if (calorieRatio >= 0.7 && calorieRatio <= 1.3) {
+    // Within acceptable range - score based on closeness to 1.0
+    calorieFit = 1 - Math.abs(1 - calorieRatio) * 0.5
+  } else if (calorieRatio < 0.7) {
+    // Too small - penalize more heavily
+    calorieFit = calorieRatio * 0.6
+  } else {
+    // Too large - penalize but not as harshly (can always eat less)
+    calorieFit = Math.max(0, 1 - (calorieRatio - 1.3) * 0.3)
+  }
+  score += calorieFit * 40
 
-  // Calorie fit
-  const calorieFit = remaining.calories > 0 ?
-    Math.max(0, 1 - Math.abs(meal.calories - remaining.calories * 0.4) / (remaining.calories * 0.6)) : 0.5
-  score += calorieFit * 30
+  // PROTEIN FIT (40% weight) - protein is equally important
+  const proteinRatio = meal.protein / Math.max(targetProtein, 20)
+  let proteinFit = 0
+  if (proteinRatio >= 0.7 && proteinRatio <= 1.5) {
+    // Within acceptable range - bonus for exceeding target (protein is always good)
+    proteinFit = Math.min(1, 0.8 + proteinRatio * 0.2)
+  } else if (proteinRatio < 0.7) {
+    // Too low protein - penalize
+    proteinFit = proteinRatio * 0.8
+  } else {
+    // Very high protein - still good, just cap the score
+    proteinFit = 1
+  }
+  score += proteinFit * 40
 
-  // Time bonus
-  if (timeOfDay === 'breakfast' && meal.protein >= 20) score += 10
-  if (timeOfDay === 'lunch' && meal.calories >= 400 && meal.calories <= 700) score += 10
-  if (timeOfDay === 'dinner' && meal.protein >= 25) score += 10
+  // MEALS REMAINING BONUS (10% weight)
+  // If it's the last meal, strongly prefer meals that get close to targets
+  if (mealsRemaining === 1) {
+    const hitsTarget = calorieRatio >= 0.75 && proteinRatio >= 0.75
+    score += hitsTarget ? 10 : 2
+  } else {
+    // Multiple meals left - balanced meals are good
+    const isBalanced = calorieRatio >= 0.8 && calorieRatio <= 1.2
+    score += isBalanced ? 8 : 4
+  }
+
+  // MACROS BALANCE (10% weight) - carbs/fat considered but not prioritized
+  // Just avoid extreme outliers
+  const carbsRatio = meal.carbs / Math.max((targetCalories * 0.45 / 4), 30)
+  const fatRatio = meal.fat / Math.max((targetCalories * 0.25 / 9), 10)
+  const macroBalance = (carbsRatio >= 0.5 && carbsRatio <= 2) && (fatRatio >= 0.5 && fatRatio <= 2) ? 10 : 5
+  score += macroBalance
 
   return Math.max(0, Math.min(100, score))
 }
@@ -62,7 +96,8 @@ export async function POST(request: NextRequest) {
     console.log(`  Progress: ${Math.round(userTargets.current.calories/userTargets.targets.calories*100)}% of daily calories`)
     console.log('')
 
-    // Calculate realistic meal target based on time of day and remaining meals
+    // Calculate realistic meal target FIRST (before pre-filtering)
+    // This ensures we filter for meals matching the ACTUAL target, not a conservative 40%
     const mealDistribution = calculateRealisticMealTarget(
       timeOfDay,
       {
@@ -122,11 +157,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Quick algorithmic pre-filtering to reduce AI workload
+    // Uses calculated meal distribution targets (calories & protein prioritized 80%)
     const scoredMeals = availableMeals.map(meal => ({
       ...meal,
       tags: meal.tags ? JSON.parse(meal.tags) : [],
-      quickScore: quickScore(meal, userTargets, timeOfDay)
+      quickScore: quickScore(
+        meal,
+        mealDistribution.targetCalories,
+        mealDistribution.targetProtein,
+        mealDistribution.mealsRemaining
+      )
     })).sort((a, b) => b.quickScore - a.quickScore).slice(0, 15) // Top 15 candidates for more variety
+
+    console.log('🎯 Pre-filtering with targets:', {
+      targetCalories: mealDistribution.targetCalories,
+      targetProtein: mealDistribution.targetProtein,
+      mealsRemaining: mealDistribution.mealsRemaining,
+      topMeals: scoredMeals.slice(0, 5).map(m => `${m.title}: ${m.calories}cal, ${m.protein}g protein (score: ${m.quickScore})`)
+    })
 
     if (!useAI) {
       return NextResponse.json({
@@ -153,6 +201,7 @@ CONTEXT: ${mealDistribution.reasoning}
 
 CRITICAL COACHING INSTRUCTIONS:
 - PROVIDE 5-6 VARIED OPTIONS at different calorie/protein levels to give user choice
+- ONLY recommend from the pre-filtered options below (use mealIndex 0 to ${scoredMeals.length - 1})
 - LIGHT OPTIONS (~${Math.round(mealDistribution.targetCalories * 0.7)}cal): Regular portions, no add-ons
 - MODERATE OPTIONS (~${Math.round(mealDistribution.targetCalories * 0.9)}cal): Standard size with some add-ons
 - TARGET OPTIONS (~${mealDistribution.targetCalories}cal): Hits target perfectly
@@ -161,20 +210,28 @@ CRITICAL COACHING INSTRUCTIONS:
 - Use customizations to vary the calories/protein: "ADD DOUBLE PROTEIN +180cal +32g protein", "ADD GUACAMOLE +230cal +3g protein", "ADD CHEESE +100cal +6g protein", "EXTRA LARGE SIZE +150cal +20g protein"
 - Each approved meal should be DISTINCT with different calorie/protein levels
 
-PRE-FILTERED OPTIONS:
+EXPLANATION STYLE:
+- "reasoning": Explain WHY this meal is a good choice (e.g., "Hits your ${mealDistribution.targetProtein}g protein target while staying within calorie budget")
+- "macroImpact": Be specific about numbers (e.g., "Gets you 71g of your 72g remaining protein - nearly perfect!")
+- For meals to AVOID: Include in "mealsToAvoid" with honest explanation
+
+PRE-FILTERED OPTIONS (use these indices only):
 ${mealsList}
 
 Analyze & return JSON with 5-6 VARIED meal recommendations:
 {
   "approvedMeals": [
-    {"mealIndex": 0, "score": 85, "reasoning": "Light option - regular size", "customizations": [], "macroImpact": "Lower calories if saving room for later"},
-    {"mealIndex": 1, "score": 90, "reasoning": "Balanced standard portion", "customizations": ["ADD CHEESE +100cal +6g protein"], "macroImpact": "Good balanced meal"},
-    {"mealIndex": 2, "score": 95, "reasoning": "Hits target perfectly", "customizations": ["ADD DOUBLE PROTEIN +180cal +32g protein"], "macroImpact": "Perfect for ${mealDistribution.mealType} targets"},
-    {"mealIndex": 3, "score": 92, "reasoning": "High protein option", "customizations": ["ADD DOUBLE PROTEIN +180cal +32g protein", "ADD CHEESE +100cal +6g protein"], "macroImpact": "Extra protein for muscle building"},
-    {"mealIndex": 4, "score": 88, "reasoning": "${mealDistribution.mealsRemaining === 1 ? 'Max everything - last meal to hit targets' : 'Maximum option with all add-ons'}", "customizations": ["ADD DOUBLE PROTEIN +180cal +32g protein", "ADD GUACAMOLE +230cal +3g protein", "ADD CHEESE +100cal +6g protein"], "macroImpact": "${mealDistribution.mealsRemaining === 1 ? 'Final push to hit daily targets' : 'Aggressive portions for high macro needs'}"}
+    {"mealIndex": 0, "score": 85, "reasoning": "Light option - good if you want to save calories for later", "customizations": [], "macroImpact": "420cal leaves room for a bigger dinner"},
+    {"mealIndex": 1, "score": 92, "reasoning": "Best protein-to-calorie ratio on the menu", "customizations": [], "macroImpact": "Gets you 42g protein for only 560cal - efficient"},
+    {"mealIndex": 2, "score": 95, "reasoning": "Closest to your ${mealDistribution.targetCalories}cal target", "customizations": ["ADD CHEESE +100cal +6g protein"], "macroImpact": "Hits ${Math.round(mealDistribution.targetCalories)}cal target almost perfectly"},
+    {"mealIndex": 3, "score": 90, "reasoning": "High protein option for muscle building", "customizations": ["ADD DOUBLE PROTEIN +180cal +32g protein"], "macroImpact": "Maximizes protein at ${mealDistribution.targetProtein}g+ for the day"}
   ],
-  "overallAdvice": "${mealDistribution.reasoning} Choose the portion size that matches your hunger and remaining daily targets.",
-  "restaurantTips": "Use add-ons and portion sizes to dial in your exact calorie and protein needs"
+  "mealsToAvoid": [
+    {"title": "Example Low Protein Option", "reason": "Only 15g protein - you need ${mealDistribution.targetProtein}g this meal"},
+    {"title": "Example High Calorie Option", "reason": "1200cal would exceed your ${userTargets.remaining.calories}cal remaining budget"}
+  ],
+  "overallAdvice": "${mealDistribution.reasoning} Choose the portion size that matches your hunger level.",
+  "coachingNote": "Brief personalized tip about hitting targets at this restaurant"
 }`
 
     const completion = await openai.chat.completions.create({
@@ -193,7 +250,16 @@ Analyze & return JSON with 5-6 VARIED meal recommendations:
       const parsedResponse = parseAIResponse(aiResponse)
 
       // Enhance approved meals with AI insights and calculate customization totals
-      const approvedMeals = parsedResponse.approvedMeals?.map((approved: any) => {
+      // Filter out any invalid mealIndex values first
+      const validApprovedMeals = (parsedResponse.approvedMeals || []).filter((approved: any) => {
+        const isValid = approved.mealIndex >= 0 && approved.mealIndex < scoredMeals.length
+        if (!isValid) {
+          console.warn(`⚠️ AI returned invalid mealIndex ${approved.mealIndex} (only ${scoredMeals.length} meals available)`)
+        }
+        return isValid
+      })
+
+      const approvedMeals = validApprovedMeals.map((approved: any) => {
         const originalMeal = scoredMeals[approved.mealIndex]
 
         // Parse customizations to calculate total macros

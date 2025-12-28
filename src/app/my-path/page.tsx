@@ -7,10 +7,29 @@ import { TrendingUp, Flame, Target, Calendar, Lightbulb, AlertCircle, CheckCircl
 import { Input } from "@/components/ui/input"
 
 interface WeeklyData {
-  day: string
+  label: string
+  dayName: string
+  date: string
   calories: number
+  caloriesTarget: number
   protein: number
-  target: number
+  proteinTarget: number
+  carbs: number
+  fat: number
+  summary: string
+  isCurrent: boolean
+}
+
+interface WeeklyStats {
+  currentStreak: number
+  longestStreak: number
+  daysOnTrack: number
+  totalDaysLogged: number
+  avgCalories: number
+  avgProtein: number
+  weeklyGoalHit: number
+  targetCalories: number
+  targetProtein: number
 }
 
 interface AIInsight {
@@ -47,6 +66,9 @@ export default function MyPathPage() {
   const [userTargets, setUserTargets] = useState<UserGoals | null>(null)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null)
+  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
+  const [stats, setStats] = useState<WeeklyStats | null>(null)
+  const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -55,9 +77,142 @@ export default function MyPathPage() {
       return
     }
     setLoading(false)
-    fetchInsights()
-    fetchUserProfile()
+    if (user?.id) {
+      fetchUserProfile()
+      fetchWeeklyData()
+      fetchStats()
+    }
   }, [isLoaded, isSignedIn, router, user?.id])
+
+  const fetchWeeklyData = async () => {
+    if (!user?.id) return
+    try {
+      const response = await fetch(`/api/weekly-summary?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setWeeklyData(data.days || [])
+        // Generate insights based on real data
+        generateInsights(data.days || [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch weekly data:', error)
+    }
+  }
+
+  const fetchStats = async () => {
+    if (!user?.id) return
+    setLoadingData(true)
+    try {
+      const response = await fetch(`/api/weekly-stats?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch stats:', error)
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  const generateInsights = (days: WeeklyData[]) => {
+    setLoadingInsights(true)
+    const newInsights: AIInsight[] = []
+
+    // Analyze the data
+    const daysWithData = days.filter(d => d.calories > 0)
+    if (daysWithData.length === 0) {
+      setInsights([{
+        type: 'tip',
+        title: 'Start logging meals',
+        description: 'Log your meals to get personalized insights about your eating patterns.'
+      }])
+      setLoadingInsights(false)
+      return
+    }
+
+    // Calculate averages
+    const avgCalories = Math.round(daysWithData.reduce((sum, d) => sum + d.calories, 0) / daysWithData.length)
+    const avgProtein = Math.round(daysWithData.reduce((sum, d) => sum + d.protein, 0) / daysWithData.length)
+    const targetCalories = daysWithData[0]?.caloriesTarget || 2000
+    const targetProtein = daysWithData[0]?.proteinTarget || 150
+
+    // Check calorie consistency
+    const calPercent = (avgCalories / targetCalories) * 100
+    if (calPercent < 80) {
+      newInsights.push({
+        type: 'warning',
+        title: 'Under eating',
+        description: `You're averaging ${avgCalories} calories, which is ${Math.round(100 - calPercent)}% below your target. Consider adding more nutrient-dense foods.`
+      })
+    } else if (calPercent > 110) {
+      newInsights.push({
+        type: 'warning',
+        title: 'Over target',
+        description: `You're averaging ${avgCalories} calories, which is ${Math.round(calPercent - 100)}% above your target.`
+      })
+    } else {
+      newInsights.push({
+        type: 'success',
+        title: 'Great calorie balance',
+        description: `You're averaging ${avgCalories} calories, right on target. Keep it up!`
+      })
+    }
+
+    // Check protein
+    const protPercent = (avgProtein / targetProtein) * 100
+    if (protPercent < 80) {
+      newInsights.push({
+        type: 'warning',
+        title: 'Protein opportunity',
+        description: `You're averaging ${avgProtein}g protein (${Math.round(protPercent)}% of target). Add protein sources like chicken, fish, eggs, or legumes.`
+      })
+    } else if (protPercent >= 90) {
+      newInsights.push({
+        type: 'success',
+        title: 'Protein on point',
+        description: `Great job hitting ${avgProtein}g protein on average! This supports your muscle and recovery goals.`
+      })
+    }
+
+    // Check logging consistency
+    if (daysWithData.length >= 6) {
+      newInsights.push({
+        type: 'success',
+        title: 'Consistent logging',
+        description: `You've logged ${daysWithData.length} out of 7 days this week. Consistency is key to progress!`
+      })
+    } else if (daysWithData.length <= 3) {
+      newInsights.push({
+        type: 'tip',
+        title: 'Log more consistently',
+        description: `You've only logged ${daysWithData.length} days this week. Try to log every meal for better insights.`
+      })
+    }
+
+    // Check weekend vs weekday patterns
+    const weekendDays = days.filter(d => d.dayName === 'Saturday' || d.dayName === 'Sunday')
+    const weekdayDays = days.filter(d => d.dayName !== 'Saturday' && d.dayName !== 'Sunday')
+
+    const weekendCals = weekendDays.filter(d => d.calories > 0)
+    const weekdayCals = weekdayDays.filter(d => d.calories > 0)
+
+    if (weekendCals.length > 0 && weekdayCals.length > 0) {
+      const avgWeekend = weekendCals.reduce((sum, d) => sum + d.calories, 0) / weekendCals.length
+      const avgWeekday = weekdayCals.reduce((sum, d) => sum + d.calories, 0) / weekdayCals.length
+
+      if (avgWeekend < avgWeekday * 0.7) {
+        newInsights.push({
+          type: 'warning',
+          title: 'Weekend patterns',
+          description: `Your weekend calorie intake is ${Math.round((1 - avgWeekend/avgWeekday) * 100)}% lower than weekdays. Maintain consistency for best results.`
+        })
+      }
+    }
+
+    setInsights(newInsights.slice(0, 4)) // Max 4 insights
+    setLoadingInsights(false)
+  }
 
   const fetchUserProfile = async () => {
     if (!user?.id) return
@@ -156,45 +311,6 @@ export default function MyPathPage() {
     setIsEditingProfile(false)
   }
 
-  const fetchInsights = async () => {
-    setLoadingInsights(true)
-    try {
-      // TODO: Replace with actual API call to get AI insights
-      // const response = await fetch(`/api/ai-insights?userId=${user?.id}`)
-      // const data = await response.json()
-
-      // Mock AI insights for now
-      setTimeout(() => {
-        setInsights([
-          {
-            type: "warning",
-            title: "Lunch is often light",
-            description: "You're averaging only 350 calories at lunch. Consider adding a protein source to stay energized through the afternoon."
-          },
-          {
-            type: "tip",
-            title: "Protein timing",
-            description: "Try spreading your protein more evenly. You're getting 60% of your protein at dinner — earlier intake can boost muscle synthesis."
-          },
-          {
-            type: "success",
-            title: "Great breakfast consistency",
-            description: "You've logged breakfast 6 out of 7 days this week. Morning meals are setting you up for success!"
-          },
-          {
-            type: "warning",
-            title: "Weekend patterns",
-            description: "Your calorie intake drops 25% on weekends. This might slow your progress toward your muscle-building goal."
-          }
-        ])
-        setLoadingInsights(false)
-      }, 1000)
-    } catch (error) {
-      console.error('Failed to fetch insights:', error)
-      setLoadingInsights(false)
-    }
-  }
-
   // Use fetched userTargets or fallback
   const displayGoals = userTargets || {
     goal: "Build lean muscle",
@@ -205,25 +321,17 @@ export default function MyPathPage() {
     strategy: "We're keeping you in a slight caloric surplus with high protein to support muscle growth while minimizing fat gain."
   }
 
-  // Mock data - replace with real API calls
-  const weeklyData: WeeklyData[] = [
-    { day: "Mon", calories: 2100, protein: 130, target: 2400 },
-    { day: "Tue", calories: 2350, protein: 145, target: 2400 },
-    { day: "Wed", calories: 2400, protein: 150, target: 2400 },
-    { day: "Thu", calories: 2200, protein: 135, target: 2400 },
-    { day: "Fri", calories: 2500, protein: 155, target: 2400 },
-    { day: "Sat", calories: 2300, protein: 140, target: 2400 },
-    { day: "Sun", calories: 2150, protein: 128, target: 2400 },
-  ]
-
-  const stats = {
-    currentStreak: 12,
-    longestStreak: 21,
-    daysOnTrack: 5,
-    totalDaysLogged: 45,
-    avgCalories: 2286,
-    avgProtein: 140,
-    weeklyGoalHit: 71, // percentage
+  // Default stats if not loaded
+  const displayStats = stats || {
+    currentStreak: 0,
+    longestStreak: 0,
+    daysOnTrack: 0,
+    totalDaysLogged: 0,
+    avgCalories: 0,
+    avgProtein: 0,
+    weeklyGoalHit: 0,
+    targetCalories: 2000,
+    targetProtein: 150
   }
 
   if (loading) {
@@ -233,9 +341,6 @@ export default function MyPathPage() {
       </div>
     )
   }
-
-  const maxCalories = Math.max(...weeklyData.map(d => d.calories), ...weeklyData.map(d => d.target))
-  const userName = user?.firstName || "there"
 
   const getInsightIcon = (type: AIInsight["type"]) => {
     switch (type) {
@@ -486,7 +591,11 @@ export default function MyPathPage() {
                 <Flame className="h-5 w-5 text-orange-500" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-foreground">{stats.currentStreak}</p>
+            {loadingData ? (
+              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+            ) : (
+              <p className="text-3xl font-bold text-foreground">{displayStats.currentStreak}</p>
+            )}
             <p className="text-base text-muted-foreground mt-1">Day Streak</p>
           </div>
 
@@ -496,7 +605,11 @@ export default function MyPathPage() {
                 <Target className="h-5 w-5 text-primary" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-foreground">{stats.daysOnTrack}/7</p>
+            {loadingData ? (
+              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+            ) : (
+              <p className="text-3xl font-bold text-foreground">{displayStats.daysOnTrack}/7</p>
+            )}
             <p className="text-base text-muted-foreground mt-1">Days On Track</p>
           </div>
 
@@ -506,7 +619,11 @@ export default function MyPathPage() {
                 <TrendingUp className="h-5 w-5 text-blue-500" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-foreground">{stats.avgCalories}</p>
+            {loadingData ? (
+              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+            ) : (
+              <p className="text-3xl font-bold text-foreground">{displayStats.avgCalories}</p>
+            )}
             <p className="text-base text-muted-foreground mt-1">Avg. Calories</p>
           </div>
 
@@ -516,7 +633,11 @@ export default function MyPathPage() {
                 <Calendar className="h-5 w-5 text-green-500" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-foreground">{stats.totalDaysLogged}</p>
+            {loadingData ? (
+              <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+            ) : (
+              <p className="text-3xl font-bold text-foreground">{displayStats.totalDaysLogged}</p>
+            )}
             <p className="text-base text-muted-foreground mt-1">Days Logged</p>
           </div>
         </div>
@@ -541,36 +662,43 @@ export default function MyPathPage() {
           </div>
 
           {/* Bar Chart */}
-          <div className="flex items-end justify-between gap-4 h-64">
-            {weeklyData.map((day, index) => {
-              const height = (day.calories / maxCalories) * 100
-              const targetHeight = (day.target / maxCalories) * 100
-              const isOnTrack = day.calories >= day.target * 0.9 && day.calories <= day.target * 1.1
+          {weeklyData.length > 0 ? (
+            <div className="flex items-end justify-between gap-4 h-64">
+              {weeklyData.map((day) => {
+                const maxCalories = Math.max(...weeklyData.map(d => Math.max(d.calories, d.caloriesTarget)))
+                const height = maxCalories > 0 ? (day.calories / maxCalories) * 100 : 0
+                const targetHeight = maxCalories > 0 ? (day.caloriesTarget / maxCalories) * 100 : 0
+                const isOnTrack = day.calories >= day.caloriesTarget * 0.9 && day.calories <= day.caloriesTarget * 1.1
 
-              return (
-                <div key={day.day} className="flex-1 flex flex-col items-center gap-3">
-                  <div className="relative w-full flex justify-center" style={{ height: '200px' }}>
-                    {/* Target line */}
-                    <div
-                      className="absolute w-full border-t-2 border-dashed border-muted"
-                      style={{ bottom: `${targetHeight}%` }}
-                    />
-                    {/* Bar */}
-                    <div
-                      className={`w-full max-w-12 rounded-xl transition-all ${
-                        isOnTrack ? 'bg-primary' : 'bg-primary/60'
-                      }`}
-                      style={{ height: `${height}%` }}
-                    />
+                return (
+                  <div key={day.date} className="flex-1 flex flex-col items-center gap-3">
+                    <div className="relative w-full flex justify-center" style={{ height: '200px' }}>
+                      {/* Target line */}
+                      <div
+                        className="absolute w-full border-t-2 border-dashed border-muted"
+                        style={{ bottom: `${targetHeight}%` }}
+                      />
+                      {/* Bar */}
+                      <div
+                        className={`w-full max-w-12 rounded-xl transition-all ${
+                          day.calories === 0 ? 'bg-muted/30' : isOnTrack ? 'bg-primary' : 'bg-primary/60'
+                        }`}
+                        style={{ height: day.calories === 0 ? '4px' : `${height}%` }}
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-base font-medium ${day.isCurrent ? 'text-primary' : 'text-foreground'}`}>{day.label}</p>
+                      <p className="text-sm text-muted-foreground">{day.calories > 0 ? day.calories : '-'}</p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-base font-medium text-foreground">{day.day}</p>
-                    <p className="text-sm text-muted-foreground">{day.calories}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-64">
+              <p className="text-muted-foreground">No data yet. Start logging meals to see your progress.</p>
+            </div>
+          )}
         </div>
 
         {/* Progress Summary */}
@@ -586,43 +714,49 @@ export default function MyPathPage() {
                     cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10"
                     className="text-primary transition-all duration-500"
                     strokeLinecap="round"
-                    strokeDasharray={`${stats.weeklyGoalHit * 2.64} 264`}
+                    strokeDasharray={`${displayStats.weeklyGoalHit * 2.64} 264`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-foreground">{stats.weeklyGoalHit}%</span>
+                  <span className="text-3xl font-bold text-foreground">{displayStats.weeklyGoalHit}%</span>
                 </div>
               </div>
             </div>
             <p className="text-center text-base text-muted-foreground">
-              You hit your targets {stats.daysOnTrack} out of 7 days this week
+              You hit your targets {displayStats.daysOnTrack} out of 7 days this week
             </p>
           </div>
 
           {/* Protein Tracking */}
           <div className="bg-card rounded-3xl p-8 border border-border/50">
             <h2 className="text-xl font-semibold text-foreground mb-6">Protein This Week</h2>
-            <div className="space-y-4">
-              {weeklyData.map((day) => {
-                const proteinGoal = 150
-                const percentage = Math.min(100, (day.protein / proteinGoal) * 100)
+            {weeklyData.length > 0 ? (
+              <div className="space-y-4">
+                {weeklyData.map((day) => {
+                  const proteinGoal = day.proteinTarget || displayStats.targetProtein
+                  const percentage = proteinGoal > 0 ? Math.min(100, (day.protein / proteinGoal) * 100) : 0
 
-                return (
-                  <div key={day.day} className="flex items-center gap-4">
-                    <span className="text-base font-medium text-foreground w-10">{day.day}</span>
-                    <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
-                      />
+                  return (
+                    <div key={day.date} className="flex items-center gap-4">
+                      <span className={`text-base font-medium w-10 ${day.isCurrent ? 'text-primary' : 'text-foreground'}`}>{day.label}</span>
+                      <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-muted-foreground w-12 text-right">{day.protein > 0 ? `${day.protein}g` : '-'}</span>
                     </div>
-                    <span className="text-sm text-muted-foreground w-12 text-right">{day.protein}g</span>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">No protein data yet</p>
+              </div>
+            )}
             <p className="text-center text-base text-muted-foreground mt-6">
-              Avg: {stats.avgProtein}g / day
+              Avg: {displayStats.avgProtein}g / day
             </p>
           </div>
         </div>
@@ -632,19 +766,35 @@ export default function MyPathPage() {
           <h2 className="text-xl font-semibold text-foreground mb-6">Milestones</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center p-4 rounded-2xl bg-muted/30">
-              <p className="text-2xl font-bold text-primary">{stats.longestStreak}</p>
+              {loadingData ? (
+                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
+              ) : (
+                <p className="text-2xl font-bold text-primary">{displayStats.longestStreak}</p>
+              )}
               <p className="text-sm text-muted-foreground mt-1">Longest Streak</p>
             </div>
             <div className="text-center p-4 rounded-2xl bg-muted/30">
-              <p className="text-2xl font-bold text-primary">{stats.totalDaysLogged}</p>
+              {loadingData ? (
+                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
+              ) : (
+                <p className="text-2xl font-bold text-primary">{displayStats.totalDaysLogged}</p>
+              )}
               <p className="text-sm text-muted-foreground mt-1">Total Days</p>
             </div>
             <div className="text-center p-4 rounded-2xl bg-muted/30">
-              <p className="text-2xl font-bold text-primary">{Math.round(stats.avgProtein * stats.totalDaysLogged / 1000)}kg</p>
+              {loadingData ? (
+                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
+              ) : (
+                <p className="text-2xl font-bold text-primary">{Math.round(displayStats.avgProtein * displayStats.totalDaysLogged / 1000)}kg</p>
+              )}
               <p className="text-sm text-muted-foreground mt-1">Protein Eaten</p>
             </div>
             <div className="text-center p-4 rounded-2xl bg-muted/30">
-              <p className="text-2xl font-bold text-primary">{Math.round(stats.avgCalories * stats.totalDaysLogged / 1000)}k</p>
+              {loadingData ? (
+                <div className="h-8 w-12 bg-muted rounded animate-pulse mx-auto" />
+              ) : (
+                <p className="text-2xl font-bold text-primary">{Math.round(displayStats.avgCalories * displayStats.totalDaysLogged / 1000)}k</p>
+              )}
               <p className="text-sm text-muted-foreground mt-1">Calories Logged</p>
             </div>
           </div>

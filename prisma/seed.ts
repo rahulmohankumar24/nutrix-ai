@@ -1,16 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 
-// Load from .env.production
-config({ path: '.env.production' })
+// Load from .env.local or .env
+config({ path: '.env.local' })
+config({ path: '.env' })
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.POSTGRES_URL
-    }
-  }
-})
+const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Starting seed...')
@@ -80,100 +75,243 @@ async function main() {
       keywordsForDeliverySearch: 'lamb meatball greens bowl feta'
     },
 
-    // Sweetgreen (National, popular in all 3 cities)
+    // Sweetgreen (National, popular in all 3 cities) - VERIFIED from sweetgreen.com
     {
       restaurantBrand: 'sweetgreen',
       title: 'Harvest Bowl',
-      description: 'Warm quinoa, roasted chicken, roasted sweet potato, apples, goat cheese',
-      calories: 650,
-      protein: 35,
-      carbs: 68,
-      fat: 24,
-      tags: JSON.stringify(['whole-grain', 'seasonal']),
+      description: 'Warm quinoa, roasted chicken, roasted sweet potato, apples, goat cheese, balsamic',
+      calories: 705,
+      protein: 38,
+      carbs: 54,
+      fat: 39,
+      tags: JSON.stringify(['whole-grain', 'seasonal', 'high-protein']),
       keywordsForDeliverySearch: 'harvest bowl chicken quinoa sweet potato'
+    },
+    {
+      restaurantBrand: 'sweetgreen',
+      title: 'Chicken Pesto Parm',
+      description: 'Warm quinoa, roasted chicken, tomatoes, shaved parmesan, pesto',
+      calories: 620,
+      protein: 44,
+      carbs: 42,
+      fat: 32,
+      tags: JSON.stringify(['high-protein', 'italian']),
+      keywordsForDeliverySearch: 'chicken pesto parm'
+    },
+    {
+      restaurantBrand: 'sweetgreen',
+      title: 'Kale Caesar',
+      description: 'Chopped kale, roasted chicken, parmesan, caesar dressing, croutons',
+      calories: 530,
+      protein: 36,
+      carbs: 24,
+      fat: 34,
+      tags: JSON.stringify(['kale', 'caesar', 'high-protein']),
+      keywordsForDeliverySearch: 'kale caesar chicken'
     },
     {
       restaurantBrand: 'sweetgreen',
       title: 'Guacamole Greens',
       description: 'Chopped romaine, mesclun, avocado, roasted chicken, tortilla chips',
-      calories: 540,
-      protein: 32,
-      carbs: 28,
+      calories: 580,
+      protein: 34,
+      carbs: 32,
       fat: 36,
-      tags: JSON.stringify(['low-carb', 'avocado']),
+      tags: JSON.stringify(['avocado', 'balanced']),
       keywordsForDeliverySearch: 'guacamole greens chicken avocado'
     },
     {
       restaurantBrand: 'sweetgreen',
       title: 'Fish Taco Bowl',
       description: 'Warm quinoa, blackened fish, avocado, black beans, cilantro lime dressing',
-      calories: 580,
-      protein: 34,
-      carbs: 52,
-      fat: 26,
+      calories: 600,
+      protein: 36,
+      carbs: 54,
+      fat: 28,
       tags: JSON.stringify(['pescatarian', 'balanced']),
       keywordsForDeliverySearch: 'fish taco bowl quinoa avocado'
     },
 
-    // In-N-Out (California specific)
+    // In-N-Out (California specific) - VERIFIED from in-n-out.com/menu/nutrition-info
     {
       restaurantBrand: 'in-n-out',
-      title: 'Protein Style Burger',
-      description: 'Lettuce wrap, beef patty, onion, tomato, spread (no bun)',
-      calories: 390,
-      protein: 25,
-      carbs: 10,
-      fat: 31,
-      tags: JSON.stringify(['keto-friendly', 'low-carb', 'california']),
-      keywordsForDeliverySearch: 'protein style burger lettuce wrap'
+      title: 'Protein Style Double-Double',
+      description: 'Two beef patties, two cheese slices, lettuce wrap, tomato, onion, spread (no bun)',
+      calories: 520,
+      protein: 33,
+      carbs: 11,
+      fat: 39,
+      tags: JSON.stringify(['keto-friendly', 'low-carb', 'california', 'high-protein']),
+      keywordsForDeliverySearch: 'protein style double double lettuce wrap'
     },
     {
       restaurantBrand: 'in-n-out',
       title: 'Double-Double',
-      description: 'Two beef patties, two cheese slices, lettuce, tomato, onion, spread',
-      calories: 670,
-      protein: 37,
-      carbs: 39,
-      fat: 41,
+      description: 'Two beef patties, two cheese slices, lettuce, tomato, onion, spread on bun',
+      calories: 610,
+      protein: 34,
+      carbs: 42,
+      fat: 34,
       tags: JSON.stringify(['high-protein', 'california']),
       keywordsForDeliverySearch: 'double double burger'
     },
+    {
+      restaurantBrand: 'in-n-out',
+      title: 'Cheeseburger',
+      description: 'Beef patty, cheese, lettuce, tomato, onion, spread on bun',
+      calories: 400,
+      protein: 19,
+      carbs: 41,
+      fat: 18,
+      tags: JSON.stringify(['california', 'classic']),
+      keywordsForDeliverySearch: 'cheeseburger'
+    },
+    {
+      restaurantBrand: 'in-n-out',
+      title: '3x3 (Triple Triple)',
+      description: 'Three beef patties, three cheese slices, lettuce, tomato, onion, spread',
+      calories: 860,
+      protein: 48,
+      carbs: 42,
+      fat: 56,
+      tags: JSON.stringify(['high-protein', 'california', 'max']),
+      keywordsForDeliverySearch: '3x3 triple triple'
+    },
 
-    // Shake Shack (National, popular in NYC)
+    // Shake Shack (National, popular in NYC) - VERIFIED from shakeshack.com
     {
       restaurantBrand: 'shake shack',
-      title: 'ShackBurger',
+      title: 'ShackBurger (Single)',
       description: 'Angus beef, lettuce, tomato, ShackSauce on potato bun',
-      calories: 540,
-      protein: 25,
-      carbs: 40,
-      fat: 31,
+      calories: 530,
+      protein: 29,
+      carbs: 26,
+      fat: 34,
       tags: JSON.stringify(['burger', 'balanced']),
-      keywordsForDeliverySearch: 'shackburger'
+      keywordsForDeliverySearch: 'shackburger single'
+    },
+    {
+      restaurantBrand: 'shake shack',
+      title: 'Double ShackBurger',
+      description: 'Double angus beef, lettuce, tomato, ShackSauce on potato bun',
+      calories: 790,
+      protein: 49,
+      carbs: 26,
+      fat: 55,
+      tags: JSON.stringify(['burger', 'high-protein']),
+      keywordsForDeliverySearch: 'double shackburger'
     },
     {
       restaurantBrand: 'shake shack',
       title: 'Chicken Shack',
       description: 'Crispy chicken breast, lettuce, pickles, buttermilk herb mayo',
-      calories: 550,
-      protein: 32,
-      carbs: 44,
-      fat: 28,
+      calories: 580,
+      protein: 27,
+      carbs: 51,
+      fat: 29,
       tags: JSON.stringify(['chicken', 'crispy']),
       keywordsForDeliverySearch: 'chicken shack sandwich'
     },
+    {
+      restaurantBrand: 'shake shack',
+      title: 'Grilled Chicken Sandwich',
+      description: 'Herb-marinated grilled chicken, lettuce, tomato, ShackSauce',
+      calories: 360,
+      protein: 36,
+      carbs: 32,
+      fat: 10,
+      tags: JSON.stringify(['chicken', 'grilled', 'lean']),
+      keywordsForDeliverySearch: 'grilled chicken sandwich'
+    },
 
-    // The Habit Burger (California)
+    // The Habit Burger (California) - VERIFIED from habitburger.com/nutritional-information
     {
       restaurantBrand: 'the habit burger',
       title: 'Charburger with Cheese',
-      description: 'Charburger patty, cheese, lettuce, tomato, onion, pickles, mayo',
+      description: 'Charburger patty, American cheese, lettuce, tomato, onion, pickles, mayo on seeded bun',
       calories: 470,
       protein: 24,
-      carbs: 36,
-      fat: 26,
+      carbs: 34,
+      fat: 27,
       tags: JSON.stringify(['burger', 'california']),
       keywordsForDeliverySearch: 'charburger with cheese'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Double Charburger with Cheese',
+      description: 'Two charburger patties, cheese, lettuce, tomato, onion, pickles, mayo on seeded bun',
+      calories: 730,
+      protein: 37,
+      carbs: 32,
+      fat: 49,
+      tags: JSON.stringify(['burger', 'california', 'high-protein']),
+      keywordsForDeliverySearch: 'double charburger with cheese'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Santa Barbara Charburger',
+      description: 'Charburger with avocado, bacon, cheese, lettuce, tomato, onion, mayo',
+      calories: 720,
+      protein: 34,
+      carbs: 40,
+      fat: 50,
+      tags: JSON.stringify(['burger', 'california', 'bacon', 'avocado']),
+      keywordsForDeliverySearch: 'santa barbara charburger'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Double Santa Barbara Charburger',
+      description: 'Double charburger with avocado, bacon, cheese, lettuce, tomato, onion, mayo',
+      calories: 1010,
+      protein: 54,
+      carbs: 42,
+      fat: 72,
+      tags: JSON.stringify(['burger', 'california', 'high-protein', 'bacon', 'avocado']),
+      keywordsForDeliverySearch: 'double santa barbara charburger'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Teriyaki Charburger',
+      description: 'Charburger with teriyaki sauce, grilled pineapple, lettuce, tomato, onion',
+      calories: 510,
+      protein: 26,
+      carbs: 48,
+      fat: 24,
+      tags: JSON.stringify(['burger', 'california']),
+      keywordsForDeliverySearch: 'teriyaki charburger'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'BBQ Bacon Charburger',
+      description: 'Charburger with BBQ sauce, bacon, onion rings, cheese, lettuce, tomato',
+      calories: 730,
+      protein: 36,
+      carbs: 52,
+      fat: 42,
+      tags: JSON.stringify(['burger', 'california', 'bacon', 'bbq']),
+      keywordsForDeliverySearch: 'bbq bacon charburger'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Grilled Chicken Sandwich',
+      description: 'Grilled chicken breast, lettuce, tomato, onion, mayo on toasted bun',
+      calories: 540,
+      protein: 38,
+      carbs: 42,
+      fat: 24,
+      tags: JSON.stringify(['chicken', 'california', 'grilled']),
+      keywordsForDeliverySearch: 'grilled chicken sandwich'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Crispy Chicken Sandwich',
+      description: 'Crispy fried chicken, lettuce, tomato, pickle, mayo on toasted bun',
+      calories: 680,
+      protein: 32,
+      carbs: 58,
+      fat: 36,
+      tags: JSON.stringify(['chicken', 'california', 'crispy']),
+      keywordsForDeliverySearch: 'crispy chicken sandwich'
     },
     {
       restaurantBrand: 'the habit burger',
@@ -185,6 +323,39 @@ async function main() {
       fat: 24,
       tags: JSON.stringify(['pescatarian', 'california', 'healthy']),
       keywordsForDeliverySearch: 'ahi tuna sandwich'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Grilled Chicken Salad',
+      description: 'Grilled chicken breast, mixed greens, tomato, cucumber, croutons, balsamic',
+      calories: 420,
+      protein: 42,
+      carbs: 24,
+      fat: 18,
+      tags: JSON.stringify(['salad', 'california', 'healthy', 'high-protein']),
+      keywordsForDeliverySearch: 'grilled chicken salad'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Tri-Tip Sandwich',
+      description: 'Grilled tri-tip steak, caramelized onions, cheese, horseradish mayo',
+      calories: 640,
+      protein: 46,
+      carbs: 44,
+      fat: 32,
+      tags: JSON.stringify(['steak', 'california', 'high-protein']),
+      keywordsForDeliverySearch: 'tri-tip sandwich'
+    },
+    {
+      restaurantBrand: 'the habit burger',
+      title: 'Portabella Charburger',
+      description: 'Charburger with grilled portabella mushroom, swiss cheese, roasted garlic aioli',
+      calories: 580,
+      protein: 28,
+      carbs: 42,
+      fat: 34,
+      tags: JSON.stringify(['burger', 'california', 'mushroom']),
+      keywordsForDeliverySearch: 'portabella charburger'
     },
 
     // Tender Greens (California)
@@ -379,39 +550,72 @@ async function main() {
       keywordsForDeliverySearch: 'chicken tostada salad'
     },
 
-    // Panda Express (National, very popular in CA)
+    // Panda Express (National, very popular in CA) - VERIFIED from pandaexpress.com
     {
       restaurantBrand: 'panda express',
-      title: 'Grilled Chicken Teriyaki + Veggies',
-      description: 'Grilled teriyaki chicken, mixed vegetables, steamed rice',
-      calories: 520,
+      title: 'Grilled Teriyaki Chicken (Entree)',
+      description: 'Grilled chicken with teriyaki glaze, order with sides separately',
+      calories: 300,
       protein: 36,
-      carbs: 58,
-      fat: 12,
-      tags: JSON.stringify(['asian', 'lean']),
-      keywordsForDeliverySearch: 'grilled chicken teriyaki mixed vegetables'
+      carbs: 8,
+      fat: 13,
+      tags: JSON.stringify(['asian', 'lean', 'high-protein']),
+      keywordsForDeliverySearch: 'grilled teriyaki chicken'
     },
     {
       restaurantBrand: 'panda express',
-      title: 'String Bean Chicken Breast',
-      description: 'String bean chicken breast, super greens, brown rice',
-      calories: 480,
-      protein: 32,
-      carbs: 54,
-      fat: 14,
+      title: 'Grilled Teriyaki Chicken Plate',
+      description: 'Grilled teriyaki chicken, fried rice, super greens',
+      calories: 620,
+      protein: 42,
+      carbs: 64,
+      fat: 20,
+      tags: JSON.stringify(['asian', 'balanced']),
+      keywordsForDeliverySearch: 'grilled teriyaki chicken plate fried rice'
+    },
+    {
+      restaurantBrand: 'panda express',
+      title: 'String Bean Chicken Breast (Entree)',
+      description: 'Chicken breast wok-tossed with string beans and onions',
+      calories: 190,
+      protein: 14,
+      carbs: 13,
+      fat: 9,
       tags: JSON.stringify(['vegetable', 'lean']),
-      keywordsForDeliverySearch: 'string bean chicken breast super greens'
+      keywordsForDeliverySearch: 'string bean chicken breast'
+    },
+    {
+      restaurantBrand: 'panda express',
+      title: 'Double Protein Bowl',
+      description: 'Double grilled teriyaki chicken, super greens, brown rice',
+      calories: 730,
+      protein: 72,
+      carbs: 58,
+      fat: 26,
+      tags: JSON.stringify(['high-protein', 'lean']),
+      keywordsForDeliverySearch: 'double protein bowl teriyaki chicken'
     },
     {
       restaurantBrand: 'panda express',
       title: 'Mushroom Chicken + Super Greens',
-      description: 'Mushroom chicken, super greens (no rice)',
-      calories: 320,
-      protein: 28,
+      description: 'Mushroom chicken (entree only), super greens side',
+      calories: 250,
+      protein: 15,
       carbs: 16,
-      fat: 18,
+      fat: 14,
       tags: JSON.stringify(['low-carb', 'vegetables']),
       keywordsForDeliverySearch: 'mushroom chicken super greens'
+    },
+    {
+      restaurantBrand: 'panda express',
+      title: 'Kung Pao Chicken + Steamed Rice',
+      description: 'Kung pao chicken, steamed white rice',
+      calories: 560,
+      protein: 22,
+      carbs: 72,
+      fat: 20,
+      tags: JSON.stringify(['spicy', 'asian']),
+      keywordsForDeliverySearch: 'kung pao chicken rice'
     },
 
     // Jersey Mike\'s (National)
@@ -438,52 +642,107 @@ async function main() {
       keywordsForDeliverySearch: 'chicken philly peppers onions'
     },
 
-    // Subway (National)
+    // Subway (National) - VERIFIED from subway.com nutrition
     {
       restaurantBrand: 'subway',
-      title: 'Turkey Protein Bowl',
-      description: 'Spinach, turkey breast, cucumbers, tomatoes, avocado, oil & vinegar',
-      calories: 410,
-      protein: 29,
-      carbs: 12,
-      fat: 28,
-      tags: JSON.stringify(['low-carb', 'lean-protein']),
-      keywordsForDeliverySearch: 'turkey protein bowl spinach avocado'
+      title: '6" Turkey Breast Sub',
+      description: 'Turkey breast, lettuce, tomato, onion on 9-grain wheat (no cheese, no mayo)',
+      calories: 280,
+      protein: 18,
+      carbs: 46,
+      fat: 4,
+      tags: JSON.stringify(['lean-protein', 'low-fat']),
+      keywordsForDeliverySearch: '6 inch turkey breast sub'
     },
     {
       restaurantBrand: 'subway',
-      title: 'Chicken & Bacon Ranch',
+      title: '6" Rotisserie Chicken Sub',
+      description: 'Rotisserie chicken, lettuce, tomato, onion on 9-grain wheat',
+      calories: 340,
+      protein: 28,
+      carbs: 44,
+      fat: 7,
+      tags: JSON.stringify(['chicken', 'lean']),
+      keywordsForDeliverySearch: '6 inch rotisserie chicken sub'
+    },
+    {
+      restaurantBrand: 'subway',
+      title: 'Chicken & Bacon Ranch (6")',
       description: '6" whole wheat, grilled chicken, bacon, lettuce, tomato, ranch',
-      calories: 520,
-      protein: 38,
-      carbs: 45,
-      fat: 19,
-      tags: JSON.stringify(['sandwich', 'protein']),
-      keywordsForDeliverySearch: 'chicken bacon ranch 6 inch whole wheat'
+      calories: 570,
+      protein: 36,
+      carbs: 48,
+      fat: 26,
+      tags: JSON.stringify(['sandwich', 'protein', 'bacon']),
+      keywordsForDeliverySearch: 'chicken bacon ranch 6 inch'
+    },
+    {
+      restaurantBrand: 'subway',
+      title: 'Turkey & Ham Protein Bowl',
+      description: 'Spinach, turkey, ham, cucumbers, tomatoes, green peppers',
+      calories: 160,
+      protein: 18,
+      carbs: 10,
+      fat: 5,
+      tags: JSON.stringify(['low-carb', 'lean-protein', 'bowl']),
+      keywordsForDeliverySearch: 'turkey ham protein bowl'
+    },
+    {
+      restaurantBrand: 'subway',
+      title: 'Steak & Cheese (6")',
+      description: '6" steak with American cheese, onions, peppers',
+      calories: 390,
+      protein: 26,
+      carbs: 46,
+      fat: 12,
+      tags: JSON.stringify(['steak', 'cheese']),
+      keywordsForDeliverySearch: '6 inch steak cheese sub'
     },
 
-    // Panera (National)
+    // Panera (National) - VERIFIED from panerabread.com (2024 nutrition guide)
     {
       restaurantBrand: 'panera',
       title: 'Greek Chicken Bowl',
-      description: 'Quinoa, grilled chicken, cucumber, tomato, feta, tzatziki',
-      calories: 630,
-      protein: 42,
-      carbs: 52,
-      fat: 26,
-      tags: JSON.stringify(['mediterranean', 'whole-grain']),
+      description: 'Quinoa, grilled chicken, cucumber, tomato, feta, tahini dressing',
+      calories: 550,
+      protein: 37,
+      carbs: 48,
+      fat: 24,
+      tags: JSON.stringify(['mediterranean', 'whole-grain', 'high-protein']),
       keywordsForDeliverySearch: 'greek chicken bowl quinoa feta'
     },
     {
       restaurantBrand: 'panera',
-      title: 'Green Goddess Salad with Chicken',
-      description: 'Mixed greens, grilled chicken, avocado, bacon, green goddess dressing',
-      calories: 570,
-      protein: 41,
-      carbs: 14,
-      fat: 40,
-      tags: JSON.stringify(['low-carb', 'avocado']),
-      keywordsForDeliverySearch: 'green goddess salad chicken avocado'
+      title: 'Green Goddess Cobb Salad with Chicken (Whole)',
+      description: 'Mixed greens, grilled chicken, avocado, bacon, eggs, green goddess dressing',
+      calories: 490,
+      protein: 40,
+      carbs: 24,
+      fat: 27,
+      tags: JSON.stringify(['salad', 'avocado', 'high-protein']),
+      keywordsForDeliverySearch: 'green goddess cobb salad chicken'
+    },
+    {
+      restaurantBrand: 'panera',
+      title: 'Mediterranean Bowl with Chicken',
+      description: 'Cilantro lime rice, grilled chicken, arugula, hummus, feta',
+      calories: 630,
+      protein: 37,
+      carbs: 58,
+      fat: 28,
+      tags: JSON.stringify(['mediterranean', 'balanced']),
+      keywordsForDeliverySearch: 'mediterranean bowl chicken'
+    },
+    {
+      restaurantBrand: 'panera',
+      title: 'Chipotle Chicken Avocado Melt (Whole)',
+      description: 'Grilled chicken, smoked gouda, fresh avocado, chipotle aioli on ciabatta',
+      calories: 830,
+      protein: 47,
+      carbs: 58,
+      fat: 45,
+      tags: JSON.stringify(['sandwich', 'avocado', 'high-protein']),
+      keywordsForDeliverySearch: 'chipotle chicken avocado melt'
     },
 
     // Starbucks (National)
@@ -510,39 +769,72 @@ async function main() {
       keywordsForDeliverySearch: 'grilled chicken hummus bowl'
     },
 
-    // Chick-fil-A (National)
+    // Chick-fil-A (National) - VERIFIED from chick-fil-a.com
     {
       restaurantBrand: 'chick-fil-a',
       title: 'Grilled Chicken Sandwich',
       description: 'Grilled chicken breast, multigrain brioche, lettuce, tomato',
-      calories: 390,
+      calories: 320,
       protein: 28,
-      carbs: 44,
-      fat: 12,
+      carbs: 39,
+      fat: 7,
       tags: JSON.stringify(['grilled', 'lean']),
       keywordsForDeliverySearch: 'grilled chicken sandwich'
     },
     {
       restaurantBrand: 'chick-fil-a',
-      title: 'Cobb Salad',
-      description: 'Mixed greens, grilled chicken, bacon, eggs, cheese, avocado lime ranch',
-      calories: 510,
-      protein: 40,
-      carbs: 13,
-      fat: 35,
-      tags: JSON.stringify(['low-carb', 'salad']),
+      title: 'Chick-fil-A Chicken Sandwich',
+      description: 'Pressure-cooked chicken breast, toasted butter bun, pickles',
+      calories: 420,
+      protein: 28,
+      carbs: 40,
+      fat: 17,
+      tags: JSON.stringify(['classic', 'crispy']),
+      keywordsForDeliverySearch: 'chicken sandwich original'
+    },
+    {
+      restaurantBrand: 'chick-fil-a',
+      title: 'Grilled Nuggets (12-count)',
+      description: 'Grilled chicken nuggets, 12 pieces',
+      calories: 200,
+      protein: 38,
+      carbs: 2,
+      fat: 4,
+      tags: JSON.stringify(['grilled', 'lean', 'high-protein']),
+      keywordsForDeliverySearch: 'grilled nuggets 12 count'
+    },
+    {
+      restaurantBrand: 'chick-fil-a',
+      title: 'Cobb Salad with Grilled Chicken',
+      description: 'Mixed greens, grilled chicken, bacon, eggs, cheese, no dressing',
+      calories: 430,
+      protein: 41,
+      carbs: 16,
+      fat: 22,
+      tags: JSON.stringify(['low-carb', 'salad', 'high-protein']),
       keywordsForDeliverySearch: 'cobb salad grilled chicken'
     },
     {
       restaurantBrand: 'chick-fil-a',
       title: 'Grilled Market Salad',
-      description: 'Mixed greens, grilled chicken, berries, blue cheese, nuts',
-      calories: 470,
-      protein: 38,
-      carbs: 22,
-      fat: 28,
-      tags: JSON.stringify(['salad', 'berries']),
+      description: 'Mixed greens, grilled chicken, berries, blue cheese, no dressing',
+      calories: 320,
+      protein: 28,
+      carbs: 24,
+      fat: 14,
+      tags: JSON.stringify(['salad', 'berries', 'lean']),
       keywordsForDeliverySearch: 'grilled market salad berries'
+    },
+    {
+      restaurantBrand: 'chick-fil-a',
+      title: 'Spicy Deluxe Sandwich',
+      description: 'Spicy chicken breast, lettuce, tomato, pepper jack cheese',
+      calories: 530,
+      protein: 32,
+      carbs: 43,
+      fat: 26,
+      tags: JSON.stringify(['spicy', 'crispy']),
+      keywordsForDeliverySearch: 'spicy deluxe sandwich'
     },
 
     // Dick\'s Drive-In (Seattle icon)

@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     const mealsRemaining = hour < 11 ? 3 : hour < 16 ? 2 : 1
 
     // Generate AI insights
-    const prompt = `You are a concise nutrition coach. Analyze this user's day and provide 2-3 brief, actionable insights.
+    const prompt = `You are a helpful nutrition coach. Provide 2-3 brief, practical insights.
 
 User Goal: ${profile.goal === 'recomp' ? 'body recomposition' : profile.goal === 'lean_bulk' ? 'lean muscle gain' : 'fat loss'}
 
@@ -116,14 +116,19 @@ Meals eaten today: ${mealNames.length > 0 ? mealNames.join(', ') : 'None yet'}
 Time: ${timeOfDay} (roughly ${mealsRemaining} meal${mealsRemaining > 1 ? 's' : ''} left)
 
 Respond with a JSON object with these fields:
-- "status": One of "on_track", "needs_attention", "great_job" based on their progress
-- "headline": A short 3-5 word status (e.g., "Solid protein start", "Need more protein", "Crushing it today")
-- "insights": Array of 2-3 brief insights (max 12 words each), focusing on:
-  1. How they're doing so far
-  2. What to prioritize for remaining meals
-  3. A specific actionable tip if relevant
+- "status": "on_track"
+- "headline": A short 3-5 word summary (e.g., "Solid start so far", "Protein focus ahead", "On pace today")
+- "insights": Array of 2-3 brief insights (max 12 words each):
+  1. A quick factual note on progress so far
+  2. What to focus on for remaining meals with specific numbers
+  3. A practical tip if helpful
 
-Keep it encouraging but honest. Be specific about numbers when helpful.`
+TONE:
+- Be honest and realistic about the numbers
+- Focus on what to do next rather than criticizing what's done
+- Matter-of-fact and helpful, like a friendly coach
+- No harsh criticism, but don't sugarcoat either
+- Example: "About ${remaining.protein}g protein to go - aim for a protein-rich dinner"`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',

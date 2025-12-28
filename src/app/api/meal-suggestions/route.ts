@@ -4,6 +4,91 @@ import { calculateTargets, calculateDistance } from '@/lib/calculations'
 import { KNOWN_CHAINS } from '@/lib/chains'
 import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 
+// Categorize chains by dining type and value
+const TAKEOUT_FRIENDLY_CHAINS = [
+  'chipotle', 'cava', 'sweetgreen', 'chick-fil-a', 'subway', 'panera',
+  'shake shack', 'five guys', 'qdoba', 'moes', 'wingstop', 'raising canes',
+  'tropical smoothie', 'jersey mikes', 'firehouse subs', 'potbelly',
+  'noodles', 'panda express', 'zaxbys', 'popeyes', 'wendys', 'mcdonalds',
+  'taco bell', 'del taco', 'in-n-out', 'whataburger', 'culvers', 'bojangles'
+]
+
+const DINE_IN_CHAINS = [
+  'applebees', 'chilis', 'olive garden', 'red lobster', 'outback',
+  'cheesecake factory', 'buffalo wild wings', 'tgifridays', 'red robin',
+  'dennys', 'ihop', 'cracker barrel'
+]
+
+// Price tiers by chain ($ = under $10, $$ = $10-15, $$$ = $15-20, $$$$ = $20+)
+const CHAIN_PRICE_TIERS: Record<string, { base: number; perCalorie: number }> = {
+  // Budget fast food ($6-10)
+  'mcdonalds': { base: 6, perCalorie: 0.003 },
+  'wendys': { base: 6, perCalorie: 0.003 },
+  'taco bell': { base: 5, perCalorie: 0.003 },
+  'del taco': { base: 5, perCalorie: 0.003 },
+  'popeyes': { base: 7, perCalorie: 0.003 },
+  'bojangles': { base: 7, perCalorie: 0.003 },
+  'subway': { base: 7, perCalorie: 0.004 },
+
+  // Mid-tier fast casual ($10-14)
+  'chipotle': { base: 9, perCalorie: 0.004 },
+  'cava': { base: 10, perCalorie: 0.004 },
+  'qdoba': { base: 9, perCalorie: 0.004 },
+  'moes': { base: 9, perCalorie: 0.004 },
+  'panda express': { base: 8, perCalorie: 0.004 },
+  'chick-fil-a': { base: 8, perCalorie: 0.005 },
+  'raising canes': { base: 9, perCalorie: 0.004 },
+  'wingstop': { base: 10, perCalorie: 0.005 },
+  'zaxbys': { base: 9, perCalorie: 0.004 },
+  'jersey mikes': { base: 9, perCalorie: 0.005 },
+  'firehouse subs': { base: 9, perCalorie: 0.005 },
+  'potbelly': { base: 8, perCalorie: 0.004 },
+  'noodles': { base: 9, perCalorie: 0.004 },
+
+  // Premium fast casual ($12-18)
+  'sweetgreen': { base: 12, perCalorie: 0.006 },
+  'shake shack': { base: 11, perCalorie: 0.006 },
+  'five guys': { base: 12, perCalorie: 0.005 },
+  'in-n-out': { base: 8, perCalorie: 0.004 },
+  'whataburger': { base: 8, perCalorie: 0.004 },
+  'culvers': { base: 9, perCalorie: 0.004 },
+  'panera': { base: 10, perCalorie: 0.005 },
+  'tropical smoothie': { base: 9, perCalorie: 0.005 },
+
+  // Casual dining ($14-25)
+  'applebees': { base: 13, perCalorie: 0.005 },
+  'chilis': { base: 13, perCalorie: 0.005 },
+  'buffalo wild wings': { base: 14, perCalorie: 0.006 },
+  'red robin': { base: 14, perCalorie: 0.005 },
+  'tgifridays': { base: 14, perCalorie: 0.005 },
+  'dennys': { base: 11, perCalorie: 0.004 },
+  'ihop': { base: 11, perCalorie: 0.004 },
+  'cracker barrel': { base: 12, perCalorie: 0.005 },
+  'olive garden': { base: 15, perCalorie: 0.005 },
+  'red lobster': { base: 18, perCalorie: 0.006 },
+  'outback': { base: 16, perCalorie: 0.006 },
+  'cheesecake factory': { base: 18, perCalorie: 0.006 }
+}
+
+// Estimate price based on restaurant and meal calories
+function estimatePrice(restaurantBrand: string, calories: number): number {
+  const normalized = restaurantBrand.toLowerCase().replace(/[^a-z\s]/g, '')
+
+  // Find matching chain
+  const matchedChain = Object.keys(CHAIN_PRICE_TIERS).find(chain =>
+    normalized.includes(chain) || chain.includes(normalized)
+  )
+
+  if (matchedChain) {
+    const tier = CHAIN_PRICE_TIERS[matchedChain]
+    const estimated = tier.base + (calories * tier.perCalorie)
+    return Math.round(estimated * 100) / 100
+  }
+
+  // Default pricing for unknown restaurants
+  return Math.round((10 + calories * 0.005) * 100) / 100
+}
+
 // Meal size requirements by time of day and portion preference
 const MEAL_REQUIREMENTS = {
   light: {
@@ -104,6 +189,8 @@ export async function GET(request: NextRequest) {
     const sizeParam = searchParams.get('size')
     const size: 'light' | 'regular' | 'hearty' =
       sizeParam === 'light' || sizeParam === 'hearty' ? sizeParam : 'regular'
+    const diningParam = searchParams.get('dining')
+    const dining: 'takeout' | 'dine-in' = diningParam === 'dine-in' ? 'dine-in' : 'takeout'
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -243,10 +330,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If no nearby chains found, use popular defaults (no distance available)
+    // If no nearby chains found, use popular defaults based on dining mode
     if (nearbyChains.length === 0) {
-      nearbyChains = ['chipotle', 'cava', 'sweetgreen', 'chick-fil-a', 'subway', 'panera']
+      nearbyChains = dining === 'takeout'
+        ? ['chipotle', 'cava', 'sweetgreen', 'chick-fil-a', 'subway', 'panera']
+        : ['applebees', 'chilis', 'olive garden', 'buffalo wild wings', 'red robin', 'dennys']
     }
+
+    // Filter and prioritize chains based on dining preference
+    const preferredChains = dining === 'takeout' ? TAKEOUT_FRIENDLY_CHAINS : DINE_IN_CHAINS
+    const otherChains = dining === 'takeout' ? DINE_IN_CHAINS : TAKEOUT_FRIENDLY_CHAINS
+
+    // Sort nearby chains: preferred first, then others
+    nearbyChains.sort((a, b) => {
+      const aPreferred = preferredChains.some(c => a.includes(c))
+      const bPreferred = preferredChains.some(c => b.includes(c))
+      if (aPreferred && !bPreferred) return -1
+      if (!aPreferred && bPreferred) return 1
+      return 0
+    })
 
     // Get meals from these chains
     const meals = await prisma.orderTemplate.findMany({
@@ -276,6 +378,7 @@ export async function GET(request: NextRequest) {
       usedRestaurants.add(meal.restaurantBrand)
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
       const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
+      const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
       suggestions.push({
         id: meal.id,
         name: meal.title,
@@ -286,7 +389,8 @@ export async function GET(request: NextRequest) {
         carbs: meal.carbs,
         fat: meal.fat,
         score: meal.score,
-        distance
+        distance,
+        estimatedPrice
       })
     }
 
@@ -298,6 +402,7 @@ export async function GET(request: NextRequest) {
 
         const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
         const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
+        const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
         suggestions.push({
           id: meal.id,
           name: meal.title,
@@ -308,7 +413,8 @@ export async function GET(request: NextRequest) {
           carbs: meal.carbs,
           fat: meal.fat,
           score: meal.score,
-          distance
+          distance,
+          estimatedPrice
         })
       }
     }
@@ -322,6 +428,7 @@ export async function GET(request: NextRequest) {
       remaining,
       mealTime,
       size,
+      dining,
       nearbyChains: nearbyChains.slice(0, 5),
       isNearGoal,
       message: isNearGoal

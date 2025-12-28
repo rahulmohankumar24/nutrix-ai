@@ -52,7 +52,7 @@ export function Navbar() {
           afterSignOutUrl="/"
           appearance={{
             elements: {
-              avatarBox: "h-14 w-14 rounded-full ring-2 ring-border/50 hover:ring-primary/30 transition-all"
+              avatarBox: "h-24 w-24 rounded-full ring-2 ring-border/50 hover:ring-primary/30 transition-all"
             }
           }}
         />
