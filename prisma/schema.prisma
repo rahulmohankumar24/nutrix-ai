@@ -266,6 +266,15 @@ model PatternInsight {
   @@map("pattern_insights")
 }
 
+// Waitlist for early access signups
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("waitlist")
+}
+
 // Weekly Insight Cache - stores AI-generated weekly summaries
 model WeeklyInsightCache {
   id           String   @id @default(cuid())
