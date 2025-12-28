@@ -1171,7 +1171,7 @@ export default function DashboardPage() {
             // Home meals content
             <div className="flex-1 space-y-4 overflow-y-auto">
               {/* Empty pantry state */}
-              {homeMeals.length === 0 && readyToEat.length === 0 && (
+              {homeMeals.filter(m => m.name?.trim()).length === 0 && readyToEat.filter(i => i.name?.trim()).length === 0 && (
                 <div className="flex flex-col items-center justify-center text-center py-8">
                   <div className="h-12 w-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
                     <Home className="h-6 w-6 text-muted-foreground" />
@@ -1192,13 +1192,13 @@ export default function DashboardPage() {
               )}
 
               {/* Ready to Eat Items - with flip cards */}
-              {readyToEat.length > 0 && (
+              {readyToEat.filter(item => item.name && item.name.trim()).length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Ready to Eat
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {readyToEat.slice(0, 4).map((item, index) => {
+                    {readyToEat.filter(item => item.name && item.name.trim()).slice(0, 4).map((item, index) => {
                       const isFlipped = flippedCardIndex === 200 + index
                       return (
                         <div
@@ -1274,13 +1274,13 @@ export default function DashboardPage() {
               )}
 
               {/* Home Cooked Meals - with flip cards */}
-              {homeMeals.length > 0 && (
+              {homeMeals.filter(m => m.name?.trim()).length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Recipes You Can Make
                   </p>
                   <div className="space-y-3">
-                    {homeMeals.slice(0, 3).map((meal, index) => {
+                    {homeMeals.filter(m => m.name?.trim()).slice(0, 3).map((meal, index) => {
                       const isFlipped = flippedCardIndex === 100 + index
                       return (
                         <div
@@ -1393,7 +1393,7 @@ export default function DashboardPage() {
               )}
 
               {/* Link to pantry */}
-              {(homeMeals.length > 0 || readyToEat.length > 0) && (
+              {(homeMeals.filter(m => m.name?.trim()).length > 0 || readyToEat.filter(i => i.name?.trim()).length > 0) && (
                 <Link
                   href="/pantry"
                   className="flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-2"

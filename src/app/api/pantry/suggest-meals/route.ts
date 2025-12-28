@@ -80,7 +80,30 @@ ${macroGuidance}
 
 Be smart: ready-to-eat items (snacks, yogurt, etc.) should just be suggested as-is in "readyToEat". Only create actual "meals" if I have raw ingredients that need cooking.
 
-Return JSON with structure: {"meals": [...], "readyToEat": [...], "message": "..."}`
+Return JSON with this EXACT structure:
+{
+  "meals": [
+    {
+      "name": "Meal name",
+      "description": "Brief description",
+      "prepTime": "10 min",
+      "calories": 400,
+      "protein": 30,
+      "carbs": 40,
+      "fat": 15,
+      "ingredients": ["ingredient 1", "ingredient 2"]
+    }
+  ],
+  "readyToEat": [
+    {
+      "name": "Snack name",
+      "portion": "1 cup or 1 bar or 2 oz etc",
+      "calories": 150,
+      "protein": 10
+    }
+  ],
+  "message": "Brief friendly message about what you can make"
+}`
 
     const response = await openai.responses.create({
       model: 'gpt-5.2',
@@ -102,10 +125,35 @@ Return JSON with structure: {"meals": [...], "readyToEat": [...], "message": "..
       return NextResponse.json({ error: 'Failed to parse suggestions' }, { status: 500 })
     }
 
+    // Normalize meals to ensure required fields exist
+    const meals = (parsed.meals || [])
+      .filter((meal: any) => meal && typeof meal.name === 'string' && meal.name.trim() && meal.calories > 0)
+      .map((meal: any) => ({
+        name: meal.name.trim(),
+        description: meal.description || '',
+        prepTime: meal.prepTime || '15 min',
+        calories: Number(meal.calories) || 0,
+        protein: Number(meal.protein) || 0,
+        carbs: Number(meal.carbs) || 0,
+        fat: Number(meal.fat) || 0,
+        ingredients: meal.ingredients || []
+      }))
+
+    // Normalize readyToEat to ensure required fields exist
+    const readyToEat = (parsed.readyToEat || [])
+      .filter((item: any) => item && typeof item.name === 'string' && item.name.trim() && item.calories > 0)
+      .map((item: any) => ({
+        name: item.name.trim(),
+        portion: item.portion || item.serving || '1 serving',
+        calories: Number(item.calories) || 0,
+        protein: Number(item.protein) || 0,
+        note: item.note || ''
+      }))
+
     return NextResponse.json({
       success: true,
-      meals: parsed.meals || [],
-      readyToEat: parsed.readyToEat || [],
+      meals,
+      readyToEat,
       message: parsed.message || null,
       pantryItemCount: pantryItems.length
     })
