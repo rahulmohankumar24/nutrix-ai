@@ -4,6 +4,57 @@ import { isKnownChain } from '@/lib/chains'
 import { Restaurant } from '@/lib/types'
 import { cache, generateRestaurantCacheKey } from '@/lib/cache'
 
+// Multiple Overpass API endpoints for fallback
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+]
+
+async function fetchWithRetry(query: string, maxRetries = 2): Promise<any> {
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: query,
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log(`✅ Overpass fetch succeeded from ${endpoint}`)
+          return data
+        }
+
+        console.warn(`⚠️ Overpass endpoint ${endpoint} returned ${response.status}`)
+      } catch (error: any) {
+        lastError = error
+        if (error.name === 'AbortError') {
+          console.warn(`⏱️ Timeout on ${endpoint}`)
+        } else {
+          console.warn(`❌ Error from ${endpoint}:`, error.message)
+        }
+      }
+    }
+
+    // Wait before retry
+    if (attempt < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+  }
+
+  throw lastError || new Error('All Overpass endpoints failed')
+}
+
 function consolidateRestaurants(restaurants: Restaurant[]): Restaurant[] {
   const restaurantMap = new Map<string, Restaurant>()
 
@@ -43,64 +94,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Query Overpass API for restaurants within specified radius
+    // Simplified query for faster response - only nodes (most common for restaurants)
     const overpassQuery = `
-      [out:json][timeout:25];
+      [out:json][timeout:15];
       (
         node["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
         node["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
-        way["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
-        way["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
-        relation["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});
-        relation["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
+        node["amenity"="cafe"](around:${radiusMeters},${lat},${lng});
       );
-      out geom;
+      out body;
     `
 
-    const overpassUrl = 'https://overpass-api.de/api/interpreter'
-    const response = await fetch(overpassUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: overpassQuery
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch restaurant data')
-    }
-
-    const data = await response.json()
+    const data = await fetchWithRetry(overpassQuery)
     const restaurants: Restaurant[] = []
 
-    // Process Overpass response
+    // Process Overpass response - simplified for nodes only
     data.elements.forEach((element: any) => {
-      if (!element.tags?.name) return
+      if (!element.tags?.name || !element.lat || !element.lon) return
 
-      let elementLat: number
-      let elementLng: number
-
-      if (element.type === 'node') {
-        elementLat = element.lat
-        elementLng = element.lon
-      } else if (element.type === 'way' && element.center) {
-        elementLat = element.center.lat
-        elementLng = element.center.lon
-      } else if (element.geometry && element.geometry.length > 0) {
-        // Use first coordinate for ways/relations without center
-        elementLat = element.geometry[0].lat
-        elementLng = element.geometry[0].lon
-      } else {
-        return // Skip if no valid coordinates
-      }
-
-      const distance = calculateDistance(lat, lng, elementLat, elementLng)
+      const distance = calculateDistance(lat, lng, element.lat, element.lon)
       const name = element.tags.name
       const isKnown = isKnownChain(name)
 
       restaurants.push({
         id: element.id.toString(),
         name,
-        lat: elementLat,
-        lng: elementLng,
-        distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
+        lat: element.lat,
+        lng: element.lon,
+        distance: Math.round(distance * 100) / 100,
         tags: element.tags,
         isKnown
       })
@@ -138,10 +159,14 @@ export async function POST(request: NextRequest) {
     console.log('💾 Restaurant data cached:', cacheKey)
 
     return NextResponse.json(result)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Nearby restaurants error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch nearby restaurants' },
+      {
+        error: 'Failed to fetch nearby restaurants',
+        message: error?.message || 'Unknown error',
+        restaurants: [] // Return empty array so UI can handle gracefully
+      },
       { status: 500 }
     )
   }

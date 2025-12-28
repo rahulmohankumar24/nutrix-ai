@@ -1,3 +1,5 @@
+import { Sparkles } from 'lucide-react'
+
 interface MealData {
   time: string
   percentage: number
@@ -11,8 +13,16 @@ interface MealData {
   }
 }
 
+interface InsightsData {
+  status: 'on_track' | 'needs_attention' | 'great_job'
+  headline: string
+  insights: string[]
+  loading?: boolean
+}
+
 interface PathwayVisualizationProps {
   dailyData?: MealData[]
+  insights?: InsightsData
 }
 
 export function PathwayVisualization({
@@ -21,39 +31,79 @@ export function PathwayVisualization({
     { time: "Lunch", percentage: 0 },
     { time: "Dinner", percentage: 0 },
   ],
+  insights,
 }: PathwayVisualizationProps) {
   const data = dailyData
 
+  const statusColors = {
+    on_track: 'text-primary',
+    needs_attention: 'text-amber-500',
+    great_job: 'text-emerald-500'
+  }
+
+  const statusBgColors = {
+    on_track: 'bg-primary/10',
+    needs_attention: 'bg-amber-500/10',
+    great_job: 'bg-emerald-500/10'
+  }
+
   return (
-    <div className="bg-card rounded-2xl border border-border/50 p-6">
+    <div className="bg-card rounded-2xl border border-border/50 p-6 h-full flex flex-col">
       {/* Header */}
-      <div className="text-center mb-6">
+      <div className="mb-4">
         <p className="text-base text-muted-foreground tracking-wide">your path today</p>
       </div>
 
-      {/* Pathway with line through middle */}
-      <div className="relative">
-        {/* Connecting line - goes through middle of circles */}
-        <div className="absolute top-6 left-0 right-0 flex items-center px-6">
-          <div className="w-6" /> {/* Spacer for first circle */}
-          <div className={`flex-1 h-px rounded-full ${data[0]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
-          <div className="w-12" /> {/* Spacer for middle circle */}
-          <div className={`flex-1 h-px rounded-full ${data[1]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
-          <div className="w-6" /> {/* Spacer for last circle */}
+      {/* AI Insights */}
+      {insights && (
+        <div className={`rounded-xl p-4 mb-5 ${statusBgColors[insights.status] || 'bg-muted/30'}`}>
+          {insights.loading ? (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 w-24 bg-muted rounded" />
+              <div className="h-3 w-full bg-muted rounded" />
+              <div className="h-3 w-3/4 bg-muted rounded" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className={`h-4 w-4 ${statusColors[insights.status] || 'text-primary'}`} />
+                <span className={`text-sm font-semibold ${statusColors[insights.status] || 'text-primary'}`}>
+                  {insights.headline}
+                </span>
+              </div>
+              <ul className="space-y-1">
+                {insights.insights.map((insight, i) => (
+                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                    <span className="text-muted-foreground/40 mt-0.5">•</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Vertical Pathway */}
+      <div className="relative flex-1">
+        {/* Vertical connecting line */}
+        <div className="absolute left-5 top-5 bottom-5 w-px">
+          <div className={`h-1/2 ${data[0]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
+          <div className={`h-1/2 ${data[1]?.isCompleted ? 'bg-primary/40' : 'bg-border'}`} />
         </div>
 
-        {/* Circles and labels */}
-        <div className="relative flex items-start justify-between w-full">
+        {/* Meal items stacked vertically */}
+        <div className="relative flex flex-col justify-between h-full">
           {data.map((meal, index) => {
             const isCompleted = meal.isCompleted
             const isCurrent = meal.isCurrent
 
             return (
-              <div key={index} className="flex flex-col items-center flex-1">
+              <div key={index} className="flex items-center gap-4">
                 {/* Circle */}
                 <div
                   className={`
-                    relative z-10 w-12 h-12 rounded-full flex items-center justify-center
+                    relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
                     transition-all duration-300
                     ${isCompleted
                       ? 'bg-primary'
@@ -64,44 +114,44 @@ export function PathwayVisualization({
                   `}
                 >
                   {isCompleted ? (
-                    <svg className="w-5 h-5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-4 h-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    <span className={`text-base font-semibold ${isCurrent ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                    <span className={`text-sm font-semibold ${isCurrent ? 'text-primary' : 'text-muted-foreground/40'}`}>
                       {index + 1}
                     </span>
                   )}
                 </div>
 
-                {/* Label */}
-                <div className="mt-3 text-center">
+                {/* Label and Macros */}
+                <div className="flex-1 min-w-0">
                   <p className={`text-base font-medium ${
                     isCompleted ? 'text-primary' : isCurrent ? 'text-foreground' : 'text-muted-foreground/50'
                   }`}>
                     {meal.time}
                   </p>
 
-                  {/* All Macros */}
-                  <div className="mt-1.5">
+                  {/* Macros in a row */}
+                  <div className="mt-1">
                     {meal.macros && meal.macros.calories > 0 ? (
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
-                        <div className="text-right">
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+                        <span>
                           <span className="text-muted-foreground">{meal.macros.calories}</span>
                           <span className="text-muted-foreground/60 ml-0.5">cal</span>
-                        </div>
-                        <div className="text-left">
+                        </span>
+                        <span>
                           <span className="text-primary font-medium">{meal.macros.protein}g</span>
                           <span className="text-muted-foreground/60 ml-0.5">pro</span>
-                        </div>
-                        <div className="text-right">
+                        </span>
+                        <span>
                           <span className="text-muted-foreground">{meal.macros.carbs}g</span>
                           <span className="text-muted-foreground/60 ml-0.5">carb</span>
-                        </div>
-                        <div className="text-left">
+                        </span>
+                        <span>
                           <span className="text-muted-foreground">{meal.macros.fat}g</span>
                           <span className="text-muted-foreground/60 ml-0.5">fat</span>
-                        </div>
+                        </span>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground/40">

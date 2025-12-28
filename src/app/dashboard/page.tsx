@@ -6,7 +6,8 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2 } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin } from 'lucide-react'
+import { ChatWidget } from '@/components/chat-widget'
 
 interface MealLogEntry {
   id: string
@@ -51,12 +52,39 @@ interface PendingMeal {
   servings: number
 }
 
+interface MealSuggestion {
+  id: string
+  name: string
+  description: string
+  restaurant: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  distance?: number | null
+}
+
+interface DailyInsights {
+  status: 'on_track' | 'needs_attention' | 'great_job'
+  headline: string
+  insights: string[]
+  loading?: boolean
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, isLoaded, isSignedIn } = useUser()
   const [macros, setMacros] = useState<MacroProgress | null>(null)
   const [mealLogs, setMealLogs] = useState<DailyMealLogs | null>(null)
+  const [suggestions, setSuggestions] = useState<MealSuggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
+  const [suggestionMealTime, setSuggestionMealTime] = useState<string>('lunch')
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [insights, setInsights] = useState<DailyInsights | null>(null)
+  const [mealSize, setMealSize] = useState<'light' | 'regular' | 'hearty'>('regular')
+  const [suggestionMessage, setSuggestionMessage] = useState<string | null>(null)
+  const [isNearGoal, setIsNearGoal] = useState(false)
 
   // Inline chat state
   const [showChatInput, setShowChatInput] = useState(false)
@@ -80,20 +108,91 @@ export default function DashboardPage() {
       return
     }
 
-    if (user?.id) {
-      syncAndLoadData(user.id)
-    }
-
+    // Stop showing full-page loader immediately so layout renders
     setLoading(false)
+
+    if (user?.id) {
+      // Run sync and data load in parallel for faster loading
+      Promise.all([
+        fetch('/api/sync-user', { method: 'POST' }).catch(() => {}),
+        loadDashboardData(user.id)
+      ])
+      // Get location and load suggestions
+      getUserLocationAndSuggestions(user.id)
+      // Load AI insights
+      loadInsights(user.id)
+    }
   }, [user, isLoaded, isSignedIn, router])
 
-  const syncAndLoadData = async (userId: string) => {
+  const getUserLocationAndSuggestions = async (userId: string) => {
+    setLoadingSuggestions(true)
+
+    // Try to get user's location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const loc = { lat: position.coords.latitude, lng: position.coords.longitude }
+          setUserLocation(loc)
+          loadSuggestions(userId, loc)
+        },
+        () => {
+          // Location denied, load suggestions without location
+          loadSuggestions(userId, null)
+        },
+        { timeout: 5000 }
+      )
+    } else {
+      loadSuggestions(userId, null)
+    }
+  }
+
+  const loadSuggestions = async (userId: string, location: { lat: number; lng: number } | null, size: 'light' | 'regular' | 'hearty' = 'regular') => {
+    setLoadingSuggestions(true)
     try {
-      await fetch('/api/sync-user', { method: 'POST' })
-      await loadDashboardData(userId)
+      let url = `/api/meal-suggestions?userId=${userId}&size=${size}`
+      if (location) {
+        url += `&lat=${location.lat}&lng=${location.lng}`
+      }
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setSuggestions(data.suggestions || [])
+        setSuggestionMealTime(data.mealTime || 'lunch')
+        setSuggestionMessage(data.message || null)
+        setIsNearGoal(data.isNearGoal || false)
+      }
     } catch (error) {
-      console.error('Failed to sync user:', error)
-      setLoading(false)
+      console.error('Failed to load suggestions:', error)
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }
+
+  const handleMealSizeChange = (size: 'light' | 'regular' | 'hearty') => {
+    setMealSize(size)
+    if (user?.id) {
+      loadSuggestions(user.id, userLocation, size)
+    }
+  }
+
+  const loadInsights = async (userId: string) => {
+    // Show loading state
+    setInsights({ status: 'on_track', headline: '', insights: [], loading: true })
+
+    try {
+      const response = await fetch(`/api/daily-insights?userId=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setInsights({
+          status: data.status || 'on_track',
+          headline: data.headline || 'Keep going',
+          insights: data.insights || [],
+          loading: false
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load insights:', error)
+      setInsights(null)
     }
   }
 
@@ -358,8 +457,9 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to log meal')
 
-      // Refresh data
+      // Refresh data and insights
       await loadDashboardData(user.id)
+      loadInsights(user.id)
       setPendingMeal(null)
       setShowChatInput(false)
       setChatInput('')
@@ -387,8 +487,9 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to delete meal')
 
-      // Refresh data
+      // Refresh data and insights
       await loadDashboardData(user.id)
+      loadInsights(user.id)
     } catch (error) {
       console.error('Failed to delete meal:', error)
     } finally {
@@ -420,7 +521,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Remaining Summary Pill */}
-          {macros && macros.remaining.calories > 0 && (
+          {!macros ? (
+            <div className="bg-muted/50 rounded-full px-5 py-2.5 flex items-center gap-4 animate-pulse">
+              <div className="h-5 w-16 bg-muted rounded" />
+              <div className="w-px h-5 bg-border" />
+              <div className="h-5 w-20 bg-muted rounded" />
+            </div>
+          ) : macros.remaining.calories > 0 ? (
             <div className="bg-primary/10 rounded-full px-5 py-2.5 flex items-center gap-4 text-base">
               <div className="flex items-center gap-2">
                 <span className="text-primary font-semibold text-lg">{macros.remaining.calories}</span>
@@ -433,18 +540,180 @@ export default function DashboardPage() {
               </div>
               <span className="text-muted-foreground">left</span>
             </div>
-          )}
+          ) : null}
         </div>
 
-        {/* Pathway - Hero Section */}
-        <PathwayVisualization dailyData={getDailyMealPath()} />
+        {/* Pathway + Suggestions Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Pathway - Your Path Today */}
+          <PathwayVisualization dailyData={getDailyMealPath()} insights={insights || undefined} />
+
+          {/* AI Meal Suggestions */}
+          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+              </div>
+              <div>
+                <h2 className="text-base font-medium text-foreground">
+                  Suggested for {suggestionMealTime.charAt(0).toUpperCase() + suggestionMealTime.slice(1)}
+                </h2>
+                <p className="text-xs text-muted-foreground">Real meals from nearby restaurants</p>
+              </div>
+            </div>
+            <button
+              onClick={() => user?.id && loadSuggestions(user.id, userLocation, mealSize)}
+              disabled={loadingSuggestions}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {loadingSuggestions ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+
+          {/* Meal Size Selector */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-muted-foreground">Portion:</span>
+            <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+              {([
+                { value: 'light', label: 'Light' },
+                { value: 'regular', label: 'Regular' },
+                { value: 'hearty', label: 'Hearty' }
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleMealSizeChange(option.value)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    mealSize === option.value
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {loadingSuggestions ? (
+            <div className="flex-1 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-3 rounded-xl border border-border/50 bg-muted/10 animate-pulse">
+                  <div className="h-4 w-1/3 bg-muted rounded mb-2" />
+                  <div className="h-3 w-2/3 bg-muted rounded mb-2" />
+                  <div className="flex gap-2">
+                    <div className="h-5 w-14 bg-muted rounded-full" />
+                    <div className="h-5 w-14 bg-muted rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : isNearGoal ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
+              <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
+                <Check className="h-6 w-6 text-emerald-500" />
+              </div>
+              <p className="text-sm font-medium text-foreground mb-1">Almost there!</p>
+              <p className="text-sm text-muted-foreground">
+                {suggestionMessage || "You're close to your daily goals."}
+              </p>
+              {suggestions.length > 0 && (
+                <div className="mt-4 w-full">
+                  <p className="text-xs text-muted-foreground mb-2">Light options if you're still hungry:</p>
+                  {suggestions.slice(0, 2).map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="p-3 rounded-lg border border-border/50 bg-muted/10 hover:border-primary/30 transition-all cursor-pointer mb-2"
+                      onClick={() => {
+                        setPendingMeal({
+                          name: suggestion.name,
+                          calories: suggestion.calories,
+                          protein: suggestion.protein,
+                          carbs: suggestion.carbs,
+                          fat: suggestion.fat,
+                          servings: 1
+                        })
+                        setShowChatInput(false)
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-foreground truncate">{suggestion.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{suggestion.calories} cal</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : suggestions.length > 0 ? (
+            <div className="flex-1 space-y-3">
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  className="p-4 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/30 hover:bg-muted/20 transition-all cursor-pointer group"
+                  onClick={() => {
+                    setPendingMeal({
+                      name: suggestion.name,
+                      calories: suggestion.calories,
+                      protein: suggestion.protein,
+                      carbs: suggestion.carbs,
+                      fat: suggestion.fat,
+                      servings: 1
+                    })
+                    setShowChatInput(false)
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md uppercase tracking-wide">
+                      {suggestion.restaurant}
+                    </span>
+                    {suggestion.distance && (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {suggestion.distance} mi
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-auto" />
+                  </div>
+                  <h3 className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                    {suggestion.name}
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      {suggestion.calories} cal
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                      {suggestion.protein}g protein
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No suggestions available right now
+            </p>
+          )}
+          </div>
+        </div>
 
         {/* Side by Side: Today's Total + Meals Logged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Today's Total */}
-          {macros && (
-            <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col h-full">
-              <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
+          <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col h-full">
+            <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
+            {!macros ? (
+              // Skeleton loading state
+              <div className="grid grid-cols-2 gap-4 flex-1">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20 animate-pulse">
+                    <div className="w-20 h-20 rounded-full bg-muted" />
+                    <div className="h-4 w-12 bg-muted rounded mt-2" />
+                    <div className="h-3 w-16 bg-muted rounded mt-1" />
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div className="grid grid-cols-2 gap-4 flex-1">
                 {/* Calories */}
                 <div className="flex flex-col items-center p-4 rounded-xl border border-border/50 bg-muted/20">
@@ -526,8 +795,8 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground">of {macros.targets.fat}g fat</p>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Meals Logged */}
           <div className="bg-card rounded-2xl p-6 border border-border/50 flex flex-col">
@@ -783,23 +1052,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Actions - Bottom */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Link
-            href="/coach"
-            className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <MessageCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Log a meal</p>
-                <p className="text-sm text-muted-foreground">Chat with your coach</p>
-              </div>
-            </div>
-          </Link>
+        {/* Chat Widget */}
+        <ChatWidget
+          userId={user?.id || ''}
+          userName={user?.firstName || undefined}
+          onMealLogged={() => {
+            if (user?.id) {
+              loadDashboardData(user.id)
+              loadInsights(user.id)
+            }
+          }}
+        />
 
+        {/* Quick Actions - Bottom */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
             href="/restaurants"
             className="bg-card rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-all hover:shadow-sm group"

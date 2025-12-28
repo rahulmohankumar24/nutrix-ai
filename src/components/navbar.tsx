@@ -4,14 +4,13 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
-import { Home, MessageCircle, Utensils, TrendingUp } from "lucide-react"
+import { Home, Utensils, TrendingUp } from "lucide-react"
 
 export function Navbar() {
   const pathname = usePathname()
 
   const navItems = [
     { name: "Home", href: "/dashboard", icon: Home },
-    { name: "Coach", href: "/coach", icon: MessageCircle },
     { name: "Restaurants", href: "/restaurants", icon: Utensils },
     { name: "My Path", href: "/my-path", icon: TrendingUp },
   ]
