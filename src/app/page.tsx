@@ -205,7 +205,7 @@ export default function LandingPage() {
                       ].map((bar, i) => (
                         <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
                           <div
-                            className={`w-full rounded-sm ${bar.hit ? 'bg-primary' : 'bg-amber-500'}`}
+                            className={`w-full rounded-sm ${bar.hit ? 'bg-primary/70' : 'bg-amber-500/50'}`}
                             style={{ height: `${bar.height}px` }}
                           />
                           <span className="text-xs text-muted-foreground">{bar.day}</span>
