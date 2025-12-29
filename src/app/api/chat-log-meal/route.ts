@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
+import { getUserHour } from '@/lib/timezone'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Use passed currentHour or calculate from timezone (never calculate from server time)
     const currentHour = passedHour !== undefined
       ? passedHour
-      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
+      : getUserHour(timezone)
 
     const timeContext = currentHour < 11 ? 'morning (breakfast time)'
                       : currentHour < 16 ? 'midday (lunch time)'

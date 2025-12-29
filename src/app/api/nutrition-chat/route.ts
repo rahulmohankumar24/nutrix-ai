@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
+import { getUserHour, getUserDateStr, getDayBoundariesUTC } from '@/lib/timezone'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -20,14 +21,14 @@ export async function POST(request: NextRequest) {
     // Use passed currentHour or calculate from timezone (never calculate from server time)
     const currentHour = passedHour !== undefined
       ? passedHour
-      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
+      : getUserHour(timezone)
 
     // Fetch user's current macro progress and profile for context
     let userContext = ''
     try {
       const [profile, macroProgress] = await Promise.all([
         prisma.profile.findUnique({ where: { userId } }),
-        fetchMacroProgress(userId)
+        fetchMacroProgress(userId, timezone)
       ])
 
       if (profile && macroProgress) {
@@ -195,18 +196,19 @@ Respond with valid JSON only.`
   }
 }
 
-async function fetchMacroProgress(userId: string) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+async function fetchMacroProgress(userId: string, timezone: string = 'America/Los_Angeles') {
+  // Use timezone-aware day boundaries
+  const userDateStr = getUserDateStr(timezone)
+  const { startOfDay, endOfDay } = getDayBoundariesUTC(userDateStr, timezone)
+  // For DailyTarget date field (stored as date without time)
+  const today = new Date(`${userDateStr}T00:00:00.000Z`)
 
   const [profile, mealLogs, dailyTarget] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
     prisma.mealLog.findMany({
       where: {
         userId,
-        datetime: { gte: today, lt: tomorrow }
+        datetime: { gte: startOfDay, lte: endOfDay }
       },
       include: {
         orderTemplate: true,
@@ -216,7 +218,7 @@ async function fetchMacroProgress(userId: string) {
     prisma.dailyTarget.findFirst({
       where: {
         userId,
-        date: { gte: today, lt: tomorrow }
+        date: today
       }
     })
   ])
