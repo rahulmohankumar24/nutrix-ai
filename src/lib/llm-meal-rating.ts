@@ -99,7 +99,7 @@ Return ONLY JSON:
   try {
     const completion = await openai.responses.create({
       model: "gpt-5.2",
-      input: [{ role: "user", content: prompt }]
+      input: prompt
     })
 
     const response = completion.output_text
@@ -190,7 +190,7 @@ Return ONLY JSON:
   try {
     const completion = await openai.responses.create({
       model: "gpt-5.2",
-      input: [{ role: "user", content: prompt }]
+      input: prompt
     })
 
     const response = completion.output_text

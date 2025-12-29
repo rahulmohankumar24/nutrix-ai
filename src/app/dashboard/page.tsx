@@ -574,29 +574,34 @@ export default function DashboardPage() {
 
         // If Pro, fetch today's health analysis
         if (pro) {
-          const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
-          const healthResponse = await fetch(`/api/health-analysis?userId=${userId}&today=true&timezone=${tz}`)
-          if (healthResponse.ok) {
-            const healthData = await healthResponse.json()
-            if (healthData.allMealsCount > 0 || healthData.mealsAnalyzed > 0) {
-              // Check for protein in insights
-              const hasProtein = healthData.nutritionInsights?.some(
-                (i: { title: string }) => i.title.toLowerCase().includes('protein')
-              ) || false
+          try {
+            const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+            const healthResponse = await fetch(`/api/health-analysis?userId=${userId}&today=true&timezone=${tz}`)
+            if (healthResponse.ok) {
+              const healthData = await healthResponse.json()
+              if (healthData.allMealsCount > 0 || healthData.mealsAnalyzed > 0) {
+                // Check for protein in insights
+                const hasProtein = healthData.nutritionInsights?.some(
+                  (i: { title: string }) => i.title.toLowerCase().includes('protein')
+                ) || false
 
-              setTodayHealth({
-                grade: healthData.grade,
-                score: healthData.overallScore,
-                mealsAnalyzed: healthData.mealsAnalyzed,
-                allMealsCount: healthData.allMealsCount || 0,
-                summary: healthData.dailySummary || null,
-                hasFruits: healthData.hasFruits || false,
-                hasVeggies: healthData.hasVeggies || false,
-                hasFiber: healthData.hasFiber || false,
-                hasProtein,
-                hasProbiotics: healthData.hasProbiotics || false
-              })
+                setTodayHealth({
+                  grade: healthData.grade,
+                  score: healthData.overallScore,
+                  mealsAnalyzed: healthData.mealsAnalyzed,
+                  allMealsCount: healthData.allMealsCount || 0,
+                  summary: healthData.dailySummary || null,
+                  hasFruits: healthData.hasFruits || false,
+                  hasVeggies: healthData.hasVeggies || false,
+                  hasFiber: healthData.hasFiber || false,
+                  hasProtein,
+                  hasProbiotics: healthData.hasProbiotics || false
+                })
+              }
             }
+          } catch (healthError) {
+            console.error('Failed to fetch health analysis:', healthError)
+            // Silently fail - health analysis is optional
           }
         }
       }
