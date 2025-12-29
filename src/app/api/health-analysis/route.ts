@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { calculateHealthAnalysis, HealthAnalysisResult, analyzeNutrition, NutritionInsight } from '@/lib/health/analyzer'
 import { KNOWN_CHAINS } from '@/lib/chains'
+import { getDayBoundariesUTC, getUserDateStr } from '@/lib/timezone'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -208,22 +209,25 @@ export async function GET(request: NextRequest) {
 
     // Get date range based on todayOnly parameter
     let startDate: Date
+    let endDate: Date | undefined
     if (todayOnly) {
-      // Get start of today in user's timezone
-      const now = new Date()
-      const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-      startDate = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
+      // Get today's boundaries in user's timezone
+      const userDateStr = getUserDateStr(timezone)
+      const boundaries = getDayBoundariesUTC(userDateStr, timezone)
+      startDate = boundaries.startOfDay
+      endDate = boundaries.endOfDay
     } else {
       // Get last 30 days
       startDate = new Date()
       startDate.setDate(startDate.getDate() - 30)
+      endDate = undefined
     }
 
     // Get meals from OrderTemplate (restaurant picker)
     const orderTemplateMeals = await prisma.mealLog.findMany({
       where: {
         userId,
-        datetime: { gte: startDate },
+        datetime: endDate ? { gte: startDate, lte: endDate } : { gte: startDate },
         orderTemplateId: { not: null }
       },
       include: {
@@ -236,7 +240,7 @@ export async function GET(request: NextRequest) {
     const catalogMeals = await prisma.mealLog.findMany({
       where: {
         userId,
-        datetime: { gte: startDate },
+        datetime: endDate ? { gte: startDate, lte: endDate } : { gte: startDate },
         foodCatalogItemId: { not: null },
         orderTemplateId: null // Don't double-count
       },
