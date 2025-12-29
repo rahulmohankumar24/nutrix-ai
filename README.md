@@ -188,3 +188,4 @@ MIT License - feel free to use this as a starting point for your nutrition app!
 ---
 
 **Built with ❤️ using Next.js, Prisma, and OpenAI**
+
