@@ -332,7 +332,7 @@ export default function DashboardPage() {
       if (finalResort) {
         url += '&finalResort=true'
       }
-      const response = await fetch(url)
+      const response = await fetch(url, { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
@@ -401,9 +401,22 @@ export default function DashboardPage() {
     }
   }
 
-  const handleRefreshSuggestions = () => {
+  const handleRefreshSuggestions = async () => {
     if (!user?.id) return
     setIsFinalResortMode(false) // Reset final resort mode on refresh
+
+    // Invalidate all caches first
+    invalidateCache(user.id)
+
+    // Reset goal states
+    setGoalAchieved(false)
+    setIsNearGoal(false)
+    setSuggestionMessage(null)
+
+    // Refresh dashboard data first to get latest macro totals
+    await loadDashboardData(user.id)
+
+    // Then refresh AI-powered features with fresh context
     if (mealSource === 'home') {
       loadHomeMeals(user.id, true)
     } else {
@@ -445,7 +458,8 @@ export default function DashboardPage() {
       const response = await fetch('/api/pantry/suggest-meals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ userId }),
+        cache: 'no-store'
       })
       if (response.ok) {
         const data = await response.json()
@@ -487,7 +501,7 @@ export default function DashboardPage() {
     try {
       const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
       const hour = new Date().getHours()
-      const response = await fetch(`/api/daily-insights?userId=${userId}&timezone=${tz}&currentHour=${hour}`)
+      const response = await fetch(`/api/daily-insights?userId=${userId}&timezone=${tz}&currentHour=${hour}`, { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         setInsights({
@@ -884,9 +898,15 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to log meal')
 
-      // Refresh data and insights
+      // Invalidate cache and refresh everything
+      invalidateCache(user.id)
+      setGoalAchieved(false)
+      setIsNearGoal(false)
+      setSuggestionMessage(null)
+
       await loadDashboardData(user.id)
-      loadInsights(user.id)
+      loadInsights(user.id, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
       setPendingMeal(null)
       setChatInput('')
     } catch (error) {
@@ -1467,8 +1487,13 @@ export default function DashboardPage() {
                                     })
                                     if (response.ok) {
                                       setFlippedCardIndex(null)
+                                      invalidateCache(user.id)
+                                      setGoalAchieved(false)
+                                      setIsNearGoal(false)
+                                      setSuggestionMessage(null)
                                       await loadDashboardData(user.id)
-                                      loadInsights(user.id)
+                                      loadInsights(user.id, true)
+                                      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
                                     }
                                   } catch (error) {
                                     console.error('Failed to log:', error)
@@ -1574,9 +1599,13 @@ export default function DashboardPage() {
                                       })
                                       if (response.ok) {
                                         setFlippedCardIndex(null)
+                                        invalidateCache(user.id)
+                                        setGoalAchieved(false)
+                                        setIsNearGoal(false)
+                                        setSuggestionMessage(null)
                                         await loadDashboardData(user.id)
-                                        loadInsights(user.id)
-                                        loadHomeMeals(user.id)
+                                        loadInsights(user.id, true)
+                                        loadHomeMeals(user.id, true)
                                       }
                                     } catch (error) {
                                       console.error('Failed to log meal:', error)
@@ -1776,9 +1805,13 @@ export default function DashboardPage() {
 
                             if (response.ok) {
                               setFlippedCardIndex(null)
+                              invalidateCache(user.id)
+                              setGoalAchieved(false)
+                              setIsNearGoal(false)
+                              setSuggestionMessage(null)
                               await loadDashboardData(user.id)
-                              loadInsights(user.id)
-                              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime)
+                              loadInsights(user.id, true)
+                              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
                             }
                           } catch (error) {
                             console.error('Failed to log meal:', error)
@@ -2174,10 +2207,15 @@ export default function DashboardPage() {
         <ChatWidget
           userId={user?.id || ''}
           userName={user?.firstName || undefined}
-          onMealLogged={() => {
+          onMealLogged={async () => {
             if (user?.id) {
-              loadDashboardData(user.id)
-              loadInsights(user.id)
+              invalidateCache(user.id)
+              setGoalAchieved(false)
+              setIsNearGoal(false)
+              setSuggestionMessage(null)
+              await loadDashboardData(user.id)
+              loadInsights(user.id, true)
+              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
             }
           }}
         />
