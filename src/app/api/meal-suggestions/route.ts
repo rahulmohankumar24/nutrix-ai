@@ -729,9 +729,9 @@ export async function GET(request: NextRequest) {
         ? `No restaurants found within walking distance (${maxDistance} mi). Try switching to drive mode.`
         : `No known restaurant chains found within ${maxDistance} miles. Try the restaurant search to find local spots.`
     } else if (goalAchieved) {
-      message = `You hit your targets today! Great job staying on track.`
+      message = `Daily targets reached.`
     } else if (isNearGoal) {
-      message = `You're close to your goals! Only ${remaining.calories} cal and ${remaining.protein}g protein left.`
+      message = `Almost there — ${remaining.calories} cal and ${remaining.protein}g protein remaining.`
     }
 
     // Check if AI scoring was used

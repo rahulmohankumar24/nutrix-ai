@@ -1593,12 +1593,12 @@ export default function DashboardPage() {
             </div>
           ) : goalAchieved ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
-              <div className="h-14 w-14 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3">
-                <Check className="h-7 w-7 text-emerald-500" />
+              <div className="h-14 w-14 rounded-full bg-sky-500/20 flex items-center justify-center mb-3">
+                <Check className="h-7 w-7 text-sky-500" />
               </div>
-              <p className="text-base font-semibold text-foreground mb-1">You did it!</p>
+              <p className="text-base font-semibold text-foreground mb-1">Targets Achieved</p>
               <p className="text-sm text-muted-foreground">
-                {suggestionMessage || "You hit your targets today. Great job!"}
+                {suggestionMessage || "You've reached your daily targets."}
               </p>
             </div>
           ) : isNearGoal ? (

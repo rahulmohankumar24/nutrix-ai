@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, ...updateData } = body
+    const { userId, timezone = 'America/Los_Angeles', ...updateData } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
@@ -98,8 +98,10 @@ export async function PUT(request: NextRequest) {
     const fieldsAffectingTargets = ['heightIn', 'weightLb', 'age', 'sex', 'goal', 'liftingDays', 'stepsLevel']
     const hasRelevantChanges = fieldsAffectingTargets.some(field => field in updateData)
 
+    let newTargets = null
+
     if (hasRelevantChanges) {
-      const newTargets = calculateTargets(
+      newTargets = calculateTargets(
         updatedProfile.heightIn,
         updatedProfile.weightLb,
         updatedProfile.age || 27,
@@ -109,9 +111,16 @@ export async function PUT(request: NextRequest) {
         updatedProfile.stepsLevel as 'low' | 'med' | 'high'
       )
 
-      // Update today's targets
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      // Get today's date in user's timezone
+      const now = new Date()
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      })
+      const userDateStr = formatter.format(now)
+      const today = new Date(`${userDateStr}T00:00:00.000Z`)
 
       await prisma.dailyTarget.upsert({
         where: {
@@ -137,7 +146,11 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({ success: true, profile: updatedProfile })
+    return NextResponse.json({
+      success: true,
+      profile: updatedProfile,
+      targets: newTargets // Return new targets so frontend can update immediately
+    })
   } catch (error) {
     console.error('Failed to update profile:', error)
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })

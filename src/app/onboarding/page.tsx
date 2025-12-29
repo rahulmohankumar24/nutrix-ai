@@ -99,11 +99,13 @@ export default function OnboardingPage() {
       if (isEditing) {
         // Update existing profile
         const totalHeightIn = validatedData.heightFt * 12 + validatedData.heightIn
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
         const response = await fetch('/api/profile', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user.id,
+            timezone, // Include timezone for proper daily target update
             sex: validatedData.sex,
             age: validatedData.age,
             heightIn: totalHeightIn,
