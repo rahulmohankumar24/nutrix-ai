@@ -612,9 +612,10 @@ export default function DashboardPage() {
 
   const loadDashboardData = async (userId: string) => {
     try {
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
       const [macroResponse, mealLogResponse] = await Promise.all([
-        fetch(`/api/macro-progress?userId=${userId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
-        fetch(`/api/log-meal?userId=${userId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
+        fetch(`/api/macro-progress?userId=${userId}&timezone=${tz}`, { cache: 'no-store' }),
+        fetch(`/api/log-meal?userId=${userId}&timezone=${tz}`, { cache: 'no-store' })
       ])
 
       if (macroResponse.ok) {
@@ -912,9 +913,18 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to delete meal')
 
-      // Refresh data and insights
+      // Invalidate all caches to force recalculation
+      invalidateCache(user.id)
+
+      // Reset goal states immediately
+      setGoalAchieved(false)
+      setIsNearGoal(false)
+      setSuggestionMessage(null)
+
+      // Refresh data, insights, and suggestions
       await loadDashboardData(user.id)
-      loadInsights(user.id)
+      loadInsights(user.id, true) // Force refresh
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     } catch (error) {
       console.error('Failed to delete meal:', error)
     } finally {
@@ -942,8 +952,18 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to update meal')
 
-      // Refresh data
+      // Invalidate all caches to force recalculation
+      invalidateCache(user.id)
+
+      // Reset goal states immediately
+      setGoalAchieved(false)
+      setIsNearGoal(false)
+      setSuggestionMessage(null)
+
+      // Refresh data, insights, and suggestions
       await loadDashboardData(user.id)
+      loadInsights(user.id, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     } catch (error) {
       console.error('Failed to update meal:', error)
     } finally {
@@ -969,8 +989,13 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to update meal type')
 
-      // Refresh data
+      // Invalidate all caches to force recalculation
+      invalidateCache(user.id)
+
+      // Refresh data and suggestions
       await loadDashboardData(user.id)
+      loadInsights(user.id, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     } catch (error) {
       console.error('Failed to update meal type:', error)
     } finally {

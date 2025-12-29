@@ -73,7 +73,7 @@ export default function ProfilePage() {
   const fetchUserData = async () => {
     if (!user?.id) return
     try {
-      const response = await fetch(`/api/profile?userId=${user.id}`)
+      const response = await fetch(`/api/profile?userId=${user.id}`, { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         if (data.profile) {
