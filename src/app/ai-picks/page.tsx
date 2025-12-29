@@ -59,6 +59,10 @@ export default function AIPicksPage() {
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<{ calories: number; protein: number; carbs: number; fat: number } | null>(null)
   const [isFinalResortMode, setIsFinalResortMode] = useState(false)
+  const [agentType, setAgentType] = useState<'breakfast' | 'lunch' | 'dinner'>('lunch')
+  const [urgencyLevel, setUrgencyLevel] = useState<'low' | 'moderate' | 'high' | 'critical'>('moderate')
+  const [targetForMeal, setTargetForMeal] = useState<{ calories: number; protein: number } | null>(null)
+  const [suggestionMessage, setSuggestionMessage] = useState<string | null>(null)
   const hasFetchedRestaurant = useRef(false)
   const hasFetchedHome = useRef(false)
 
@@ -125,6 +129,11 @@ export default function AIPicksPage() {
         setSuggestions(data.suggestions || [])
         setRemaining(data.remaining || null)
         setIsFinalResortMode(data.isFinalResortMode || false)
+        // Set agent-specific data
+        setAgentType(data.agentType || 'lunch')
+        setUrgencyLevel(data.urgencyLevel || 'moderate')
+        setTargetForMeal(data.targetForMeal || null)
+        setSuggestionMessage(data.message || null)
       }
     } catch (error) {
       console.error('Failed to load suggestions:', error)
@@ -303,6 +312,46 @@ export default function AIPicksPage() {
           </div>
         </div>
       </div>
+
+      {/* Agent Context - Meal Target Display */}
+      {mealSource === 'restaurant' && !loading && targetForMeal && (
+        <div className="max-w-6xl mx-auto px-6 pt-6">
+          <div className={`p-4 rounded-xl border ${
+            urgencyLevel === 'critical' ? 'bg-red-50 border-red-200' :
+            urgencyLevel === 'high' ? 'bg-amber-50 border-amber-200' :
+            'bg-sky-50 border-sky-200'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-semibold uppercase tracking-wider px-3 py-1 rounded ${
+                  agentType === 'breakfast' ? 'bg-orange-500/20 text-orange-600' :
+                  agentType === 'lunch' ? 'bg-sky-500/20 text-sky-600' :
+                  'bg-indigo-500/20 text-indigo-600'
+                }`}>
+                  {agentType}
+                </span>
+                {urgencyLevel === 'critical' && (
+                  <span className="text-sm font-semibold text-red-600 bg-red-100 px-3 py-1 rounded">
+                    Last chance to hit targets!
+                  </span>
+                )}
+                {urgencyLevel === 'high' && (
+                  <span className="text-sm font-semibold text-amber-600 bg-amber-100 px-3 py-1 rounded">
+                    Getting late - prioritize hitting targets
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-base text-foreground">
+              Target for this meal: <span className="font-semibold">{targetForMeal.calories} cal</span> and{' '}
+              <span className="font-semibold">{targetForMeal.protein}g protein</span>
+            </p>
+            {suggestionMessage && (
+              <p className="text-sm text-muted-foreground mt-1">{suggestionMessage}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <main className="max-w-6xl mx-auto px-6 py-8">

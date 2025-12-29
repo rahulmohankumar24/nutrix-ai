@@ -4,6 +4,14 @@ import { calculateTargets, calculateDistance } from '@/lib/calculations'
 import { KNOWN_CHAINS } from '@/lib/chains'
 import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 import { getUserPatterns } from '@/lib/patterns/detector'
+import {
+  runMealAgent,
+  getMealTimeFromHour,
+  MealAgentContext,
+  MealOption,
+  UserPattern
+} from '@/lib/meal-agents'
+import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -95,95 +103,6 @@ function estimatePrice(restaurantBrand: string, calories: number): number {
   return Math.round((10 + calories * 0.005) * 100) / 100
 }
 
-// LLM-based meal scoring for intelligent ranking
-async function scoreMealsWithLLM(
-  meals: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number; carbs: number; fat: number; description?: string }>,
-  remaining: { calories: number; protein: number; carbs: number; fat: number },
-  mealTime: 'breakfast' | 'lunch' | 'dinner',
-  size: 'light' | 'regular' | 'hearty',
-  currentHour: number
-): Promise<Array<{ id: string; score: number; reasoning: string }>> {
-  if (!process.env.OPENAI_API_KEY || meals.length === 0) {
-    // Fallback to algorithmic scoring
-    return meals.map(meal => ({
-      id: meal.id,
-      score: 50,
-      reasoning: 'Algorithmic fallback'
-    }))
-  }
-
-  // Limit meals to top candidates for LLM (cost/speed optimization)
-  const mealsForLLM = meals.slice(0, 25)
-
-  const mealsList = mealsForLLM.map((m, i) =>
-    `${i + 1}. [${m.id}] ${m.restaurantBrand} - ${m.title}: ${m.calories}cal, ${m.protein}g protein, ${m.carbs}g carbs, ${m.fat}g fat`
-  ).join('\n')
-
-  // Calculate how aggressive to be based on time
-  const isLateNight = currentHour >= 20
-  const isDinner = mealTime === 'dinner' || currentHour >= 17
-  const urgencyLevel = isLateNight ? 'CRITICAL' : isDinner ? 'HIGH' : 'MODERATE'
-
-  // Calculate target percentages
-  let targetPct = 0.5
-  if (mealTime === 'lunch') targetPct = 0.55
-  if (mealTime === 'dinner') targetPct = 0.85
-  if (isLateNight) targetPct = 0.95
-  if (size === 'hearty') targetPct = Math.min(1.0, targetPct + 0.15)
-
-  const targetCalories = Math.round(remaining.calories * targetPct)
-  const targetProtein = Math.round(remaining.protein * targetPct)
-
-  const prompt = `You are a nutrition coach helping users hit their daily macro targets. Score these restaurant meals.
-
-USER'S SITUATION:
-- Remaining today: ${remaining.calories} calories, ${remaining.protein}g protein
-- Current time: ${currentHour}:00 (${mealTime})
-- Meal size preference: ${size}
-- Target for this meal: ~${targetCalories} calories, ~${targetProtein}g protein
-- Urgency: ${urgencyLevel} - ${isLateNight ? 'This is their LAST chance to hit targets today!' : isDinner ? 'Dinner time - need to get close to targets' : 'Earlier in day but should stay on track'}
-
-AVAILABLE MEALS:
-${mealsList}
-
-SCORING RULES:
-1. Score 0-100 based on how well the meal helps hit remaining targets
-2. ${urgencyLevel === 'CRITICAL' ? 'CRITICAL: Meals MUST hit 85-100% of remaining targets to score above 80' : urgencyLevel === 'HIGH' ? 'Meals should hit 70-100% of remaining targets for high scores' : 'Moderate urgency - meals hitting 50%+ of targets score well'}
-3. BOTH calories AND protein matter equally - a meal that hits protein but misses calories (or vice versa) should NOT score above 75
-4. High-protein options (like double meat, extra chicken) are preferred when protein targets are high
-5. Penalize meals that would leave significant macros on the table at dinner time
-
-Return ONLY valid JSON array (no markdown, no explanation):
-[{"id":"meal_id","score":85,"reasoning":"Brief reason"},...]
-
-Return the top 8 highest scoring meals, sorted by score descending.`
-
-  try {
-    const completion = await openai.responses.create({
-      model: "gpt-5.2",
-      input: [{ role: "user", content: prompt }]
-    })
-
-    const response = completion.output_text
-    if (!response) {
-      throw new Error('No response from LLM')
-    }
-
-    // Parse JSON response (handle potential markdown wrapping)
-    let jsonStr = response.trim()
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
-    }
-
-    const parsed = JSON.parse(jsonStr) as Array<{ id: string; score: number; reasoning: string }>
-    return parsed
-  } catch (error) {
-    console.error('LLM meal scoring error:', error)
-    // Return empty array to trigger fallback
-    return []
-  }
-}
-
 // LLM-based meal combination finder for "final resort" mode
 // Finds meal + side combos that hit 95%+ of remaining targets
 async function findMealCombinationsWithLLM(
@@ -248,8 +167,8 @@ Return ONLY valid JSON (no markdown):
 
   try {
     const completion = await openai.responses.create({
-      model: "gpt-5.2",
-      input: [{ role: "user", content: prompt }]
+      model: 'gpt-5.2',
+      input: [{ role: 'user', content: prompt }]
     })
 
     const response = completion.output_text
@@ -274,6 +193,204 @@ Return ONLY valid JSON (no markdown):
 const TRAVEL_DISTANCES = {
   walk: 1.0,   // ~20 min walk
   drive: 8.0   // ~15-20 min drive
+}
+
+// Restaurants with ingredient data for dynamic meal building
+const RESTAURANTS_WITH_INGREDIENTS = ['chipotle', 'cava', 'sweetgreen', 'panera', 'panda express']
+
+// Generate dynamic meals from ingredients that hit targets
+async function generateDynamicMeals(
+  restaurantBrand: string,
+  remaining: { calories: number; protein: number; carbs: number; fat: number },
+  mealTime: 'breakfast' | 'lunch' | 'dinner',
+  targetCalories: number,
+  targetProtein: number
+): Promise<Array<{
+  id: string
+  title: string
+  description: string
+  restaurantBrand: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  isDynamic: boolean
+  buildInstructions?: string
+}>> {
+  // Get ingredients for this restaurant
+  const ingredients = await prisma.foodCatalogItem.findMany({
+    where: {
+      source: 'restaurant',
+      tags: { contains: restaurantBrand.toLowerCase() }
+    }
+  })
+
+  if (ingredients.length < 3) return []
+
+  // Categorize ingredients
+  const categorized: Record<string, typeof ingredients> = {
+    protein: [],
+    base: [],
+    vegetables: [],
+    sauces: [],
+    toppings: [],
+    other: []
+  }
+
+  ingredients.forEach(ing => {
+    const name = ing.name.toLowerCase()
+    if (name.includes('chicken') || name.includes('beef') || name.includes('steak') ||
+        name.includes('carnitas') || name.includes('barbacoa') || name.includes('lamb') ||
+        name.includes('salmon') || name.includes('tofu') || name.includes('falafel')) {
+      categorized.protein.push(ing)
+    } else if (name.includes('rice') || name.includes('quinoa') || name.includes('tortilla') ||
+               name.includes('bread') || name.includes('pita') || name.includes('noodle')) {
+      categorized.base.push(ing)
+    } else if (name.includes('bean') || name.includes('lettuce') || name.includes('tomato') ||
+               name.includes('pepper') || name.includes('onion') || name.includes('corn') ||
+               name.includes('vegetable') || name.includes('broccoli') || name.includes('greens')) {
+      categorized.vegetables.push(ing)
+    } else if (name.includes('salsa') || name.includes('sauce') || name.includes('dressing') ||
+               name.includes('hummus') || name.includes('tzatziki')) {
+      categorized.sauces.push(ing)
+    } else if (name.includes('cheese') || name.includes('guacamole') || name.includes('guac') ||
+               name.includes('sour cream') || name.includes('avocado')) {
+      categorized.toppings.push(ing)
+    } else {
+      categorized.other.push(ing)
+    }
+  })
+
+  // Skip if missing key categories
+  if (categorized.protein.length === 0 || categorized.base.length === 0) return []
+
+  const meals: Array<{
+    id: string
+    title: string
+    description: string
+    restaurantBrand: string
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+    isDynamic: boolean
+    buildInstructions?: string
+  }> = []
+
+  // Find best protein option
+  const bestProtein = categorized.protein.sort((a, b) => b.protein - a.protein)[0]
+  const secondProtein = categorized.protein.sort((a, b) => b.protein - a.protein)[1]
+  const bestBase = categorized.base[0]
+
+  // Generate 4 meal variations: Target, Protein-Packed, Max, Feast
+  // Include a "Feast" option for high calorie targets
+  const variations = [
+    { name: 'Target', doubleProtein: false, addExtras: false, doubleBase: false, allToppings: false },
+    { name: 'Protein-Packed', doubleProtein: true, addExtras: false, doubleBase: false, allToppings: false },
+    { name: 'Max', doubleProtein: true, addExtras: true, doubleBase: true, allToppings: false },
+    { name: 'Feast', doubleProtein: true, addExtras: true, doubleBase: true, allToppings: true }
+  ]
+
+  for (const variation of variations) {
+    let totalCal = 0
+    let totalProtein = 0
+    let totalCarbs = 0
+    let totalFat = 0
+    const parts: string[] = []
+    const instructions: string[] = []
+
+    // Add base (double for max/feast)
+    if (bestBase) {
+      const baseMultiplier = variation.doubleBase ? 2 : 1
+      totalCal += bestBase.calories * baseMultiplier
+      totalProtein += bestBase.protein * baseMultiplier
+      totalCarbs += bestBase.carbs * baseMultiplier
+      totalFat += bestBase.fat * baseMultiplier
+      parts.push(variation.doubleBase ? `double ${bestBase.name}` : bestBase.name)
+      if (variation.doubleBase) instructions.push('Ask for double rice/base')
+    }
+
+    // Add protein (double if specified)
+    if (bestProtein) {
+      const proteinMultiplier = variation.doubleProtein ? 2 : 1
+      totalCal += bestProtein.calories * proteinMultiplier
+      totalProtein += bestProtein.protein * proteinMultiplier
+      totalCarbs += bestProtein.carbs * proteinMultiplier
+      totalFat += bestProtein.fat * proteinMultiplier
+      parts.push(variation.doubleProtein ? `double ${bestProtein.name}` : bestProtein.name)
+      if (variation.doubleProtein) instructions.push('Order double protein')
+    }
+
+    // Add vegetables (always include 2 for variety)
+    const veggies = categorized.vegetables.slice(0, 2)
+    for (const veggie of veggies) {
+      totalCal += veggie.calories
+      totalProtein += veggie.protein
+      totalCarbs += veggie.carbs
+      totalFat += veggie.fat
+      parts.push(veggie.name)
+    }
+
+    // Add toppings for max/feast variations
+    if (variation.addExtras && categorized.toppings.length > 0) {
+      const toppingsToAdd = variation.allToppings
+        ? categorized.toppings // All toppings for feast
+        : categorized.toppings.slice(0, 2) // Just 2 for max
+
+      for (const topping of toppingsToAdd) {
+        totalCal += topping.calories
+        totalProtein += topping.protein
+        totalCarbs += topping.carbs
+        totalFat += topping.fat
+        parts.push(topping.name)
+        if (topping.name.toLowerCase().includes('guac')) {
+          instructions.push('Add guacamole')
+        } else if (topping.name.toLowerCase().includes('cheese')) {
+          instructions.push('Add cheese')
+        } else if (topping.name.toLowerCase().includes('sour cream')) {
+          instructions.push('Add sour cream')
+        }
+      }
+    }
+
+    // For feast, also add sauces
+    if (variation.allToppings && categorized.sauces.length > 0) {
+      for (const sauce of categorized.sauces.slice(0, 2)) {
+        totalCal += sauce.calories
+        totalProtein += sauce.protein
+        totalCarbs += sauce.carbs
+        totalFat += sauce.fat
+        parts.push(sauce.name)
+      }
+    }
+
+    // Check if this variation is close enough to target to be useful
+    const calFit = totalCal / targetCalories
+    const proFit = totalProtein / targetProtein
+
+    // More flexible range - include more options
+    // Low range: 40% (for showing lighter options)
+    // High range: 150% (for showing bigger options)
+    if (calFit >= 0.4 && calFit <= 1.5 && proFit >= 0.4 && proFit <= 1.8) {
+      const mealName = mealTime.charAt(0).toUpperCase() + mealTime.slice(1)
+      meals.push({
+        id: `dynamic_${restaurantBrand}_${variation.name.toLowerCase().replace(/[^a-z]/g, '')}`,
+        title: variation.name === 'Target' ? `${mealName} Bowl` :
+               variation.name === 'Feast' ? `${variation.name} Combo` :
+               `${variation.name} ${mealName} Bowl`,
+        description: parts.join(', '),
+        restaurantBrand: restaurantBrand.charAt(0).toUpperCase() + restaurantBrand.slice(1),
+        calories: Math.round(totalCal),
+        protein: Math.round(totalProtein),
+        carbs: Math.round(totalCarbs),
+        fat: Math.round(totalFat),
+        isDynamic: true,
+        buildInstructions: instructions.length > 0 ? instructions.join('. ') : undefined
+      })
+    }
+  }
+
+  return meals
 }
 
 export async function GET(request: NextRequest) {
@@ -359,7 +476,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Calculate remaining macros
+    // Calculate current intake and remaining macros
     let currentCalories = 0
     let currentProtein = 0
     let currentCarbs = 0
@@ -382,19 +499,9 @@ export async function GET(request: NextRequest) {
       fat: Math.max(0, targets.fat - currentFat)
     }
 
-    // Check if user scheduled a specific meal time
+    // Determine meal time using new agent system
     const scheduledMeal = searchParams.get('scheduledMeal') as 'breakfast' | 'lunch' | 'dinner' | null
-
-    // Determine meal time from scheduled meal or passed hour (needed for scoring)
-    let mealTime: 'breakfast' | 'lunch' | 'dinner' = 'dinner'
-    if (scheduledMeal) {
-      // Use the explicitly scheduled meal time
-      mealTime = scheduledMeal
-    } else if (currentHour < 11) {
-      mealTime = 'breakfast'
-    } else if (currentHour < 16) {
-      mealTime = 'lunch'
-    }
+    const mealTime = scheduledMeal || getMealTimeFromHour(currentHour)
 
     // Fetch user patterns for personalized recommendations
     const patterns = await getUserPatterns(userId)
@@ -505,7 +612,6 @@ export async function GET(request: NextRequest) {
     })
 
     // If no nearby chains found (location failed or no results), use popular chains as fallback
-    // This ensures users always see suggestions even if location services fail
     const chainsToQuery = nearbyChains.length > 0
       ? nearbyChains
       : preferredChains.slice(0, 10) // Fallback to top 10 preferred chains
@@ -519,20 +625,72 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Prepare all meals for LLM scoring (no algorithmic pre-filter)
-    const allMeals = meals.map(meal => {
+    // Prepare meals for agent with pattern boost info
+    const availableMeals: MealOption[] = meals.map(meal => {
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
       const patternBoost = restaurantBoosts[normalizedBrand] || 0
       return {
-        ...meal,
+        id: meal.id,
+        title: meal.title,
+        description: meal.description || undefined,
+        restaurantBrand: meal.restaurantBrand,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fat: meal.fat,
         patternBoosted: patternBoost > 0
       }
     })
 
+    // Calculate meal target for dynamic meal generation
+    const mealDistribution = calculateRealisticMealTarget(
+      mealTime,
+      remaining,
+      undefined // No user schedule
+    )
+
+    // Generate dynamic meals from ingredient data for nearby restaurants
+    const restaurantsWithIngredients = chainsToQuery.filter(chain =>
+      RESTAURANTS_WITH_INGREDIENTS.some(r => chain.toLowerCase().includes(r))
+    )
+
+    // Generate dynamic meals for up to 3 restaurants
+    const dynamicMealPromises = restaurantsWithIngredients.slice(0, 3).map(restaurant =>
+      generateDynamicMeals(
+        restaurant,
+        remaining,
+        mealTime,
+        mealDistribution.targetCalories,
+        mealDistribution.targetProtein
+      )
+    )
+
+    const dynamicMealsResults = await Promise.all(dynamicMealPromises)
+    const allDynamicMeals = dynamicMealsResults.flat()
+
+    // Add dynamic meals to available meals
+    for (const dynamicMeal of allDynamicMeals) {
+      const normalizedBrand = dynamicMeal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
+      const patternBoost = restaurantBoosts[normalizedBrand] || 0
+      availableMeals.push({
+        id: dynamicMeal.id,
+        title: dynamicMeal.title,
+        description: dynamicMeal.description + (dynamicMeal.buildInstructions ? ` | HOW TO ORDER: ${dynamicMeal.buildInstructions}` : ''),
+        restaurantBrand: dynamicMeal.restaurantBrand,
+        calories: dynamicMeal.calories,
+        protein: dynamicMeal.protein,
+        carbs: dynamicMeal.carbs,
+        fat: dynamicMeal.fat,
+        patternBoosted: patternBoost > 0
+      })
+    }
+
+    console.log(`Generated ${allDynamicMeals.length} dynamic meals from ${restaurantsWithIngredients.length} restaurants`)
+
     // FINAL RESORT MODE: Find meal combinations that hit 95%+ of targets
     if (finalResort) {
       const combinations = await findMealCombinationsWithLLM(
-        allMeals.map(m => ({
+        availableMeals.map(m => ({
           id: m.id,
           title: m.title,
           restaurantBrand: m.restaurantBrand,
@@ -540,7 +698,7 @@ export async function GET(request: NextRequest) {
           protein: m.protein,
           carbs: m.carbs,
           fat: m.fat,
-          description: m.description || undefined
+          description: m.description
         })),
         remaining
       )
@@ -580,6 +738,8 @@ export async function GET(request: NextRequest) {
         suggestions: comboSuggestions,
         remaining,
         mealTime,
+        agentType: 'dinner', // Final resort is always dinner-like urgency
+        urgencyLevel: 'critical',
         size,
         dining,
         travelMode,
@@ -595,125 +755,84 @@ export async function GET(request: NextRequest) {
         targetForMeal: {
           calories: remaining.calories,
           protein: remaining.protein
+        },
+        progressToGoal: {
+          caloriesPct: Math.round((currentCalories / targets.calories) * 100),
+          proteinPct: Math.round((currentProtein / targets.protein) * 100)
         }
       })
     }
 
-    // Send all meals to LLM for intelligent scoring (limit to 50 for token efficiency)
-    const mealsForLLM = allMeals.slice(0, 50)
+    // Convert patterns to agent format
+    const userPatterns: UserPattern[] = patterns.map(p => ({
+      patternType: p.patternType,
+      patternKey: p.patternKey,
+      patternValue: p.patternValue as Record<string, unknown>
+    }))
 
-    const llmScores = await scoreMealsWithLLM(
-      mealsForLLM.map(m => ({
-        id: m.id,
-        title: m.title,
-        restaurantBrand: m.restaurantBrand,
-        calories: m.calories,
-        protein: m.protein,
-        carbs: m.carbs,
-        fat: m.fat,
-        description: m.description || undefined
-      })),
+    // Build agent context
+    const agentContext: MealAgentContext = {
+      userId,
+      dailyTargets: {
+        calories: targets.calories,
+        protein: targets.protein,
+        carbs: targets.carbs,
+        fat: targets.fat
+      },
+      currentIntake: {
+        calories: Math.round(currentCalories),
+        protein: Math.round(currentProtein),
+        carbs: Math.round(currentCarbs),
+        fat: Math.round(currentFat)
+      },
       remaining,
-      mealTime,
+      currentHour,
       size,
-      currentHour
-    )
-
-    // Merge LLM scores with meal data
-    let scoredMeals: Array<typeof allMeals[0] & { llmScore?: number; llmReasoning?: string; score: number }>
-
-    if (llmScores.length > 0) {
-      // Create a map of LLM scores
-      const llmScoreMap = new Map(llmScores.map(s => [s.id, s]))
-
-      // Sort by LLM score
-      scoredMeals = mealsForLLM.map(meal => ({
-        ...meal,
-        llmScore: llmScoreMap.get(meal.id)?.score,
-        llmReasoning: llmScoreMap.get(meal.id)?.reasoning,
-        score: llmScoreMap.get(meal.id)?.score ?? 0
-      }))
-      .filter(meal => meal.score > 0)
-      .sort((a, b) => b.score - a.score)
-    } else {
-      // Fallback: basic calorie/protein ratio scoring if LLM fails
-      scoredMeals = mealsForLLM.map(meal => {
-        const calRatio = remaining.calories > 0 ? meal.calories / remaining.calories : 0
-        const proRatio = remaining.protein > 0 ? meal.protein / remaining.protein : 0
-        const score = Math.round((calRatio + proRatio) * 50)
-        return { ...meal, score, llmScore: undefined, llmReasoning: undefined }
-      })
-      .filter(meal => meal.score > 0)
-      .sort((a, b) => b.score - a.score)
+      availableMeals,
+      userPatterns
     }
 
-    // Get top suggestions with variety from different restaurants
-    const suggestions: any[] = []
+    // Run the appropriate meal agent
+    const agentResult = await runMealAgent(agentContext)
+
+    // Enhance suggestions with distance, price, and personalization info
+    const enhancedSuggestions = agentResult.suggestions.map(suggestion => {
+      const normalizedBrand = suggestion.restaurant.toLowerCase().replace(/[^a-z]/g, '')
+      const brandKey = suggestion.restaurant.toLowerCase().replace(/[^a-z]/g, '_')
+      const distance = chainDistances[normalizedBrand] || chainDistances[suggestion.restaurant.toLowerCase()] || null
+      const estimatedPriceValue = estimatePrice(suggestion.restaurant, suggestion.calories)
+      const personalizedReason = restaurantReasons[brandKey] || null
+
+      return {
+        ...suggestion,
+        distance,
+        estimatedPrice: estimatedPriceValue,
+        isPersonalized: suggestion.isPersonalized || !!personalizedReason,
+        personalizedReason
+      }
+    })
+
+    // Apply restaurant variety limits
+    const diverseSuggestions: typeof enhancedSuggestions = []
     const maxPerRestaurant = suggestionLimit > 3 ? 2 : 1
     const restaurantCounts: Record<string, number> = {}
 
-    for (const meal of scoredMeals) {
-      if (suggestions.length >= suggestionLimit) break
+    for (const suggestion of enhancedSuggestions) {
+      if (diverseSuggestions.length >= suggestionLimit) break
 
-      const count = restaurantCounts[meal.restaurantBrand] || 0
+      const count = restaurantCounts[suggestion.restaurant] || 0
       if (count >= maxPerRestaurant) continue
 
-      restaurantCounts[meal.restaurantBrand] = count + 1
-
-      const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
-      const brandKey = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
-      const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
-      const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
-      const personalizedReason = restaurantReasons[brandKey] || null
-
-      suggestions.push({
-        id: meal.id,
-        name: meal.title,
-        description: meal.description,
-        restaurant: meal.restaurantBrand,
-        calories: meal.calories,
-        protein: meal.protein,
-        carbs: meal.carbs,
-        fat: meal.fat,
-        score: meal.llmScore ?? meal.score,
-        aiReasoning: meal.llmReasoning || null, // Include LLM's reasoning
-        distance,
-        estimatedPrice,
-        isPersonalized: meal.patternBoosted || false,
-        personalizedReason,
-        isAIScored: !!meal.llmScore
-      })
+      restaurantCounts[suggestion.restaurant] = count + 1
+      diverseSuggestions.push(suggestion)
     }
 
     // If we don't have enough yet, add more (relaxing restaurant limit)
-    if (suggestions.length < suggestionLimit) {
-      for (const meal of scoredMeals) {
-        if (suggestions.length >= suggestionLimit) break
-        if (suggestions.some(s => s.id === meal.id)) continue
-
-        const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
-        const brandKey = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
-        const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
-        const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
-        const personalizedReason = restaurantReasons[brandKey] || null
-
-        suggestions.push({
-          id: meal.id,
-          name: meal.title,
-          description: meal.description,
-          restaurant: meal.restaurantBrand,
-          calories: meal.calories,
-          protein: meal.protein,
-          carbs: meal.carbs,
-          fat: meal.fat,
-          score: meal.llmScore ?? meal.score,
-          aiReasoning: meal.llmReasoning || null,
-          distance,
-          estimatedPrice,
-          isPersonalized: meal.patternBoosted || false,
-          personalizedReason,
-          isAIScored: !!meal.llmScore
-        })
+    if (diverseSuggestions.length < suggestionLimit) {
+      for (const suggestion of enhancedSuggestions) {
+        if (diverseSuggestions.length >= suggestionLimit) break
+        if (diverseSuggestions.some(s => s.id === suggestion.id)) continue
+        diverseSuggestions.push(suggestion)
       }
     }
 
@@ -723,7 +842,7 @@ export async function GET(request: NextRequest) {
       (remaining.calories < 500 && remaining.protein < 15))
 
     // Build appropriate message
-    let message = null
+    let message = agentResult.message
     if (noNearbyRestaurants) {
       message = travelMode === 'walk'
         ? `No restaurants found within walking distance (${maxDistance} mi). Try switching to drive mode.`
@@ -734,13 +853,12 @@ export async function GET(request: NextRequest) {
       message = `Almost there — ${remaining.calories} cal and ${remaining.protein}g protein remaining.`
     }
 
-    // Check if AI scoring was used
-    const aiScoringUsed = suggestions.some((s: any) => s.isAIScored)
-
     return NextResponse.json({
-      suggestions,
+      suggestions: diverseSuggestions,
       remaining,
       mealTime,
+      agentType: agentResult.agentType,
+      urgencyLevel: agentResult.urgencyLevel,
       size,
       dining,
       travelMode,
@@ -751,11 +869,10 @@ export async function GET(request: NextRequest) {
       hasPersonalizedData,
       noNearbyRestaurants,
       message,
-      aiScoringUsed,
-      targetForMeal: {
-        calories: Math.round(remaining.calories * (mealTime === 'dinner' ? 0.95 : 0.5)),
-        protein: Math.round(remaining.protein * (mealTime === 'dinner' ? 0.95 : 0.5))
-      }
+      aiScoringUsed: diverseSuggestions.some(s => s.isAIScored),
+      targetForMeal: agentResult.targetForMeal,
+      progressToGoal: agentResult.progressToGoal,
+      mealMilestone: agentResult.mealMilestone
     })
 
   } catch (error) {

@@ -169,6 +169,10 @@ export default function DashboardPage() {
   const [suggestions, setSuggestions] = useState<MealSuggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [suggestionMealTime, setSuggestionMealTime] = useState<string>('lunch')
+  const [agentType, setAgentType] = useState<'breakfast' | 'lunch' | 'dinner'>('lunch')
+  const [urgencyLevel, setUrgencyLevel] = useState<'low' | 'moderate' | 'high' | 'critical'>('moderate')
+  const [targetForMeal, setTargetForMeal] = useState<{ calories: number; protein: number } | null>(null)
+  const [progressToGoal, setProgressToGoal] = useState<{ caloriesPct: number; proteinPct: number } | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<DailyInsights | null>(null)
@@ -304,6 +308,11 @@ export default function DashboardPage() {
         setGoalAchieved(cached.goalAchieved || false)
         setHasPersonalizedSuggestions(cached.hasPersonalizedData || false)
         setIsFinalResortMode(cached.isFinalResortMode || false)
+        // Set agent-specific data from cache
+        setAgentType(cached.agentType || 'lunch')
+        setUrgencyLevel(cached.urgencyLevel || 'moderate')
+        setTargetForMeal(cached.targetForMeal || null)
+        setProgressToGoal(cached.progressToGoal || null)
         setLoadingSuggestions(false)
         return
       }
@@ -342,6 +351,11 @@ export default function DashboardPage() {
         setGoalAchieved(data.goalAchieved || false)
         setHasPersonalizedSuggestions(data.hasPersonalizedData || false)
         setIsFinalResortMode(data.isFinalResortMode || false)
+        // Set agent-specific data
+        setAgentType(data.agentType || 'lunch')
+        setUrgencyLevel(data.urgencyLevel || 'moderate')
+        setTargetForMeal(data.targetForMeal || null)
+        setProgressToGoal(data.progressToGoal || null)
         // Cache the result
         setCache(cacheKey, data, currentMealCount)
       }
@@ -1387,6 +1401,49 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Agent Context - Meal Target Display */}
+          {mealSource === 'restaurant' && !loadingSuggestions && !goalAchieved && targetForMeal && (
+            <div className={`mb-4 p-3 rounded-xl border ${
+              urgencyLevel === 'critical' ? 'bg-red-50 border-red-200' :
+              urgencyLevel === 'high' ? 'bg-amber-50 border-amber-200' :
+              'bg-sky-50 border-sky-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                    agentType === 'breakfast' ? 'bg-orange-500/20 text-orange-600' :
+                    agentType === 'lunch' ? 'bg-sky-500/20 text-sky-600' :
+                    'bg-indigo-500/20 text-indigo-600'
+                  }`}>
+                    {agentType}
+                  </span>
+                  {urgencyLevel === 'critical' && (
+                    <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded">
+                      Last chance!
+                    </span>
+                  )}
+                  {urgencyLevel === 'high' && (
+                    <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded">
+                      Getting late
+                    </span>
+                  )}
+                </div>
+                {progressToGoal && (
+                  <span className="text-xs text-muted-foreground">
+                    {progressToGoal.caloriesPct}% daily progress
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-foreground">
+                Target: <span className="font-semibold">{targetForMeal.calories} cal</span> and{' '}
+                <span className="font-semibold">{targetForMeal.protein}g protein</span>
+              </p>
+              {suggestionMessage && (
+                <p className="text-xs text-muted-foreground mt-1">{suggestionMessage}</p>
+              )}
+            </div>
+          )}
 
           {loadingSuggestions ? (
             <div className="flex-1 space-y-3">
