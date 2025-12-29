@@ -103,6 +103,8 @@ export default function AIPicksPage() {
     try {
       const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
       const hour = new Date().getHours()
+      // Determine meal type based on time - for Feast mode, use lunch or dinner
+      const mealType = hour < 16 ? 'lunch' : 'dinner'
 
       // Try to get user location
       let url = `/api/meal-suggestions?userId=${userId}&size=regular&dining=takeout&travel=drive&timezone=${tz}&currentHour=${hour}&limit=12`
@@ -118,9 +120,9 @@ export default function AIPicksPage() {
         }
       }
 
-      // Add final resort mode
+      // Add feast mode (final resort) with scheduled meal type
       if (finalResort) {
-        url += '&finalResort=true'
+        url += `&finalResort=true&scheduledMeal=${mealType}`
       }
 
       const response = await fetch(url)
@@ -266,7 +268,7 @@ export default function AIPicksPage() {
               </div>
             </div>
 
-            {/* Source Toggle & Hit Targets */}
+            {/* Source Toggle & Feast */}
             <div className="flex items-center gap-3">
               <div className="flex items-center bg-white/60 rounded-xl p-1">
                 <button
@@ -293,20 +295,27 @@ export default function AIPicksPage() {
                 </button>
               </div>
 
-              {/* Hit Targets Button - Only show for restaurant mode */}
+              {/* Feast Button - Only show for restaurant mode */}
               {mealSource === 'restaurant' && (
-                <button
-                  onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
-                  disabled={loading}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
-                    isFinalResortMode
-                      ? 'bg-amber-500 text-white shadow-md'
-                      : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
-                  } disabled:opacity-50`}
-                >
-                  <Target className="h-4 w-4" />
-                  {isFinalResortMode ? 'Exit Combos' : 'Hit Targets'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
+                    disabled={loading}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-8 min-w-[140px] rounded-xl text-sm font-medium transition-all ${
+                      isFinalResortMode
+                        ? 'bg-amber-500 text-white shadow-md'
+                        : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
+                    } disabled:opacity-50`}
+                  >
+                    <Target className="h-4 w-4" />
+                    {isFinalResortMode ? 'Exit Feast' : 'Feast'}
+                  </button>
+                  {!isFinalResortMode && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Hit your goal no matter what
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -369,11 +378,11 @@ export default function AIPicksPage() {
               )}
             </div>
             <p className="text-lg font-medium text-foreground mb-2">
-              {isFinalResortMode ? 'Finding target-hitting combos...' : 'AI meals generating...'}
+              {isFinalResortMode ? 'Finding your feast...' : 'AI meals generating...'}
             </p>
             <p className="text-sm text-muted-foreground">
               {isFinalResortMode
-                ? 'Analyzing meal combinations to hit 95%+ of your remaining macros'
+                ? 'Finding meals to hit your lunch or dinner goal'
                 : mealSource === 'restaurant'
                 ? 'Finding the best restaurant options for your goals'
                 : 'Creating recipes from your pantry items'}

@@ -337,9 +337,11 @@ export default function DashboardPage() {
       if (scheduledTime !== 'now') {
         url += `&scheduledMeal=${scheduledTime}`
       }
-      // Add final resort mode
+      // Add feast mode with meal type
       if (finalResort) {
-        url += '&finalResort=true'
+        const hour = new Date().getHours()
+        const mealType = scheduledTime !== 'now' ? scheduledTime : (hour < 16 ? 'lunch' : 'dinner')
+        url += `&finalResort=true&scheduledMeal=${mealType}`
       }
       const response = await fetch(url, { cache: 'no-store' })
       if (response.ok) {
@@ -1337,7 +1339,7 @@ export default function DashboardPage() {
 
             </div>
 
-            {/* Meal Time Scheduler + Hit Targets */}
+            {/* Meal Time Scheduler + Feast */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Planning for:</span>
@@ -1385,19 +1387,26 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Hit Targets Button */}
+              {/* Feast Button */}
               {mealSource === 'restaurant' && (
-                <button
-                  onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
-                    isFinalResortMode
-                      ? 'bg-amber-500 text-white shadow-md'
-                      : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
-                  }`}
-                >
-                  <Target className="h-4 w-4" />
-                  {isFinalResortMode ? 'Exit Combos' : 'Hit Targets'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-8 rounded-xl text-sm font-medium transition-all min-w-[140px] ${
+                      isFinalResortMode
+                        ? 'bg-amber-500 text-white shadow-md'
+                        : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
+                    }`}
+                  >
+                    <Target className="h-4 w-4" />
+                    {isFinalResortMode ? 'Exit Feast' : 'Feast'}
+                  </button>
+                  {!isFinalResortMode && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Hit your goal no matter what
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

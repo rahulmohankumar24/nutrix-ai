@@ -104,11 +104,13 @@ function estimatePrice(restaurantBrand: string, calories: number): number {
   return Math.round((10 + calories * 0.005) * 100) / 100
 }
 
-// LLM-based meal combination finder for "final resort" mode
-// Finds meal + side combos that hit 95%+ of remaining targets
-async function findMealCombinationsWithLLM(
+// LLM-based meal finder for "Feast" mode
+// Finds meals that hit the lunch or dinner goal (ignoring constraints)
+async function findFeastMealsWithLLM(
   meals: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number; carbs: number; fat: number; description?: string }>,
-  remaining: { calories: number; protein: number; carbs: number; fat: number }
+  mealType: 'lunch' | 'dinner',
+  targetCalories: number,
+  targetProtein: number
 ): Promise<Array<{
   type: 'single' | 'combo'
   items: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number }>
@@ -126,42 +128,47 @@ async function findMealCombinationsWithLLM(
     `${i + 1}. [${m.id}] ${m.restaurantBrand} - ${m.title}: ${m.calories}cal, ${m.protein}g protein`
   ).join('\n')
 
-  const prompt = `You are a nutrition expert. The user MUST hit their remaining macros today - this is their FINAL RESORT.
+  const goalDescription = mealType === 'lunch'
+    ? 'Reach 66% of your daily targets by end of lunch'
+    : 'Hit 100% of your remaining daily targets'
 
-USER'S REMAINING TARGETS (must hit 95%+):
-- Calories: ${remaining.calories}
-- Protein: ${remaining.protein}g
+  const prompt = `You are a nutrition expert helping someone find a satisfying ${mealType} meal. This is FEAST MODE - find the best options to hit their ${mealType} goal, ignoring any dietary constraints.
 
-AVAILABLE MEALS/SIDES:
+${mealType.toUpperCase()} TARGET (aim for 90-110%):
+- Calories: ${targetCalories}
+- Protein: ${targetProtein}g
+- Goal: ${goalDescription}
+
+AVAILABLE MEALS:
 ${mealsList}
 
 YOUR TASK:
-Find the BEST meal combinations that get as close as possible to 95-105% of BOTH targets.
+Find meals that get close to the ${mealType} target. This is about having a satisfying meal, not about restrictions.
 You can suggest:
-1. Single meals that hit both targets
+1. Single substantial meals
 2. Meal + side combos from the SAME restaurant
-3. Two items from the same restaurant
+3. Two items from the same restaurant for a bigger feast
 
 RULES:
-- Prioritize hitting BOTH calories AND protein (95%+ each)
+- Find filling, satisfying options
+- Prioritize hitting BOTH calories AND protein
+- Going over is fine (up to 120%)
 - Only combine items from the SAME restaurant
-- Going slightly over (up to 110%) is acceptable
-- Focus on the best 3-5 options
+- Focus on the best 5-8 options with variety
 
 Return ONLY valid JSON (no markdown):
 {
   "combinations": [
     {
-      "type": "combo",
+      "type": "single",
       "items": [
-        {"id": "meal_id_1", "title": "Main Meal", "restaurantBrand": "Restaurant", "calories": 800, "protein": 50},
-        {"id": "meal_id_2", "title": "Side Item", "restaurantBrand": "Restaurant", "calories": 200, "protein": 15}
+        {"id": "meal_id", "title": "Big Meal", "restaurantBrand": "Restaurant", "calories": 800, "protein": 50}
       ],
-      "totalCalories": 1000,
-      "totalProtein": 65,
-      "calorieFit": 95,
-      "proteinFit": 98,
-      "reasoning": "Bowl + side hits both targets perfectly"
+      "totalCalories": 800,
+      "totalProtein": 50,
+      "calorieFit": 100,
+      "proteinFit": 100,
+      "reasoning": "Hits your ${mealType} target perfectly"
     }
   ]
 }`
@@ -413,6 +420,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit')
     const suggestionLimit = limitParam ? Math.min(parseInt(limitParam), 12) : 3
     const finalResort = searchParams.get('finalResort') === 'true'
+    const scheduledMeal = searchParams.get('scheduledMeal') as 'breakfast' | 'lunch' | 'dinner' | null
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -500,7 +508,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Determine meal time using new agent system
-    const scheduledMeal = searchParams.get('scheduledMeal') as 'breakfast' | 'lunch' | 'dinner' | null
     const mealTime = scheduledMeal || getMealTimeFromHour(currentHour)
 
     // Fetch user patterns for personalized recommendations
@@ -687,9 +694,31 @@ export async function GET(request: NextRequest) {
 
     console.log(`Generated ${allDynamicMeals.length} dynamic meals from ${restaurantsWithIngredients.length} restaurants`)
 
-    // FINAL RESORT MODE: Find meal combinations that hit 95%+ of targets
+    // FEAST MODE: Find meals to hit lunch or dinner goal (ignoring constraints)
     if (finalResort) {
-      const combinations = await findMealCombinationsWithLLM(
+      // Use scheduledMeal or determine from time
+      const feastMealType: 'lunch' | 'dinner' = (scheduledMeal === 'lunch' || scheduledMeal === 'dinner')
+        ? scheduledMeal
+        : (mealTime === 'lunch' ? 'lunch' : 'dinner')
+
+      // Calculate targets dynamically based on meal type:
+      // - Lunch: aim to reach 66% of daily total
+      // - Dinner: aim for 100% of remaining
+      let feastTargetCalories: number
+      let feastTargetProtein: number
+
+      if (feastMealType === 'lunch') {
+        // Lunch target: reach 66% of daily by end of meal
+        const lunchMilestone = 0.66
+        feastTargetCalories = Math.max(0, Math.round((targets.calories * lunchMilestone) - currentCalories))
+        feastTargetProtein = Math.max(0, Math.round((targets.protein * lunchMilestone) - currentProtein))
+      } else {
+        // Dinner target: 100% of remaining
+        feastTargetCalories = remaining.calories
+        feastTargetProtein = remaining.protein
+      }
+
+      const combinations = await findFeastMealsWithLLM(
         availableMeals.map(m => ({
           id: m.id,
           title: m.title,
@@ -700,7 +729,9 @@ export async function GET(request: NextRequest) {
           fat: m.fat,
           description: m.description
         })),
-        remaining
+        feastMealType,
+        feastTargetCalories,
+        feastTargetProtein
       )
 
       // Format combinations as suggestions
@@ -737,9 +768,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         suggestions: comboSuggestions,
         remaining,
-        mealTime,
-        agentType: 'dinner', // Final resort is always dinner-like urgency
-        urgencyLevel: 'critical',
+        mealTime: feastMealType,
+        agentType: feastMealType,
+        urgencyLevel: 'moderate',
         size,
         dining,
         travelMode,
@@ -749,12 +780,12 @@ export async function GET(request: NextRequest) {
         isNearGoal: false,
         hasPersonalizedData,
         noNearbyRestaurants,
-        message: `Final Resort: ${combinations.length} meal combos found to hit your targets`,
+        message: `Feast mode: ${combinations.length} ${feastMealType} options to hit your goal`,
         aiScoringUsed: true,
         isFinalResortMode: true,
         targetForMeal: {
-          calories: remaining.calories,
-          protein: remaining.protein
+          calories: feastTargetCalories,
+          protein: feastTargetProtein
         },
         progressToGoal: {
           caloriesPct: Math.round((currentCalories / targets.calories) * 100),
