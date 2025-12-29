@@ -15,56 +15,61 @@ const openai = new OpenAI({
 // Force rebuild to apply AI utils fix
 
 // Efficient scoring for pre-filtering - uses calculated meal targets
+// PRIORITY: Protein and calories are the primary factors (90% of score)
 function quickScore(meal: any, targetCalories: number, targetProtein: number, mealsRemaining: number): number {
   let score = 0
 
-  // CALORIE FIT (40% weight) - how close to target?
+  // CALORIE FIT (42% weight) - how close to target?
   // Prefer meals within 70-130% of target, with bonus for hitting target
   const calorieRatio = meal.calories / Math.max(targetCalories, 300)
   let calorieFit = 0
   if (calorieRatio >= 0.7 && calorieRatio <= 1.3) {
     // Within acceptable range - score based on closeness to 1.0
-    calorieFit = 1 - Math.abs(1 - calorieRatio) * 0.5
+    calorieFit = 1 - Math.abs(1 - calorieRatio) * 0.4 // More forgiving
   } else if (calorieRatio < 0.7) {
-    // Too small - penalize more heavily
-    calorieFit = calorieRatio * 0.6
+    // Too small - penalize heavily (won't hit targets)
+    calorieFit = calorieRatio * 0.5
   } else {
-    // Too large - penalize but not as harshly (can always eat less)
-    calorieFit = Math.max(0, 1 - (calorieRatio - 1.3) * 0.3)
+    // Too large - slight penalty (can always eat less, but might overshoot)
+    calorieFit = Math.max(0, 1 - (calorieRatio - 1.3) * 0.25)
   }
-  score += calorieFit * 40
+  score += calorieFit * 42
 
-  // PROTEIN FIT (40% weight) - protein is equally important
+  // PROTEIN FIT (48% weight) - protein is KING, slightly more important than calories
+  // Users struggle to hit protein, so prioritize high-protein meals
   const proteinRatio = meal.protein / Math.max(targetProtein, 20)
   let proteinFit = 0
-  if (proteinRatio >= 0.7 && proteinRatio <= 1.5) {
+  if (proteinRatio >= 0.8 && proteinRatio <= 1.5) {
     // Within acceptable range - bonus for exceeding target (protein is always good)
-    proteinFit = Math.min(1, 0.8 + proteinRatio * 0.2)
-  } else if (proteinRatio < 0.7) {
-    // Too low protein - penalize
-    proteinFit = proteinRatio * 0.8
+    proteinFit = Math.min(1, 0.85 + proteinRatio * 0.15)
+  } else if (proteinRatio >= 0.6 && proteinRatio < 0.8) {
+    // Slightly low but acceptable
+    proteinFit = proteinRatio
+  } else if (proteinRatio < 0.6) {
+    // Too low protein - heavy penalty
+    proteinFit = proteinRatio * 0.6
   } else {
-    // Very high protein - still good, just cap the score
+    // Very high protein - excellent, full score
     proteinFit = 1
   }
-  score += proteinFit * 40
+  score += proteinFit * 48
 
-  // MEALS REMAINING BONUS (10% weight)
+  // MEALS REMAINING BONUS (7% weight)
   // If it's the last meal, strongly prefer meals that get close to targets
   if (mealsRemaining === 1) {
-    const hitsTarget = calorieRatio >= 0.75 && proteinRatio >= 0.75
-    score += hitsTarget ? 10 : 2
+    const hitsTarget = calorieRatio >= 0.75 && proteinRatio >= 0.80
+    score += hitsTarget ? 7 : 1
   } else {
     // Multiple meals left - balanced meals are good
-    const isBalanced = calorieRatio >= 0.8 && calorieRatio <= 1.2
-    score += isBalanced ? 8 : 4
+    const isBalanced = calorieRatio >= 0.8 && calorieRatio <= 1.2 && proteinRatio >= 0.8
+    score += isBalanced ? 6 : 3
   }
 
-  // MACROS BALANCE (10% weight) - carbs/fat considered but not prioritized
+  // MACROS BALANCE (3% weight) - carbs/fat are nice-to-have, not priority
   // Just avoid extreme outliers
   const carbsRatio = meal.carbs / Math.max((targetCalories * 0.45 / 4), 30)
   const fatRatio = meal.fat / Math.max((targetCalories * 0.25 / 9), 10)
-  const macroBalance = (carbsRatio >= 0.5 && carbsRatio <= 2) && (fatRatio >= 0.5 && fatRatio <= 2) ? 10 : 5
+  const macroBalance = (carbsRatio >= 0.4 && carbsRatio <= 2.5) && (fatRatio >= 0.4 && fatRatio <= 2.5) ? 3 : 1
   score += macroBalance
 
   return Math.max(0, Math.min(100, score))
@@ -203,16 +208,25 @@ export async function POST(request: NextRequest) {
     const prompt = `RESPOND WITH ONLY VALID JSON. NO EXPLANATORY TEXT BEFORE OR AFTER.
 
 CURRENT TIME: ${currentTime || 'unknown'} (it is ${timeOfDay} time)
-${restaurantBrand} ${mealDistribution.mealType} meal analysis. User has ${userTargets.remaining.calories}cal remaining for the day. Target for this meal: ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein.
+${restaurantBrand} ${mealDistribution.mealType} meal analysis. User has ${userTargets.remaining.calories}cal and ${userTargets.remaining.protein}g protein remaining for the day. Target for this meal: ~${mealDistribution.targetCalories}cal and ${mealDistribution.targetProtein}g protein.
 
 IMPORTANT: This is a proper ${timeOfDay} meal (breakfast/lunch/dinner) - NOT a snack. Recommend complete, substantial meals.
 
 CONTEXT: ${mealDistribution.reasoning}
 ${patternContext ? `\n${patternContext}\nFactor these learned patterns into your recommendations when relevant.\n` : ''}
 
+#1 PRIORITY - HITTING TARGETS:
+Your PRIMARY goal is recommending meals that help the user HIT their calorie and protein targets. Protein is especially critical - users often struggle to get enough protein.
+
+SCORING PRIORITY (use this for ranking):
+1. PROTEIN FIT (50%): Does this meal get them close to their ${mealDistribution.targetProtein}g protein target?
+2. CALORIE FIT (40%): Does this meal get them close to their ${mealDistribution.targetCalories}cal target?
+3. Other macros (10%): Carbs/fat are nice-to-have but not critical
+
 CRITICAL COACHING INSTRUCTIONS:
 - PROVIDE 5-6 VARIED OPTIONS at different calorie/protein levels to give user choice
 - ONLY recommend from the pre-filtered options below (use mealIndex 0 to ${scoredMeals.length - 1})
+- ALWAYS INCLUDE at least 2 "HIGH PROTEIN" options with double protein customizations
 - LIGHT OPTIONS (~${Math.round(mealDistribution.targetCalories * 0.7)}cal): Regular portions, no add-ons
 - MODERATE OPTIONS (~${Math.round(mealDistribution.targetCalories * 0.9)}cal): Standard size with some add-ons
 - TARGET OPTIONS (~${mealDistribution.targetCalories}cal): Hits target perfectly
@@ -220,11 +234,12 @@ CRITICAL COACHING INSTRUCTIONS:
 - MAX OPTIONS (~${Math.min(Math.round(mealDistribution.targetCalories * 1.3), 1200)}cal, ~${Math.round(mealDistribution.targetProtein * 1.5)}g protein): "double protein + all toppings (guac, cheese, etc.)"
 - Use customizations to vary the calories/protein: "ADD DOUBLE PROTEIN +180cal +32g protein", "ADD GUACAMOLE +230cal +3g protein", "ADD CHEESE +100cal +6g protein", "EXTRA LARGE SIZE +150cal +20g protein"
 - Each approved meal should be DISTINCT with different calorie/protein levels
+- RANK BY PROTEIN FIRST: The meal that gets closest to the protein target should score highest
 
 EXPLANATION STYLE:
 - "reasoning": Explain WHY this meal is a good choice (e.g., "Hits your ${mealDistribution.targetProtein}g protein target while staying within calorie budget")
 - "macroImpact": Be specific about numbers (e.g., "Gets you 71g of your 72g remaining protein - nearly perfect!")
-- For meals to AVOID: Include in "mealsToAvoid" with honest explanation
+- For meals to AVOID: Include in "mealsToAvoid" with honest explanation (usually low protein meals)
 
 PRE-FILTERED OPTIONS (use these indices only):
 ${mealsList}

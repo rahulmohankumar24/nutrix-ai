@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-import { Sparkles, MapPin, Check, Utensils, Home, ExternalLink, Clock } from 'lucide-react'
+import { Sparkles, MapPin, Check, Utensils, Home, ExternalLink, Clock, Target } from 'lucide-react'
 
 interface MealSuggestion {
   id: string
@@ -19,6 +19,12 @@ interface MealSuggestion {
   estimatedPrice?: number | null
   personalizedReason?: string | null
   isPersonalized?: boolean
+  aiReasoning?: string | null
+  isAIScored?: boolean
+  isFinalResort?: boolean
+  comboItems?: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number }>
+  calorieFit?: number
+  proteinFit?: number
 }
 
 interface HomeMeal {
@@ -52,6 +58,7 @@ export default function AIPicksPage() {
   const [loggedMealIds, setLoggedMealIds] = useState<Set<string>>(new Set())
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<{ calories: number; protein: number; carbs: number; fat: number } | null>(null)
+  const [isFinalResortMode, setIsFinalResortMode] = useState(false)
   const hasFetchedRestaurant = useRef(false)
   const hasFetchedHome = useRef(false)
 
@@ -87,7 +94,7 @@ export default function AIPicksPage() {
     }
   }
 
-  const loadSuggestions = async (userId: string) => {
+  const loadSuggestions = async (userId: string, finalResort: boolean = false) => {
     setLoading(true)
     try {
       const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -107,17 +114,35 @@ export default function AIPicksPage() {
         }
       }
 
+      // Add final resort mode
+      if (finalResort) {
+        url += '&finalResort=true'
+      }
+
       const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
         setRemaining(data.remaining || null)
+        setIsFinalResortMode(data.isFinalResortMode || false)
       }
     } catch (error) {
       console.error('Failed to load suggestions:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFinalResort = () => {
+    if (!user?.id) return
+    loadSuggestions(user.id, true)
+  }
+
+  const handleExitFinalResort = () => {
+    if (!user?.id) return
+    setIsFinalResortMode(false)
+    hasFetchedRestaurant.current = false
+    loadSuggestions(user.id, false)
   }
 
   const loadHomeMeals = async (userId: string) => {
@@ -232,30 +257,48 @@ export default function AIPicksPage() {
               </div>
             </div>
 
-            {/* Source Toggle */}
-            <div className="flex items-center bg-white/60 rounded-xl p-1">
-              <button
-                onClick={() => handleSourceChange('restaurant')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  mealSource === 'restaurant'
-                    ? 'bg-white text-sky-600 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Utensils className="h-4 w-4" />
-                Restaurants
-              </button>
-              <button
-                onClick={() => handleSourceChange('home')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  mealSource === 'home'
-                    ? 'bg-white text-green-600 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Home className="h-4 w-4" />
-                From Pantry
-              </button>
+            {/* Source Toggle & Hit Targets */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-white/60 rounded-xl p-1">
+                <button
+                  onClick={() => handleSourceChange('restaurant')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    mealSource === 'restaurant'
+                      ? 'bg-white text-sky-600 shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Utensils className="h-4 w-4" />
+                  Restaurants
+                </button>
+                <button
+                  onClick={() => handleSourceChange('home')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    mealSource === 'home'
+                      ? 'bg-white text-green-600 shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Home className="h-4 w-4" />
+                  From Pantry
+                </button>
+              </div>
+
+              {/* Hit Targets Button - Only show for restaurant mode */}
+              {mealSource === 'restaurant' && (
+                <button
+                  onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
+                  disabled={loading}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+                    isFinalResortMode
+                      ? 'bg-amber-500 text-white shadow-md'
+                      : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
+                  } disabled:opacity-50`}
+                >
+                  <Target className="h-4 w-4" />
+                  {isFinalResortMode ? 'Exit Combos' : 'Hit Targets'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -266,17 +309,23 @@ export default function AIPicksPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-4 animate-pulse ${
-              mealSource === 'restaurant' ? 'bg-sky-500/20' : 'bg-green-500/20'
+              isFinalResortMode ? 'bg-amber-500/20' : mealSource === 'restaurant' ? 'bg-sky-500/20' : 'bg-green-500/20'
             }`}>
-              {mealSource === 'restaurant' ? (
+              {isFinalResortMode ? (
+                <Target className="h-6 w-6 text-amber-500" />
+              ) : mealSource === 'restaurant' ? (
                 <Sparkles className="h-6 w-6 text-sky-500" />
               ) : (
                 <Home className="h-6 w-6 text-green-500" />
               )}
             </div>
-            <p className="text-lg font-medium text-foreground mb-2">AI meals generating...</p>
+            <p className="text-lg font-medium text-foreground mb-2">
+              {isFinalResortMode ? 'Finding target-hitting combos...' : 'AI meals generating...'}
+            </p>
             <p className="text-sm text-muted-foreground">
-              {mealSource === 'restaurant'
+              {isFinalResortMode
+                ? 'Analyzing meal combinations to hit 95%+ of your remaining macros'
+                : mealSource === 'restaurant'
                 ? 'Finding the best restaurant options for your goals'
                 : 'Creating recipes from your pantry items'}
             </p>
@@ -353,10 +402,20 @@ export default function AIPicksPage() {
                       className="absolute inset-0 p-5 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all cursor-pointer [backface-visibility:hidden] flex flex-col"
                       onClick={() => setFlippedCardId(suggestion.id)}
                     >
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md uppercase tracking-wide">
                           {suggestion.restaurant}
                         </span>
+                        {suggestion.isFinalResort && suggestion.comboItems && suggestion.comboItems.length > 1 && (
+                          <span className="text-xs font-semibold text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wide">
+                            COMBO
+                          </span>
+                        )}
+                        {suggestion.calorieFit && suggestion.proteinFit && (
+                          <span className="text-xs font-semibold text-green-600 bg-green-500/10 px-2 py-1 rounded-md">
+                            {Math.round((suggestion.calorieFit + suggestion.proteinFit) / 2)}% fit
+                          </span>
+                        )}
                         {suggestion.estimatedPrice && (
                           <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md">
                             ~${suggestion.estimatedPrice.toFixed(0)}
@@ -374,7 +433,16 @@ export default function AIPicksPage() {
                         {suggestion.name}
                       </h3>
 
-                      {suggestion.description && (
+                      {/* Show combo items if this is a combo */}
+                      {suggestion.isFinalResort && suggestion.comboItems && suggestion.comboItems.length > 1 ? (
+                        <div className="text-xs text-muted-foreground mb-3">
+                          {suggestion.comboItems.map((item, idx) => (
+                            <span key={item.id}>
+                              {item.title}{idx < suggestion.comboItems!.length - 1 ? ' + ' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      ) : suggestion.description && (
                         <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
                           {suggestion.description}
                         </p>
@@ -412,26 +480,62 @@ export default function AIPicksPage() {
 
                     {/* Back of card - AI Insights */}
                     <div
-                      className="absolute inset-0 p-5 rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col"
+                      className={`absolute inset-0 p-5 rounded-xl border [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col ${
+                        suggestion.isFinalResort
+                          ? 'border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50'
+                          : 'border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50'
+                      }`}
                       onClick={() => setFlippedCardId(null)}
                     >
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="h-8 w-8 rounded-lg bg-sky-500/20 flex items-center justify-center">
-                          <Sparkles className="h-4 w-4 text-sky-500" />
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                          suggestion.isFinalResort ? 'bg-amber-500/20' : 'bg-sky-500/20'
+                        }`}>
+                          {suggestion.isFinalResort ? (
+                            <Target className="h-4 w-4 text-amber-500" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 text-sky-500" />
+                          )}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">AI Insights</p>
-                          <p className="text-[10px] text-muted-foreground">Why this meal fits your goals</p>
+                          <p className="text-sm font-semibold text-foreground">
+                            {suggestion.isFinalResort ? 'Target Match Analysis' : 'AI Insights'}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {suggestion.isFinalResort ? 'How this combo hits your macros' : 'Why this meal fits your goals'}
+                          </p>
                         </div>
                       </div>
 
-                      <div className="flex-1 space-y-2 overflow-y-auto">
-                        {insights.map((insight, i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs text-foreground">
-                            <Check className="h-3.5 w-3.5 text-sky-500 mt-0.5 flex-shrink-0" />
-                            <span>{insight}</span>
+                      {/* Show calorie/protein fit for final resort meals */}
+                      {suggestion.isFinalResort && suggestion.calorieFit && suggestion.proteinFit && (
+                        <div className="flex gap-2 mb-3">
+                          <div className="flex-1 bg-white/60 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-amber-600">{suggestion.calorieFit}%</p>
+                            <p className="text-[10px] text-muted-foreground">Calorie Fit</p>
                           </div>
-                        ))}
+                          <div className="flex-1 bg-white/60 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-amber-600">{suggestion.proteinFit}%</p>
+                            <p className="text-[10px] text-muted-foreground">Protein Fit</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex-1 space-y-2 overflow-y-auto">
+                        {/* Show AI reasoning for final resort meals */}
+                        {suggestion.isFinalResort && suggestion.aiReasoning ? (
+                          <div className="flex items-start gap-2 text-xs text-foreground">
+                            <Check className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${suggestion.isFinalResort ? 'text-amber-500' : 'text-sky-500'}`} />
+                            <span>{suggestion.aiReasoning}</span>
+                          </div>
+                        ) : (
+                          insights.map((insight, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-foreground">
+                              <Check className="h-3.5 w-3.5 text-sky-500 mt-0.5 flex-shrink-0" />
+                              <span>{insight}</span>
+                            </div>
+                          ))
+                        )}
                       </div>
 
                       <button
@@ -443,6 +547,8 @@ export default function AIPicksPage() {
                         className={`w-full py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 mt-3 ${
                           isLogged
                             ? 'bg-emerald-500 text-white'
+                            : suggestion.isFinalResort
+                            ? 'bg-amber-500 text-white hover:bg-amber-600'
                             : 'bg-sky-500 text-white hover:bg-sky-600'
                         } disabled:opacity-70`}
                       >
@@ -453,6 +559,8 @@ export default function AIPicksPage() {
                             <Check className="h-4 w-4" />
                             Logged
                           </>
+                        ) : suggestion.isFinalResort && suggestion.comboItems && suggestion.comboItems.length > 1 ? (
+                          'Log This Combo'
                         ) : (
                           'Log This Meal'
                         )}

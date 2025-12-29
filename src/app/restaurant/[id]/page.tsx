@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Clock, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X, Sparkles, Trophy, ChevronRight } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, ExternalLink, Check, ThumbsUp, ThumbsDown, MessageSquare, X, Sparkles, Trophy, ChevronRight, Calendar, RefreshCw } from 'lucide-react'
 
 interface Restaurant {
   id: string
@@ -83,6 +83,9 @@ export default function RestaurantPage() {
     if (hour < 16) return 'lunch'
     return 'dinner'
   })
+  // Scheduled meal time - allows users to plan for a future meal
+  const [scheduledMealTime, setScheduledMealTime] = useState<'now' | 'breakfast' | 'lunch' | 'dinner'>('now')
+  const [isRegenerating, setIsRegenerating] = useState(false)
 
   useEffect(() => {
     if (params.id && user?.id) {
@@ -118,7 +121,7 @@ export default function RestaurantPage() {
     }
   }
 
-  const generateMeals = async (restaurantInfo: Restaurant) => {
+  const generateMeals = async (restaurantInfo: Restaurant, scheduledTime?: 'breakfast' | 'lunch' | 'dinner') => {
     setAiLoading(true)
     try {
       // Fetch FRESH user's macro progress (no cache)
@@ -148,7 +151,8 @@ export default function RestaurantPage() {
         }
       }
 
-      const timeInfo = getCurrentTimeOfDay()
+      // Use scheduled time if provided, otherwise detect from current time
+      const timeInfo = getCurrentTimeOfDay(scheduledTime)
       const { timeOfDay, currentTimeString, currentHour } = timeInfo
       const isCustomizable = isCustomizableRestaurant(restaurantInfo.name)
 
@@ -297,7 +301,7 @@ export default function RestaurantPage() {
     }
   }
 
-  const getCurrentTimeOfDay = () => {
+  const getCurrentTimeOfDay = (overrideMealTime?: 'breakfast' | 'lunch' | 'dinner') => {
     // Get explicit current time to pass to AI
     const now = new Date()
     const hour = now.getHours()
@@ -307,6 +311,18 @@ export default function RestaurantPage() {
     console.log(`\n🕐 EXPLICIT TIME DETECTION:`)
     console.log(`  Current time: ${currentTimeString}`)
     console.log(`  Hour: ${hour}`)
+
+    // If override is provided (scheduled meal), use that
+    if (overrideMealTime) {
+      console.log(`  📅 SCHEDULED MEAL: ${overrideMealTime}`)
+      // Calculate a simulated hour for the scheduled meal
+      const scheduledHour = overrideMealTime === 'breakfast' ? 8
+        : overrideMealTime === 'lunch' ? 12
+        : 18
+      const scheduledTimeString = `${scheduledHour}:00`
+      console.log(`  ⏰ Using scheduled time: ${scheduledTimeString}\n`)
+      return { timeOfDay: overrideMealTime, currentTimeString: scheduledTimeString, currentHour: scheduledHour }
+    }
 
     // Determine meal type based on time windows (NO SNACKS)
     // Default to closest meal time
@@ -339,6 +355,30 @@ export default function RestaurantPage() {
   const isCustomizableRestaurant = (restaurantName: string) => {
     const customizable = ['cava', 'chipotle', 'subway', 'sweetgreen', 'qdoba', "moe's", 'blaze pizza', 'mod pizza']
     return customizable.some(name => restaurantName.toLowerCase().includes(name.toLowerCase()))
+  }
+
+  // Handle scheduled meal time change
+  const handleScheduleChange = async (newSchedule: 'now' | 'breakfast' | 'lunch' | 'dinner') => {
+    if (newSchedule === scheduledMealTime || !restaurant) return
+
+    setScheduledMealTime(newSchedule)
+    setIsRegenerating(true)
+
+    // Regenerate meals with the new scheduled time
+    const scheduledTime = newSchedule === 'now' ? undefined : newSchedule
+    await generateMeals(restaurant, scheduledTime)
+    setIsRegenerating(false)
+  }
+
+  // Get the display label for current meal time
+  const getCurrentMealLabel = () => {
+    if (scheduledMealTime !== 'now') {
+      return scheduledMealTime.charAt(0).toUpperCase() + scheduledMealTime.slice(1)
+    }
+    const hour = new Date().getHours()
+    if (hour < 11) return 'Breakfast'
+    if (hour < 16) return 'Lunch'
+    return 'Dinner'
   }
 
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -625,6 +665,73 @@ export default function RestaurantPage() {
               <span>Real-time menu analysis powered by AI</span>
             )}
           </div>
+        </div>
+
+        {/* Meal Time Scheduler */}
+        <div className="mb-6 lg:pr-72">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>Planning for:</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleScheduleChange('now')}
+                disabled={aiLoading || isRegenerating}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  scheduledMealTime === 'now'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                } disabled:opacity-50`}
+              >
+                Now ({getCurrentMealLabel()})
+              </button>
+              <button
+                onClick={() => handleScheduleChange('breakfast')}
+                disabled={aiLoading || isRegenerating}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  scheduledMealTime === 'breakfast'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                } disabled:opacity-50`}
+              >
+                Breakfast
+              </button>
+              <button
+                onClick={() => handleScheduleChange('lunch')}
+                disabled={aiLoading || isRegenerating}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  scheduledMealTime === 'lunch'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                } disabled:opacity-50`}
+              >
+                Lunch
+              </button>
+              <button
+                onClick={() => handleScheduleChange('dinner')}
+                disabled={aiLoading || isRegenerating}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  scheduledMealTime === 'dinner'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                } disabled:opacity-50`}
+              >
+                Dinner
+              </button>
+            </div>
+            {isRegenerating && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Updating recommendations...</span>
+              </div>
+            )}
+          </div>
+          {scheduledMealTime !== 'now' && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Showing meal recommendations optimized for {scheduledMealTime}. Calorie distribution adjusted accordingly.
+            </p>
+          )}
         </div>
 
         {/* Nutrition Coach + Top Pick Side by Side */}

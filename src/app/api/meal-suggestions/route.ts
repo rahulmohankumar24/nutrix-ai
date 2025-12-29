@@ -4,6 +4,11 @@ import { calculateTargets, calculateDistance } from '@/lib/calculations'
 import { KNOWN_CHAINS } from '@/lib/chains'
 import { normalizeRestaurantName } from '@/lib/restaurant-matcher'
 import { getUserPatterns } from '@/lib/patterns/detector'
+import OpenAI from 'openai'
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 // Categorize chains by dining type and value
 const TAKEOUT_FRIENDLY_CHAINS = [
@@ -90,96 +95,179 @@ function estimatePrice(restaurantBrand: string, calories: number): number {
   return Math.round((10 + calories * 0.005) * 100) / 100
 }
 
-// Meal size requirements by time of day and portion preference
-const MEAL_REQUIREMENTS = {
-  light: {
-    breakfast: { minCalories: 250, maxCalories: 450, minProtein: 15 },
-    lunch: { minCalories: 350, maxCalories: 600, minProtein: 20 },
-    dinner: { minCalories: 400, maxCalories: 650, minProtein: 25 }
-  },
-  regular: {
-    breakfast: { minCalories: 350, maxCalories: 700, minProtein: 20 },
-    lunch: { minCalories: 500, maxCalories: 900, minProtein: 30 },
-    dinner: { minCalories: 550, maxCalories: 1000, minProtein: 35 }
-  },
-  hearty: {
-    breakfast: { minCalories: 500, maxCalories: 900, minProtein: 30 },
-    lunch: { minCalories: 700, maxCalories: 1200, minProtein: 40 },
-    dinner: { minCalories: 800, maxCalories: 1400, minProtein: 50 }
+// LLM-based meal scoring for intelligent ranking
+async function scoreMealsWithLLM(
+  meals: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number; carbs: number; fat: number; description?: string }>,
+  remaining: { calories: number; protein: number; carbs: number; fat: number },
+  mealTime: 'breakfast' | 'lunch' | 'dinner',
+  size: 'light' | 'regular' | 'hearty',
+  currentHour: number
+): Promise<Array<{ id: string; score: number; reasoning: string }>> {
+  if (!process.env.OPENAI_API_KEY || meals.length === 0) {
+    // Fallback to algorithmic scoring
+    return meals.map(meal => ({
+      id: meal.id,
+      score: 50,
+      reasoning: 'Algorithmic fallback'
+    }))
+  }
+
+  // Limit meals to top candidates for LLM (cost/speed optimization)
+  const mealsForLLM = meals.slice(0, 25)
+
+  const mealsList = mealsForLLM.map((m, i) =>
+    `${i + 1}. [${m.id}] ${m.restaurantBrand} - ${m.title}: ${m.calories}cal, ${m.protein}g protein, ${m.carbs}g carbs, ${m.fat}g fat`
+  ).join('\n')
+
+  // Calculate how aggressive to be based on time
+  const isLateNight = currentHour >= 20
+  const isDinner = mealTime === 'dinner' || currentHour >= 17
+  const urgencyLevel = isLateNight ? 'CRITICAL' : isDinner ? 'HIGH' : 'MODERATE'
+
+  // Calculate target percentages
+  let targetPct = 0.5
+  if (mealTime === 'lunch') targetPct = 0.55
+  if (mealTime === 'dinner') targetPct = 0.85
+  if (isLateNight) targetPct = 0.95
+  if (size === 'hearty') targetPct = Math.min(1.0, targetPct + 0.15)
+
+  const targetCalories = Math.round(remaining.calories * targetPct)
+  const targetProtein = Math.round(remaining.protein * targetPct)
+
+  const prompt = `You are a nutrition coach helping users hit their daily macro targets. Score these restaurant meals.
+
+USER'S SITUATION:
+- Remaining today: ${remaining.calories} calories, ${remaining.protein}g protein
+- Current time: ${currentHour}:00 (${mealTime})
+- Meal size preference: ${size}
+- Target for this meal: ~${targetCalories} calories, ~${targetProtein}g protein
+- Urgency: ${urgencyLevel} - ${isLateNight ? 'This is their LAST chance to hit targets today!' : isDinner ? 'Dinner time - need to get close to targets' : 'Earlier in day but should stay on track'}
+
+AVAILABLE MEALS:
+${mealsList}
+
+SCORING RULES:
+1. Score 0-100 based on how well the meal helps hit remaining targets
+2. ${urgencyLevel === 'CRITICAL' ? 'CRITICAL: Meals MUST hit 85-100% of remaining targets to score above 80' : urgencyLevel === 'HIGH' ? 'Meals should hit 70-100% of remaining targets for high scores' : 'Moderate urgency - meals hitting 50%+ of targets score well'}
+3. BOTH calories AND protein matter equally - a meal that hits protein but misses calories (or vice versa) should NOT score above 75
+4. High-protein options (like double meat, extra chicken) are preferred when protein targets are high
+5. Penalize meals that would leave significant macros on the table at dinner time
+
+Return ONLY valid JSON array (no markdown, no explanation):
+[{"id":"meal_id","score":85,"reasoning":"Brief reason"},...]
+
+Return the top 8 highest scoring meals, sorted by score descending.`
+
+  try {
+    const completion = await openai.responses.create({
+      model: "gpt-5.2",
+      input: [{ role: "user", content: prompt }]
+    })
+
+    const response = completion.output_text
+    if (!response) {
+      throw new Error('No response from LLM')
+    }
+
+    // Parse JSON response (handle potential markdown wrapping)
+    let jsonStr = response.trim()
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+    }
+
+    const parsed = JSON.parse(jsonStr) as Array<{ id: string; score: number; reasoning: string }>
+    return parsed
+  } catch (error) {
+    console.error('LLM meal scoring error:', error)
+    // Return empty array to trigger fallback
+    return []
   }
 }
 
-// Calculate how well a meal fits for the specific meal time
-function scoreMeal(
-  meal: any,
-  remaining: { calories: number; protein: number; carbs: number; fat: number },
-  mealTime: 'breakfast' | 'lunch' | 'dinner',
-  size: 'light' | 'regular' | 'hearty' = 'regular',
-  patternBoost: number = 0 // Additional boost from user patterns (0-30)
-) {
-  const requirements = MEAL_REQUIREMENTS[size][mealTime]
-  let score = patternBoost
-
-  // CRITICAL: If meal exceeds remaining calories by more than 15%, reject it
-  // This ensures we don't suggest 800cal meals when user has 450cal left
-  if (meal.calories > remaining.calories * 1.15) {
-    return 0
+// LLM-based meal combination finder for "final resort" mode
+// Finds meal + side combos that hit 95%+ of remaining targets
+async function findMealCombinationsWithLLM(
+  meals: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number; carbs: number; fat: number; description?: string }>,
+  remaining: { calories: number; protein: number; carbs: number; fat: number }
+): Promise<Array<{
+  type: 'single' | 'combo'
+  items: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number }>
+  totalCalories: number
+  totalProtein: number
+  calorieFit: number
+  proteinFit: number
+  reasoning: string
+}>> {
+  if (!process.env.OPENAI_API_KEY || meals.length === 0) {
+    return []
   }
 
-  // First, check if meal is appropriate size for this meal time
-  // But adjust based on what's remaining - if user has less left, accept smaller meals
-  const effectiveMinCalories = Math.min(requirements.minCalories, remaining.calories * 0.5)
+  const mealsList = meals.slice(0, 40).map((m, i) =>
+    `${i + 1}. [${m.id}] ${m.restaurantBrand} - ${m.title}: ${m.calories}cal, ${m.protein}g protein`
+  ).join('\n')
 
-  if (meal.calories < effectiveMinCalories) {
-    // Too small
-    return 0
-  }
+  const prompt = `You are a nutrition expert. The user MUST hit their remaining macros today - this is their FINAL RESORT.
 
-  // Cap max calories at remaining (with small buffer)
-  const effectiveMaxCalories = Math.min(requirements.maxCalories, remaining.calories * 1.1)
+USER'S REMAINING TARGETS (must hit 95%+):
+- Calories: ${remaining.calories}
+- Protein: ${remaining.protein}g
 
-  if (meal.calories > effectiveMaxCalories) {
-    // Too large for what's remaining
-    score -= 30
-  }
+AVAILABLE MEALS/SIDES:
+${mealsList}
 
-  // Adjust protein requirements based on remaining
-  const effectiveMinProtein = Math.min(requirements.minProtein, remaining.protein * 0.8)
+YOUR TASK:
+Find the BEST meal combinations that get as close as possible to 95-105% of BOTH targets.
+You can suggest:
+1. Single meals that hit both targets
+2. Meal + side combos from the SAME restaurant
+3. Two items from the same restaurant
 
-  if (meal.protein < effectiveMinProtein && remaining.protein > 20) {
-    // Not enough protein (only penalize if user still needs significant protein)
-    score -= 15
-  }
+RULES:
+- Prioritize hitting BOTH calories AND protein (95%+ each)
+- Only combine items from the SAME restaurant
+- Going slightly over (up to 110%) is acceptable
+- Focus on the best 3-5 options
 
-  // Base score for being in the right calorie range
-  if (meal.calories >= effectiveMinCalories && meal.calories <= effectiveMaxCalories) {
-    score += 40
-  }
-
-  // Reward meals that fit well within remaining calories
-  const caloriefit = meal.calories / remaining.calories
-  if (caloriefit >= 0.5 && caloriefit <= 1.0) {
-    score += 30 // Perfect fit
-  } else if (caloriefit >= 0.3 && caloriefit <= 1.1) {
-    score += 15 // Good fit
-  }
-
-  // Protein score - but cap reward based on what's remaining
-  if (remaining.protein > 10) {
-    const proteinFit = meal.protein / remaining.protein
-    if (proteinFit >= 0.3 && proteinFit <= 1.0) {
-      score += 25 // Good protein fit
-    } else if (proteinFit > 1.0 && proteinFit <= 1.2) {
-      score += 10 // Slightly over but acceptable
+Return ONLY valid JSON (no markdown):
+{
+  "combinations": [
+    {
+      "type": "combo",
+      "items": [
+        {"id": "meal_id_1", "title": "Main Meal", "restaurantBrand": "Restaurant", "calories": 800, "protein": 50},
+        {"id": "meal_id_2", "title": "Side Item", "restaurantBrand": "Restaurant", "calories": 200, "protein": 15}
+      ],
+      "totalCalories": 1000,
+      "totalProtein": 65,
+      "calorieFit": 95,
+      "proteinFit": 98,
+      "reasoning": "Bowl + side hits both targets perfectly"
     }
+  ]
+}`
+
+  try {
+    const completion = await openai.responses.create({
+      model: "gpt-5.2",
+      input: [{ role: "user", content: prompt }]
+    })
+
+    const response = completion.output_text
+    if (!response) {
+      return []
+    }
+
+    let jsonStr = response.trim()
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+    }
+
+    const parsed = JSON.parse(jsonStr)
+    return parsed.combinations || []
+  } catch (error) {
+    console.error('LLM meal combination error:', error)
+    return []
   }
-
-  // Protein efficiency bonus
-  const proteinEfficiency = meal.calories > 0 ? meal.protein / meal.calories * 100 : 0
-  if (proteinEfficiency >= 8) score += 15
-  else if (proteinEfficiency >= 5) score += 10
-
-  return Math.max(0, score)
 }
 
 // Distance thresholds by travel mode (in miles)
@@ -206,6 +294,7 @@ export async function GET(request: NextRequest) {
     const currentHourParam = searchParams.get('currentHour')
     const limitParam = searchParams.get('limit')
     const suggestionLimit = limitParam ? Math.min(parseInt(limitParam), 12) : 3
+    const finalResort = searchParams.get('finalResort') === 'true'
 
     if (!userId) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -293,10 +382,19 @@ export async function GET(request: NextRequest) {
       fat: Math.max(0, targets.fat - currentFat)
     }
 
-    // Determine meal time from passed hour (needed for scoring)
+    // Check if user scheduled a specific meal time
+    const scheduledMeal = searchParams.get('scheduledMeal') as 'breakfast' | 'lunch' | 'dinner' | null
+
+    // Determine meal time from scheduled meal or passed hour (needed for scoring)
     let mealTime: 'breakfast' | 'lunch' | 'dinner' = 'dinner'
-    if (currentHour < 11) mealTime = 'breakfast'
-    else if (currentHour < 16) mealTime = 'lunch'
+    if (scheduledMeal) {
+      // Use the explicitly scheduled meal time
+      mealTime = scheduledMeal
+    } else if (currentHour < 11) {
+      mealTime = 'breakfast'
+    } else if (currentHour < 16) {
+      mealTime = 'lunch'
+    }
 
     // Fetch user patterns for personalized recommendations
     const patterns = await getUserPatterns(userId)
@@ -390,8 +488,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // IMPORTANT: Don't fall back to default chains if location was verified but no restaurants found
-    // This prevents suggesting restaurants that don't exist in the user's area
+    // Track if we had location but found no nearby restaurants
     const noNearbyRestaurants = locationVerified && nearbyChains.length === 0
 
     // Filter and prioritize chains based on dining preference
@@ -407,34 +504,152 @@ export async function GET(request: NextRequest) {
       return 0
     })
 
+    // If no nearby chains found (location failed or no results), use popular chains as fallback
+    // This ensures users always see suggestions even if location services fail
+    const chainsToQuery = nearbyChains.length > 0
+      ? nearbyChains
+      : preferredChains.slice(0, 10) // Fallback to top 10 preferred chains
+
     // Get meals from these chains
     const meals = await prisma.orderTemplate.findMany({
       where: {
         restaurantBrand: {
-          in: nearbyChains.map(c => normalizeRestaurantName(c))
+          in: chainsToQuery.map(c => normalizeRestaurantName(c))
         }
       }
     })
 
-    // Score and sort meals based on meal time appropriateness and patterns
-    const scoredMeals = meals.map(meal => {
-      // Get pattern boost for this restaurant
+    // Prepare all meals for LLM scoring (no algorithmic pre-filter)
+    const allMeals = meals.map(meal => {
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
       const patternBoost = restaurantBoosts[normalizedBrand] || 0
-
       return {
         ...meal,
-        score: scoreMeal(meal, remaining, mealTime, size, patternBoost),
         patternBoosted: patternBoost > 0
       }
     })
-    .filter(meal => meal.score > 0) // Remove snacks/inappropriate sized meals
-    .sort((a, b) => b.score - a.score)
+
+    // FINAL RESORT MODE: Find meal combinations that hit 95%+ of targets
+    if (finalResort) {
+      const combinations = await findMealCombinationsWithLLM(
+        allMeals.map(m => ({
+          id: m.id,
+          title: m.title,
+          restaurantBrand: m.restaurantBrand,
+          calories: m.calories,
+          protein: m.protein,
+          carbs: m.carbs,
+          fat: m.fat,
+          description: m.description || undefined
+        })),
+        remaining
+      )
+
+      // Format combinations as suggestions
+      const comboSuggestions = combinations.map((combo, index) => {
+        const primaryItem = combo.items[0]
+        const normalizedBrand = primaryItem?.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
+        const distance = chainDistances[normalizedBrand] || null
+
+        return {
+          id: `combo-${index}`,
+          name: combo.items.length > 1
+            ? `${combo.items[0].title} + ${combo.items[1].title}`
+            : combo.items[0].title,
+          description: combo.reasoning,
+          restaurant: primaryItem?.restaurantBrand || 'Unknown',
+          calories: combo.totalCalories,
+          protein: combo.totalProtein,
+          carbs: 0, // Not tracked in combos
+          fat: 0,
+          score: Math.round((combo.calorieFit + combo.proteinFit) / 2),
+          distance,
+          estimatedPrice: null,
+          isPersonalized: false,
+          personalizedReason: null,
+          aiReasoning: `${combo.calorieFit}% calories, ${combo.proteinFit}% protein - ${combo.reasoning}`,
+          isAIScored: true,
+          isFinalResort: true,
+          comboItems: combo.items,
+          calorieFit: combo.calorieFit,
+          proteinFit: combo.proteinFit
+        }
+      })
+
+      return NextResponse.json({
+        suggestions: comboSuggestions,
+        remaining,
+        mealTime,
+        size,
+        dining,
+        travelMode,
+        maxDistance,
+        nearbyChains: nearbyChains.slice(0, 5),
+        goalAchieved: false,
+        isNearGoal: false,
+        hasPersonalizedData,
+        noNearbyRestaurants,
+        message: `Final Resort: ${combinations.length} meal combos found to hit your targets`,
+        aiScoringUsed: true,
+        isFinalResortMode: true,
+        targetForMeal: {
+          calories: remaining.calories,
+          protein: remaining.protein
+        }
+      })
+    }
+
+    // Send all meals to LLM for intelligent scoring (limit to 50 for token efficiency)
+    const mealsForLLM = allMeals.slice(0, 50)
+
+    const llmScores = await scoreMealsWithLLM(
+      mealsForLLM.map(m => ({
+        id: m.id,
+        title: m.title,
+        restaurantBrand: m.restaurantBrand,
+        calories: m.calories,
+        protein: m.protein,
+        carbs: m.carbs,
+        fat: m.fat,
+        description: m.description || undefined
+      })),
+      remaining,
+      mealTime,
+      size,
+      currentHour
+    )
+
+    // Merge LLM scores with meal data
+    let scoredMeals: Array<typeof allMeals[0] & { llmScore?: number; llmReasoning?: string; score: number }>
+
+    if (llmScores.length > 0) {
+      // Create a map of LLM scores
+      const llmScoreMap = new Map(llmScores.map(s => [s.id, s]))
+
+      // Sort by LLM score
+      scoredMeals = mealsForLLM.map(meal => ({
+        ...meal,
+        llmScore: llmScoreMap.get(meal.id)?.score,
+        llmReasoning: llmScoreMap.get(meal.id)?.reasoning,
+        score: llmScoreMap.get(meal.id)?.score ?? 0
+      }))
+      .filter(meal => meal.score > 0)
+      .sort((a, b) => b.score - a.score)
+    } else {
+      // Fallback: basic calorie/protein ratio scoring if LLM fails
+      scoredMeals = mealsForLLM.map(meal => {
+        const calRatio = remaining.calories > 0 ? meal.calories / remaining.calories : 0
+        const proRatio = remaining.protein > 0 ? meal.protein / remaining.protein : 0
+        const score = Math.round((calRatio + proRatio) * 50)
+        return { ...meal, score, llmScore: undefined, llmReasoning: undefined }
+      })
+      .filter(meal => meal.score > 0)
+      .sort((a, b) => b.score - a.score)
+    }
 
     // Get top suggestions with variety from different restaurants
     const suggestions: any[] = []
-    const usedRestaurants = new Set<string>()
-    const maxPerRestaurant = suggestionLimit > 3 ? 2 : 1 // Allow 2 per restaurant for expanded view
+    const maxPerRestaurant = suggestionLimit > 3 ? 2 : 1
     const restaurantCounts: Record<string, number> = {}
 
     for (const meal of scoredMeals) {
@@ -445,12 +660,12 @@ export async function GET(request: NextRequest) {
 
       restaurantCounts[meal.restaurantBrand] = count + 1
 
-      usedRestaurants.add(meal.restaurantBrand)
       const normalizedBrand = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '')
       const brandKey = meal.restaurantBrand.toLowerCase().replace(/[^a-z]/g, '_')
       const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
       const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
       const personalizedReason = restaurantReasons[brandKey] || null
+
       suggestions.push({
         id: meal.id,
         name: meal.title,
@@ -460,11 +675,13 @@ export async function GET(request: NextRequest) {
         protein: meal.protein,
         carbs: meal.carbs,
         fat: meal.fat,
-        score: meal.score,
+        score: meal.llmScore ?? meal.score,
+        aiReasoning: meal.llmReasoning || null, // Include LLM's reasoning
         distance,
         estimatedPrice,
         isPersonalized: meal.patternBoosted || false,
-        personalizedReason
+        personalizedReason,
+        isAIScored: !!meal.llmScore
       })
     }
 
@@ -479,6 +696,7 @@ export async function GET(request: NextRequest) {
         const distance = chainDistances[normalizedBrand] || chainDistances[meal.restaurantBrand.toLowerCase()] || null
         const estimatedPrice = estimatePrice(meal.restaurantBrand, meal.calories)
         const personalizedReason = restaurantReasons[brandKey] || null
+
         suggestions.push({
           id: meal.id,
           name: meal.title,
@@ -488,11 +706,13 @@ export async function GET(request: NextRequest) {
           protein: meal.protein,
           carbs: meal.carbs,
           fat: meal.fat,
-          score: meal.score,
+          score: meal.llmScore ?? meal.score,
+          aiReasoning: meal.llmReasoning || null,
           distance,
           estimatedPrice,
           isPersonalized: meal.patternBoosted || false,
-          personalizedReason
+          personalizedReason,
+          isAIScored: !!meal.llmScore
         })
       }
     }
@@ -514,6 +734,9 @@ export async function GET(request: NextRequest) {
       message = `You're close to your goals! Only ${remaining.calories} cal and ${remaining.protein}g protein left.`
     }
 
+    // Check if AI scoring was used
+    const aiScoringUsed = suggestions.some((s: any) => s.isAIScored)
+
     return NextResponse.json({
       suggestions,
       remaining,
@@ -527,7 +750,12 @@ export async function GET(request: NextRequest) {
       isNearGoal,
       hasPersonalizedData,
       noNearbyRestaurants,
-      message
+      message,
+      aiScoringUsed,
+      targetForMeal: {
+        calories: Math.round(remaining.calories * (mealTime === 'dinner' ? 0.95 : 0.5)),
+        protein: Math.round(remaining.protein * (mealTime === 'dinner' ? 0.95 : 0.5))
+      }
     })
 
   } catch (error) {

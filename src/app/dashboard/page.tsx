@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight, Target } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 // Cache utilities - avoid redundant AI calls
@@ -113,10 +113,17 @@ interface MealSuggestion {
   protein: number
   carbs: number
   fat: number
+  score?: number
   distance?: number | null
   estimatedPrice?: number | null
   personalizedReason?: string | null
   isPersonalized?: boolean
+  aiReasoning?: string | null
+  isAIScored?: boolean
+  isFinalResort?: boolean
+  comboItems?: Array<{ id: string; title: string; restaurantBrand: string; calories: number; protein: number }>
+  calorieFit?: number
+  proteinFit?: number
 }
 
 interface HomeMealSuggestion {
@@ -168,9 +175,11 @@ export default function DashboardPage() {
   const [mealSize, setMealSize] = useState<'light' | 'regular' | 'hearty'>('regular')
   const [diningMode, setDiningMode] = useState<'takeout' | 'dine-in'>('takeout')
   const [travelMode, setTravelMode] = useState<'walk' | 'drive'>('drive')
+  const [scheduledMealTime, setScheduledMealTime] = useState<'now' | 'breakfast' | 'lunch' | 'dinner'>('now')
   const [suggestionMessage, setSuggestionMessage] = useState<string | null>(null)
   const [isNearGoal, setIsNearGoal] = useState(false)
   const [goalAchieved, setGoalAchieved] = useState(false)
+  const [isFinalResortMode, setIsFinalResortMode] = useState(false)
   const [flippedCardIndex, setFlippedCardIndex] = useState<number | null>(null)
   const [patternInsight, setPatternInsight] = useState<PatternInsight | null>(null)
   const [patternProgress, setPatternProgress] = useState<{ daysLogged: number; hasPatterns: boolean }>({ daysLogged: 0, hasPatterns: false })
@@ -251,16 +260,16 @@ export default function DashboardPage() {
         (position) => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude }
           setUserLocation(loc)
-          loadSuggestions(userId, loc, 'regular', 'takeout', 'drive', false, mealCount)
+          loadSuggestions(userId, loc, 'regular', 'takeout', 'drive', 'now', false, mealCount)
         },
         () => {
           // Location denied, load suggestions without location
-          loadSuggestions(userId, null, 'regular', 'takeout', 'drive', false, mealCount)
+          loadSuggestions(userId, null, 'regular', 'takeout', 'drive', 'now', false, mealCount)
         },
         { timeout: 5000 }
       )
     } else {
-      loadSuggestions(userId, null, 'regular', 'takeout', 'drive', false, mealCount)
+      loadSuggestions(userId, null, 'regular', 'takeout', 'drive', 'now', false, mealCount)
     }
   }
 
@@ -270,8 +279,10 @@ export default function DashboardPage() {
     size: 'light' | 'regular' | 'hearty' = 'regular',
     dining: 'takeout' | 'dine-in' = 'takeout',
     travel: 'walk' | 'drive' = 'drive',
+    scheduledTime: 'now' | 'breakfast' | 'lunch' | 'dinner' = 'now',
     forceRefresh: boolean = false,
-    knownMealCount?: number
+    knownMealCount?: number,
+    finalResort: boolean = false
   ) => {
     // Round location to avoid cache misses from tiny GPS changes
     const roundedLoc = location ? {
@@ -279,11 +290,11 @@ export default function DashboardPage() {
       lng: Math.round(location.lng * 100) / 100
     } : null
 
-    const cacheKey = getCacheKey('suggestions', userId, { size, dining, travel, loc: roundedLoc })
+    const cacheKey = getCacheKey('suggestions', userId, { size, dining, travel, loc: roundedLoc, finalResort })
     const currentMealCount = knownMealCount ?? mealLogs?.count ?? 0
 
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
+    // Check cache first (unless force refresh or final resort)
+    if (!forceRefresh && !finalResort) {
       const cached = getCache<any>(cacheKey)
       if (cached && cached._cachedMealCount === currentMealCount) {
         setSuggestions(cached.suggestions || [])
@@ -292,6 +303,7 @@ export default function DashboardPage() {
         setIsNearGoal(cached.isNearGoal || false)
         setGoalAchieved(cached.goalAchieved || false)
         setHasPersonalizedSuggestions(cached.hasPersonalizedData || false)
+        setIsFinalResortMode(cached.isFinalResortMode || false)
         setLoadingSuggestions(false)
         return
       }
@@ -300,10 +312,25 @@ export default function DashboardPage() {
     setLoadingSuggestions(true)
     try {
       const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
-      const hour = new Date().getHours()
+      // Use scheduled time if set, otherwise use current time
+      let hour: number
+      if (scheduledTime === 'now') {
+        hour = new Date().getHours()
+      } else {
+        // Simulate hours for scheduled meals
+        hour = scheduledTime === 'breakfast' ? 8 : scheduledTime === 'lunch' ? 12 : 18
+      }
       let url = `/api/meal-suggestions?userId=${userId}&size=${size}&dining=${dining}&travel=${travel}&timezone=${tz}&currentHour=${hour}`
       if (location) {
         url += `&lat=${location.lat}&lng=${location.lng}`
+      }
+      // Pass scheduled meal time to API
+      if (scheduledTime !== 'now') {
+        url += `&scheduledMeal=${scheduledTime}`
+      }
+      // Add final resort mode
+      if (finalResort) {
+        url += '&finalResort=true'
       }
       const response = await fetch(url)
       if (response.ok) {
@@ -314,6 +341,7 @@ export default function DashboardPage() {
         setIsNearGoal(data.isNearGoal || false)
         setGoalAchieved(data.goalAchieved || false)
         setHasPersonalizedSuggestions(data.hasPersonalizedData || false)
+        setIsFinalResortMode(data.isFinalResortMode || false)
         // Cache the result
         setCache(cacheKey, data, currentMealCount)
       }
@@ -328,7 +356,7 @@ export default function DashboardPage() {
     setMealSize(size)
     if (user?.id) {
       // Force refresh when user changes settings
-      loadSuggestions(user.id, userLocation, size, diningMode, travelMode, true)
+      loadSuggestions(user.id, userLocation, size, diningMode, travelMode, scheduledMealTime, true)
     }
   }
 
@@ -336,7 +364,7 @@ export default function DashboardPage() {
     setDiningMode(mode)
     if (user?.id) {
       // Force refresh when user changes settings
-      loadSuggestions(user.id, userLocation, mealSize, mode, travelMode, true)
+      loadSuggestions(user.id, userLocation, mealSize, mode, travelMode, scheduledMealTime, true)
     }
   }
 
@@ -344,25 +372,55 @@ export default function DashboardPage() {
     setTravelMode(mode)
     if (user?.id) {
       // Force refresh when user changes settings
-      loadSuggestions(user.id, userLocation, mealSize, diningMode, mode, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, mode, scheduledMealTime, true)
     }
+  }
+
+  const handleScheduledMealTimeChange = (time: 'now' | 'breakfast' | 'lunch' | 'dinner') => {
+    setScheduledMealTime(time)
+    if (user?.id) {
+      // Force refresh when user changes scheduled time
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, time, true)
+    }
+  }
+
+  // Get current meal label based on time
+  const getCurrentMealLabel = () => {
+    const hour = new Date().getHours()
+    if (hour < 11) return 'Breakfast'
+    if (hour < 16) return 'Lunch'
+    return 'Dinner'
   }
 
   const handleMealSourceChange = (source: 'restaurant' | 'home') => {
     setMealSource(source)
     if (source === 'home' && user?.id) {
       loadHomeMeals(user.id)
+    } else if (source === 'restaurant' && user?.id) {
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     }
   }
 
   const handleRefreshSuggestions = () => {
     if (!user?.id) return
+    setIsFinalResortMode(false) // Reset final resort mode on refresh
     if (mealSource === 'home') {
       loadHomeMeals(user.id, true)
     } else {
-      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     }
     loadInsights(user.id, true)
+  }
+
+  const handleFinalResort = () => {
+    if (!user?.id) return
+    loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true, undefined, true)
+  }
+
+  const handleExitFinalResort = () => {
+    if (!user?.id) return
+    setIsFinalResortMode(false)
+    loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
   }
 
   const loadHomeMeals = async (userId: string, forceRefresh: boolean = false, knownMealCount?: number) => {
@@ -1212,6 +1270,71 @@ export default function DashboardPage() {
                   </button>
                 </div>
               )}
+
+            </div>
+
+            {/* Meal Time Scheduler + Hit Targets */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Planning for:</span>
+                <div className="flex bg-muted/20 rounded-xl p-1">
+                  <button
+                    onClick={() => handleScheduledMealTimeChange('now')}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                      scheduledMealTime === 'now'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Now
+                  </button>
+                  <button
+                    onClick={() => handleScheduledMealTimeChange('breakfast')}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                      scheduledMealTime === 'breakfast'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Breakfast
+                  </button>
+                  <button
+                    onClick={() => handleScheduledMealTimeChange('lunch')}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                      scheduledMealTime === 'lunch'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Lunch
+                  </button>
+                  <button
+                    onClick={() => handleScheduledMealTimeChange('dinner')}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                      scheduledMealTime === 'dinner'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Dinner
+                  </button>
+                </div>
+              </div>
+
+              {/* Hit Targets Button */}
+              {mealSource === 'restaurant' && (
+                <button
+                  onClick={isFinalResortMode ? handleExitFinalResort : handleFinalResort}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+                    isFinalResortMode
+                      ? 'bg-amber-500 text-white shadow-md'
+                      : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-2 border-amber-500/30 hover:border-amber-500/50'
+                  }`}
+                >
+                  <Target className="h-4 w-4" />
+                  {isFinalResortMode ? 'Exit Combos' : 'Hit Targets'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1556,6 +1679,19 @@ export default function DashboardPage() {
                           {suggestion.personalizedReason}
                         </p>
                       )}
+                      {suggestion.aiReasoning && !suggestion.personalizedReason && (
+                        <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          {suggestion.aiReasoning}
+                        </p>
+                      )}
+                      {suggestion.score && suggestion.score >= 85 && (
+                        <div className="absolute top-2 right-2">
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                            Top Pick
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Back of card - click anywhere to flip back */}
@@ -1612,7 +1748,7 @@ export default function DashboardPage() {
                               setFlippedCardIndex(null)
                               await loadDashboardData(user.id)
                               loadInsights(user.id)
-                              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode)
+                              loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime)
                             }
                           } catch (error) {
                             console.error('Failed to log meal:', error)

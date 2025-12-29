@@ -98,10 +98,10 @@ export function rateMealForTarget(
   )
 
   // Calculate weighted overall fit
-  // When it's the last meal, prioritize protein and calories more
+  // CRITICAL: BOTH protein AND calories must be close for high scores
   const weights = mealsRemaining === 1
-    ? { calories: 0.45, protein: 0.50, balance: 0.05 } // Last meal: focus on hitting targets
-    : { calories: 0.40, protein: 0.45, balance: 0.15 } // Normal: balanced approach
+    ? { calories: 0.48, protein: 0.48, balance: 0.04 } // Last meal: BOTH matter equally
+    : { calories: 0.45, protein: 0.48, balance: 0.07 } // Normal: both matter, slight protein edge
 
   const overallFit = (
     caloriesFit * weights.calories +
@@ -112,14 +112,38 @@ export function rateMealForTarget(
   // Final score (0-100)
   let score = Math.round(Math.max(0, Math.min(100, overallFit)))
 
-  // CRITICAL: Boost score for meals that help us hit targets when time is running out
+  // BOTH MUST BE CLOSE RULE: Cap score if either target is significantly missed
+  // This ensures you can't get a high score by just hitting protein OR just hitting calories
+  // Use RAW percentages, not the boosted fit scores
+  const rawCaloriePct = meal.calories / Math.max(idealCalories, 1)
+  const rawProteinPct = meal.protein / Math.max(idealProtein, 1)
+  const minRawPct = Math.min(rawCaloriePct, rawProteinPct)
+
+  if (minRawPct <= 0.75) {
+    // Either target missed by 25%+ = cap at 80 max
+    score = Math.min(score, 80)
+  }
+  if (minRawPct <= 0.65) {
+    // Either target missed by 35%+ = cap at 70 max
+    score = Math.min(score, 70)
+  }
+  if (minRawPct <= 0.50) {
+    // Either target missed by 50%+ = cap at 55 max
+    score = Math.min(score, 55)
+  }
+  if (minRawPct <= 0.35) {
+    // Either target missed by 65%+ = cap at 40 max
+    score = Math.min(score, 40)
+  }
+
+  // Boost only if BOTH targets are hit well
   if (mealsRemaining === 1 && remaining.calories > 600) {
-    // Last meal with significant macros left - prioritize meals that get us close
     const percentOfRemainingCalories = meal.calories / remaining.calories
     const percentOfRemainingProtein = meal.protein / remaining.protein
 
+    // Only boost if BOTH are at 75%+
     if (percentOfRemainingCalories >= 0.75 && percentOfRemainingProtein >= 0.75) {
-      score = Math.min(100, score + 10) // Big boost for hitting most of remaining
+      score = Math.min(100, score + 10)
     }
   }
 

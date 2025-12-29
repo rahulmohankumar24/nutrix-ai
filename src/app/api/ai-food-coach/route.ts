@@ -153,14 +153,12 @@ Return a JSON object with this structure:
 
 IMPORTANT: Only include foods in "approvedFoods" that you genuinely recommend for their current goals and nutrition targets. Reject foods that don't fit well, even if they were pre-filtered.`
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 2000,
+    const completion = await openai.responses.create({
+      model: "gpt-5.2",
+      input: [{ role: "user", content: prompt }]
     })
 
-    const aiResponse = completion.choices[0]?.message?.content
+    const aiResponse = completion.output_text
     if (!aiResponse) {
       return NextResponse.json({ error: 'No response from AI coach' }, { status: 500 })
     }
