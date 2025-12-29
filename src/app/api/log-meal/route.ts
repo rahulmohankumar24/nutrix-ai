@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getUserDateStr, getDayBoundariesUTC } from '@/lib/timezone'
 
 // Infer meal type from current hour if not provided
 function inferMealType(hour: number): string {
@@ -58,34 +59,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get date boundaries in UTC (for user's timezone)
-    let startOfDay: Date
-    let endOfDay: Date
-    const now = new Date()
-
-    // Calculate timezone offset
-    const userNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-    const utcNow = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }))
-    const tzOffsetMs = utcNow.getTime() - userNow.getTime()
-
-    if (date) {
-      // Use provided date (YYYY-MM-DD format)
-      startOfDay = new Date(`${date}T00:00:00.000Z`)
-      startOfDay.setTime(startOfDay.getTime() + tzOffsetMs)
-      endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1)
-    } else {
-      // Get today in user's timezone
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      })
-      const userDateStr = formatter.format(now)
-
-      startOfDay = new Date(`${userDateStr}T00:00:00.000Z`)
-      startOfDay.setTime(startOfDay.getTime() + tzOffsetMs)
-      endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1)
-    }
+    const dateStr = date || getUserDateStr(timezone)
+    const { startOfDay, endOfDay } = getDayBoundariesUTC(dateStr, timezone)
 
     // Get meal logs for the specified date with related data
     const mealLogs = await prisma.mealLog.findMany({

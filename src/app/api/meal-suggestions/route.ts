@@ -12,6 +12,7 @@ import {
   UserPattern
 } from '@/lib/meal-agents'
 import { calculateRealisticMealTarget } from '@/lib/meal-distribution'
+import { getUserDateStr, getDayBoundariesUTC, getUserHour } from '@/lib/timezone'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -420,7 +421,7 @@ export async function GET(request: NextRequest) {
     // Use passed currentHour or calculate from timezone
     const currentHour = currentHourParam
       ? parseInt(currentHourParam)
-      : new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours()
+      : getUserHour(timezone)
 
     // Get user profile
     const profile = await prisma.profile.findUnique({
@@ -432,11 +433,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Get today's date range in user's timezone
-    const now = new Date()
-    const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-    const today = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
+    const userDateStr = getUserDateStr(timezone)
+    const { startOfDay, endOfDay } = getDayBoundariesUTC(userDateStr, timezone)
+    // For DailyTarget date field (stored as date without time)
+    const today = new Date(`${userDateStr}T00:00:00.000Z`)
 
     // Get or calculate targets
     let targets = await prisma.dailyTarget.findFirst({
@@ -468,7 +468,7 @@ export async function GET(request: NextRequest) {
     const todayLogs = await prisma.mealLog.findMany({
       where: {
         userId,
-        datetime: { gte: today, lt: tomorrow }
+        datetime: { gte: startOfDay, lte: endOfDay }
       },
       include: {
         orderTemplate: true,

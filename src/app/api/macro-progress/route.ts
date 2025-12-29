@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { MacroProgress } from '@/lib/types'
 import { calculateTargets } from '@/lib/calculations'
+import { getUserDateStr, getDayBoundariesUTC } from '@/lib/timezone'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,27 +17,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get today's date boundaries in UTC (for user's timezone)
-    const now = new Date()
-
-    // Get the current date in user's timezone as YYYY-MM-DD
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-    const userDateStr = formatter.format(now) // YYYY-MM-DD in user's timezone
-
-    // Calculate timezone offset (difference between UTC and user's timezone)
-    const userNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-    const utcNow = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }))
-    const tzOffsetMs = utcNow.getTime() - userNow.getTime()
-
-    // Start and end of today in UTC (representing user's local day boundaries)
-    const todayStart = new Date(`${userDateStr}T00:00:00.000Z`)
-    todayStart.setTime(todayStart.getTime() + tzOffsetMs)
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+    // Get today's date in user's timezone and calculate UTC boundaries
+    const userDateStr = getUserDateStr(timezone)
+    const { startOfDay: todayStart, endOfDay } = getDayBoundariesUTC(userDateStr, timezone)
+    const todayEnd = new Date(endOfDay.getTime() + 1)
 
     // For DailyTarget date field (stored as date without time)
     const today = new Date(`${userDateStr}T00:00:00.000Z`)
