@@ -57,20 +57,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Get today's date in user's timezone if no date provided
+    // Get date boundaries in UTC (for user's timezone)
     let startOfDay: Date
     let endOfDay: Date
+    const now = new Date()
+
+    // Calculate timezone offset
+    const userNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const utcNow = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }))
+    const tzOffsetMs = utcNow.getTime() - userNow.getTime()
 
     if (date) {
-      const targetDate = new Date(date)
-      startOfDay = new Date(targetDate.setHours(0, 0, 0, 0))
-      endOfDay = new Date(targetDate.setHours(23, 59, 59, 999))
+      // Use provided date (YYYY-MM-DD format)
+      startOfDay = new Date(`${date}T00:00:00.000Z`)
+      startOfDay.setTime(startOfDay.getTime() + tzOffsetMs)
+      endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1)
     } else {
-      // Calculate today in user's timezone
-      const now = new Date()
-      const userDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-      startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate())
-      endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999)
+      // Get today in user's timezone
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      })
+      const userDateStr = formatter.format(now)
+
+      startOfDay = new Date(`${userDateStr}T00:00:00.000Z`)
+      startOfDay.setTime(startOfDay.getTime() + tzOffsetMs)
+      endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1)
     }
 
     // Get meal logs for the specified date with related data
