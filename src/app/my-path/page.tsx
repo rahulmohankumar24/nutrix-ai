@@ -9,6 +9,7 @@ import {
   ArrowUpRight, BarChart3
 } from "lucide-react"
 import { AnalyticsChat } from "@/components/analytics-chat"
+import { HealthAICard } from "@/components/health-ai-card"
 
 interface WeeklyData {
   label: string
@@ -346,6 +347,11 @@ export default function MyPathPage() {
           {/* Ask AI Coach - Pro Feature */}
           {user?.id && (
             <AnalyticsChat userId={user.id} isPro={isPro} />
+          )}
+
+          {/* Health AI - Pro Feature */}
+          {user?.id && (
+            <HealthAICard userId={user.id} isPro={isPro} />
           )}
 
           {/* Your Strengths */}

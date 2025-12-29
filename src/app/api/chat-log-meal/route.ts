@@ -32,7 +32,8 @@ Current time context: It's ${timeContext}.
 
 When a user tells you what they ate, extract the meal information and respond in this JSON format:
 {
-  "mealName": "exact name of the meal/food",
+  "mealName": "exact name of the meal/food (INCLUDE restaurant name if mentioned, e.g. 'Chipotle Chicken Bowl')",
+  "restaurantName": "restaurant name if mentioned (e.g. 'chipotle', 'cava'), or null if homemade/unknown",
   "estimatedCalories": number,
   "estimatedProtein": number (in grams),
   "estimatedCarbs": number (in grams),
@@ -42,6 +43,10 @@ When a user tells you what they ate, extract the meal information and respond in
   "userMessage": "a friendly confirmation message to the user",
   "shouldLog": true/false (true if this is a meal to log, false if just chatting)
 }
+
+RESTAURANT DETECTION:
+- If user mentions a restaurant (chipotle, cava, sweetgreen, subway, panera, starbucks, etc.), capture it in "restaurantName"
+- Include the restaurant name in "mealName" for clarity (e.g., "Chipotle Chicken Bowl" not just "Chicken Bowl")
 
 MEAL TYPE INFERENCE:
 - Use the current time as a default, but infer from food type when obvious:
@@ -156,16 +161,20 @@ Respond with valid JSON only.`
         })
       }
 
+      // Determine source - restaurant if dbMatch or AI detected a restaurant
+      const isRestaurant = dbMatch || parsedResponse.restaurantName
+      const restaurantName = parsedResponse.restaurantName?.toLowerCase() || ''
+
       // Otherwise, create and log the meal
       const foodCatalogItem = await prisma.foodCatalogItem.create({
         data: {
-          source: dbMatch ? 'restaurant' : 'user_logged',
+          source: isRestaurant ? 'restaurant' : 'user_logged',
           name: finalName,
           calories: finalCalories,
           protein: finalProtein,
           carbs: finalCarbs,
           fat: finalFat,
-          tags: '[]'
+          tags: restaurantName ? JSON.stringify([restaurantName]) : '[]'
         }
       })
 

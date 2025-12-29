@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 // Cache utilities - avoid redundant AI calls
@@ -176,6 +176,19 @@ export default function DashboardPage() {
   const [patternProgress, setPatternProgress] = useState<{ daysLogged: number; hasPatterns: boolean }>({ daysLogged: 0, hasPatterns: false })
   const [hasPersonalizedSuggestions, setHasPersonalizedSuggestions] = useState(false)
   const [unlockCelebration, setUnlockCelebration] = useState<{ show: boolean; message: string } | null>(null)
+  const [isPro, setIsPro] = useState(false)
+  const [todayHealth, setTodayHealth] = useState<{
+    grade: 'A' | 'B' | 'C' | 'D' | 'F'
+    score: number
+    mealsAnalyzed: number
+    allMealsCount: number
+    summary: string | null
+    hasFruits: boolean
+    hasVeggies: boolean
+    hasFiber: boolean
+    hasProtein: boolean
+    hasProbiotics: boolean
+  } | null>(null)
 
 
   // Home meals state
@@ -216,7 +229,8 @@ export default function DashboardPage() {
         // Sync user and load meal data in parallel
         const results = await Promise.all([
           fetch('/api/sync-user', { method: 'POST' }).catch(() => {}),
-          loadDashboardData(user.id)
+          loadDashboardData(user.id),
+          loadProStatus(user.id)
         ])
         const mealCount = results[1] as number // Get meal count for cache validation
         // NOW load AI-powered features (with valid mealCount for cache checks)
@@ -489,6 +503,47 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to load pattern insight:', error)
+    }
+  }
+
+  const loadProStatus = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/profile?userId=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        const pro = data.profile?.isPro === true
+        setIsPro(pro)
+
+        // If Pro, fetch today's health analysis
+        if (pro) {
+          const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+          const healthResponse = await fetch(`/api/health-analysis?userId=${userId}&today=true&timezone=${tz}`)
+          if (healthResponse.ok) {
+            const healthData = await healthResponse.json()
+            if (healthData.allMealsCount > 0 || healthData.mealsAnalyzed > 0) {
+              // Check for protein in insights
+              const hasProtein = healthData.nutritionInsights?.some(
+                (i: { title: string }) => i.title.toLowerCase().includes('protein')
+              ) || false
+
+              setTodayHealth({
+                grade: healthData.grade,
+                score: healthData.overallScore,
+                mealsAnalyzed: healthData.mealsAnalyzed,
+                allMealsCount: healthData.allMealsCount || 0,
+                summary: healthData.dailySummary || null,
+                hasFruits: healthData.hasFruits || false,
+                hasVeggies: healthData.hasVeggies || false,
+                hasFiber: healthData.hasFiber || false,
+                hasProtein,
+                hasProbiotics: healthData.hasProbiotics || false
+              })
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load pro status:', error)
     }
   }
 
@@ -1597,111 +1652,253 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Side by Side: Today's Total + Meals Logged */}
+        {/* Left: Today's Total + Ingredient Health (stacked squares) | Right: Meals Logged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Today's Total */}
-          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col h-full">
-            <p className="text-base font-medium text-muted-foreground mb-5">Today's Total</p>
-            {!macros ? (
-              // Skeleton loading state
-              <div className="grid grid-cols-2 gap-4 flex-1">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30 animate-pulse">
-                    <div className="w-20 h-20 rounded-full bg-muted" />
-                    <div className="h-4 w-12 bg-muted rounded mt-2" />
-                    <div className="h-3 w-16 bg-muted rounded mt-1" />
+          {/* Left Column: Two equal squares stacked */}
+          <div className="flex flex-col gap-5">
+            {/* Today's Total - Square */}
+            <div className="flex-1 bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col">
+              <p className="text-sm font-medium text-muted-foreground mb-4">Today's Total</p>
+              {!macros ? (
+                <div className="flex-1 grid grid-cols-2 gap-3 content-center">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex flex-col items-center p-3 rounded-xl bg-muted/30 animate-pulse">
+                      <div className="w-16 h-16 rounded-full bg-muted" />
+                      <div className="h-5 w-14 bg-muted rounded mt-2" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 grid grid-cols-2 gap-3 content-center">
+                  {/* Calories */}
+                  <div className="flex flex-col items-center p-3 rounded-xl bg-muted/30">
+                    <div className="relative w-16 h-16">
+                      <svg className="w-16 h-16 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                        <circle
+                          cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
+                          className="text-primary transition-all duration-500"
+                          strokeLinecap="round"
+                          strokeDasharray={`${Math.min(100, (macros.current.calories / macros.targets.calories) * 100) * 2.64} 264`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-foreground">{Math.round((macros.current.calories / macros.targets.calories) * 100)}%</span>
+                      </div>
+                    </div>
+                    <p className="text-lg font-bold text-foreground mt-1">{macros.current.calories}</p>
+                    <p className="text-xs text-muted-foreground">of {macros.targets.calories} cal</p>
                   </div>
-                ))}
-              </div>
+
+                  {/* Protein */}
+                  <div className="flex flex-col items-center p-3 rounded-xl bg-primary/5 border border-primary/10">
+                    <div className="relative w-16 h-16">
+                      <svg className="w-16 h-16 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                        <circle
+                          cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
+                          className="text-primary transition-all duration-500"
+                          strokeLinecap="round"
+                          strokeDasharray={`${Math.min(100, (macros.current.protein / macros.targets.protein) * 100) * 2.64} 264`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-foreground">{Math.round((macros.current.protein / macros.targets.protein) * 100)}%</span>
+                      </div>
+                    </div>
+                    <p className="text-lg font-bold text-primary mt-1">{macros.current.protein}g</p>
+                    <p className="text-xs text-muted-foreground">of {macros.targets.protein}g protein</p>
+                  </div>
+
+                  {/* Carbs */}
+                  <div className="flex flex-col items-center p-3 rounded-xl bg-muted/30">
+                    <div className="relative w-16 h-16">
+                      <svg className="w-16 h-16 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                        <circle
+                          cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
+                          className="text-primary/60 transition-all duration-500"
+                          strokeLinecap="round"
+                          strokeDasharray={`${Math.min(100, (macros.current.carbs / macros.targets.carbs) * 100) * 2.64} 264`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-foreground">{Math.round((macros.current.carbs / macros.targets.carbs) * 100)}%</span>
+                      </div>
+                    </div>
+                    <p className="text-lg font-bold text-foreground mt-1">{macros.current.carbs}g</p>
+                    <p className="text-xs text-muted-foreground">of {macros.targets.carbs}g carbs</p>
+                  </div>
+
+                  {/* Fat */}
+                  <div className="flex flex-col items-center p-3 rounded-xl bg-muted/30">
+                    <div className="relative w-16 h-16">
+                      <svg className="w-16 h-16 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                        <circle
+                          cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
+                          className="text-primary/40 transition-all duration-500"
+                          strokeLinecap="round"
+                          strokeDasharray={`${Math.min(100, (macros.current.fat / macros.targets.fat) * 100) * 2.64} 264`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-foreground">{Math.round((macros.current.fat / macros.targets.fat) * 100)}%</span>
+                      </div>
+                    </div>
+                    <p className="text-lg font-bold text-foreground mt-1">{macros.current.fat}g</p>
+                    <p className="text-xs text-muted-foreground">of {macros.targets.fat}g fat</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Today's Health Insights - Square */}
+            {isPro && todayHealth ? (
+              <Link
+                href="/insights/health"
+                className="flex-1 bg-card rounded-2xl border border-border hover:border-primary/30 hover:shadow-lg transition-all group flex flex-col overflow-hidden"
+              >
+                {/* Header with grade accent */}
+                <div className={`px-5 py-4 ${
+                  todayHealth.grade === 'A' ? 'bg-gradient-to-r from-emerald-500/15 to-transparent' :
+                  todayHealth.grade === 'B' ? 'bg-gradient-to-r from-green-500/15 to-transparent' :
+                  todayHealth.grade === 'C' ? 'bg-gradient-to-r from-amber-500/15 to-transparent' :
+                  todayHealth.grade === 'D' ? 'bg-gradient-to-r from-orange-500/15 to-transparent' :
+                  'bg-gradient-to-r from-red-500/15 to-transparent'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className={`text-4xl font-bold ${
+                        todayHealth.grade === 'A' ? 'text-emerald-500' :
+                        todayHealth.grade === 'B' ? 'text-green-500' :
+                        todayHealth.grade === 'C' ? 'text-amber-500' :
+                        todayHealth.grade === 'D' ? 'text-orange-500' : 'text-red-500'
+                      }`}>{todayHealth.grade}</span>
+                      <div>
+                        <p className="text-base font-medium text-foreground">Today's Health</p>
+                        <p className="text-sm text-muted-foreground">{todayHealth.allMealsCount} meal{todayHealth.allMealsCount !== 1 ? 's' : ''} tracked</p>
+                      </div>
+                    </div>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 px-5 py-4 flex flex-col justify-between">
+                  {/* AI Summary */}
+                  {todayHealth.summary ? (
+                    <p className="text-base text-foreground/90 leading-relaxed">
+                      {todayHealth.summary}
+                    </p>
+                  ) : (
+                    <p className="text-base text-foreground/90 leading-relaxed">
+                      {todayHealth.grade === 'A' || todayHealth.grade === 'B'
+                        ? 'Great nutrition balance today. Keep it up!'
+                        : 'Track more meals for personalized insights.'}
+                    </p>
+                  )}
+
+                  {/* Nutrition Grid */}
+                  <div className="grid grid-cols-4 gap-3 mt-4">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${
+                        todayHealth.hasVeggies ? 'bg-emerald-500/20' : 'bg-muted/50'
+                      }`}>
+                        {todayHealth.hasVeggies ? (
+                          <Check className="h-6 w-6 text-emerald-500" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${todayHealth.hasVeggies ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>Veggies</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${
+                        todayHealth.hasFruits ? 'bg-emerald-500/20' : 'bg-muted/50'
+                      }`}>
+                        {todayHealth.hasFruits ? (
+                          <Check className="h-6 w-6 text-emerald-500" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${todayHealth.hasFruits ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>Fruits</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${
+                        todayHealth.hasFiber ? 'bg-emerald-500/20' : 'bg-muted/50'
+                      }`}>
+                        {todayHealth.hasFiber ? (
+                          <Check className="h-6 w-6 text-emerald-500" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${todayHealth.hasFiber ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>Fiber</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${
+                        todayHealth.hasProbiotics ? 'bg-emerald-500/20' : 'bg-muted/50'
+                      }`}>
+                        {todayHealth.hasProbiotics ? (
+                          <Check className="h-6 w-6 text-emerald-500" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${todayHealth.hasProbiotics ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>Gut</span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ) : isPro ? (
+              <Link
+                href="/insights/health"
+                className="flex-1 bg-card rounded-2xl border border-border hover:border-primary/30 hover:shadow-lg transition-all group flex flex-col overflow-hidden"
+              >
+                <div className="px-5 py-4 bg-gradient-to-r from-muted/50 to-transparent">
+                  <div className="flex items-center justify-between">
+                    <p className="text-base font-medium text-foreground">Today's Health</p>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+                <div className="flex-1 px-5 py-4 flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 rounded-xl bg-muted/50 flex items-center justify-center mb-4">
+                    <Shield className="h-8 w-8 text-muted-foreground/50" />
+                  </div>
+                  <p className="text-base text-muted-foreground text-center">Log meals to unlock health insights</p>
+                </div>
+              </Link>
             ) : (
-              <div className="grid grid-cols-2 gap-4 flex-1">
-                {/* Calories */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
-                      <circle
-                        cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
-                        className="text-primary transition-all duration-500"
-                        strokeLinecap="round"
-                        strokeDasharray={`${Math.min(100, (macros.current.calories / macros.targets.calories) * 100) * 2.64} 264`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.calories / macros.targets.calories) * 100)}%</span>
-                    </div>
+              <div className="flex-1 bg-card rounded-2xl border border-border relative overflow-hidden flex flex-col">
+                <div className="px-5 py-4 bg-gradient-to-r from-green-500/10 to-transparent flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="text-4xl font-bold text-green-500">B</span>
+                    <p className="text-base font-medium text-foreground">Today's Health</p>
                   </div>
-                  <p className="text-base font-medium text-foreground mt-2">{macros.current.calories}</p>
-                  <p className="text-sm text-muted-foreground">of {macros.targets.calories} cal</p>
+                  <span className="text-xs font-medium text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-full">Pro</span>
                 </div>
-
-                {/* Protein */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
-                      <circle
-                        cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
-                        className="text-primary transition-all duration-500"
-                        strokeLinecap="round"
-                        strokeDasharray={`${Math.min(100, (macros.current.protein / macros.targets.protein) * 100) * 2.64} 264`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.protein / macros.targets.protein) * 100)}%</span>
-                    </div>
+                <div className="flex-1 px-5 py-4 blur-[2px] opacity-60">
+                  <p className="text-base text-foreground/90 mb-4">Solid protein intake. Consider adding probiotics for gut health.</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    {['Veggies', 'Fruits', 'Fiber', 'Gut'].map((item, i) => (
+                      <div key={item} className="flex flex-col items-center">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${i < 2 ? 'bg-emerald-500/20' : 'bg-muted/50'}`}>
+                          {i < 2 ? <Check className="h-6 w-6 text-emerald-500" /> : <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />}
+                        </div>
+                        <span className="text-sm text-muted-foreground">{item}</span>
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-base font-medium text-foreground mt-2">{macros.current.protein}g</p>
-                  <p className="text-sm text-muted-foreground">of {macros.targets.protein}g pro</p>
-                </div>
-
-                {/* Carbs */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
-                      <circle
-                        cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
-                        className="text-primary/60 transition-all duration-500"
-                        strokeLinecap="round"
-                        strokeDasharray={`${Math.min(100, (macros.current.carbs / macros.targets.carbs) * 100) * 2.64} 264`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.carbs / macros.targets.carbs) * 100)}%</span>
-                    </div>
-                  </div>
-                  <p className="text-base font-medium text-foreground mt-2">{macros.current.carbs}g</p>
-                  <p className="text-sm text-muted-foreground">of {macros.targets.carbs}g carbs</p>
-                </div>
-
-                {/* Fat */}
-                <div className="flex flex-col items-center p-4 rounded-xl border border-border bg-muted/30">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
-                      <circle
-                        cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8"
-                        className="text-primary/40 transition-all duration-500"
-                        strokeLinecap="round"
-                        strokeDasharray={`${Math.min(100, (macros.current.fat / macros.targets.fat) * 100) * 2.64} 264`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-base font-semibold text-foreground">{Math.round((macros.current.fat / macros.targets.fat) * 100)}%</span>
-                    </div>
-                  </div>
-                  <p className="text-base font-medium text-foreground mt-2">{macros.current.fat}g</p>
-                  <p className="text-sm text-muted-foreground">of {macros.targets.fat}g fat</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Meals Logged */}
-          <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex flex-col">
-            {/* Meals Logged Header */}
-            <p className="text-base font-medium text-muted-foreground mb-4">Meals Logged</p>
+          {/* Right Column: Meals Logged */}
+          <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col">
+            <p className="text-sm font-medium text-muted-foreground mb-4">Meals Logged</p>
 
             {(() => {
               const mealsByType = getMealsByType()
@@ -1717,7 +1914,6 @@ export default function DashboardPage() {
                     draggedMeal?.id === meal.id ? 'opacity-50 scale-95' : ''
                   } ${updatingMealId === meal.id ? 'opacity-70' : ''}`}
                 >
-                  {/* Top row: drag handle, name, delete */}
                   <div className="flex items-center gap-2">
                     <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                     <p className="text-sm font-medium text-foreground truncate flex-1">{meal.name}</p>
@@ -1733,16 +1929,11 @@ export default function DashboardPage() {
                       )}
                     </button>
                   </div>
-
-                  {/* Bottom row: macros and quantity controls */}
                   <div className="flex items-center justify-between mt-2 pl-6">
-                    {/* Macros */}
                     <div className="flex items-center gap-3 text-sm">
                       <span className="text-muted-foreground">{meal.calories} cal</span>
                       <span className="text-primary font-medium">{meal.protein}g protein</span>
                     </div>
-
-                    {/* Quantity controls */}
                     <div className="flex items-center gap-1 bg-background/50 rounded-lg px-1 py-0.5">
                       <button
                         onClick={() => updateMealServings(meal.id, meal.servings - 0.5)}
