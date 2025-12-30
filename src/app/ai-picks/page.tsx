@@ -365,17 +365,17 @@ export default function AIPicksPage() {
       {/* Content */}
       <main className="max-w-6xl mx-auto px-6 py-8">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-4 animate-pulse ${
-              isFinalResortMode ? 'bg-amber-500/20' : mealSource === 'restaurant' ? 'bg-sky-500/20' : 'bg-green-500/20'
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-4 ${
+              isFinalResortMode ? 'bg-amber-500/10' : mealSource === 'restaurant' ? 'bg-sky-500/10' : 'bg-green-500/10'
             }`}>
-              {isFinalResortMode ? (
-                <Target className="h-6 w-6 text-amber-500" />
-              ) : mealSource === 'restaurant' ? (
-                <Sparkles className="h-6 w-6 text-sky-500" />
-              ) : (
-                <Home className="h-6 w-6 text-green-500" />
-              )}
+              <div className={`h-8 w-8 border-3 rounded-full animate-spin ${
+                isFinalResortMode
+                  ? 'border-amber-500 border-t-transparent'
+                  : mealSource === 'restaurant'
+                  ? 'border-sky-500 border-t-transparent'
+                  : 'border-green-500 border-t-transparent'
+              }`} />
             </div>
             <p className="text-lg font-medium text-foreground mb-2">
               {isFinalResortMode ? 'Finding your feast...' : 'AI meals generating...'}
