@@ -65,7 +65,7 @@ export default function LandingPage() {
         <main className="px-6 pt-16 pb-32 md:pt-24 md:pb-40">
           <div className="max-w-6xl mx-auto text-center">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold text-foreground tracking-tight leading-[1.05] mb-6">
-              AI tells you
+              AI that tells you
               <br />
               <span className="text-primary">exactly what to eat</span>
             </h1>
