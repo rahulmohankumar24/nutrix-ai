@@ -12,7 +12,7 @@ export function HealthAICard({ isPro = false }: HealthAICardProps) {
   // Non-Pro locked state
   if (!isPro) {
     return (
-      <Link href="/insights/health" className="block group">
+      <Link href="/pro" className="block group">
         <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-emerald-500/30 hover:shadow-lg transition-all relative overflow-hidden h-full">
           {/* Pro badge */}
           <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">

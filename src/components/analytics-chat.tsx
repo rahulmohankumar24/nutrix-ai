@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Send, Sparkles, MessageCircle, Lock, Crown } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -23,6 +24,7 @@ const SUGGESTED_QUESTIONS = [
 ]
 
 export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -133,7 +135,10 @@ export function AnalyticsChat({ userId, isPro = false }: AnalyticsChatProps) {
 
           {/* Overlay */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium shadow-lg hover:shadow-xl transition-shadow">
+            <button
+              onClick={() => router.push('/pro')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium shadow-lg hover:shadow-xl transition-shadow"
+            >
               <Lock className="h-4 w-4" />
               Upgrade to Pro
             </button>

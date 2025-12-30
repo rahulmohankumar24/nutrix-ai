@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, SignOutButton } from "@clerk/nextjs"
 import {
-  Target, Flame, Calendar, TrendingUp, Utensils,
+  Target, Flame, Calendar, TrendingUp,
   Moon, Dumbbell, Droplets, Brain, Heart, Settings,
-  Send, Sparkles, ChevronRight
+  Send, Sparkles, ChevronRight, Crown, Loader2, Trash2
 } from "lucide-react"
 
 interface UserGoals {
@@ -56,6 +56,9 @@ export default function ProfilePage() {
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
   const [chatMessage, setChatMessage] = useState<string | null>(null)
+  const [isPro, setIsPro] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -95,11 +98,29 @@ export default function ProfilePage() {
             targetFat: data.targets?.fat || 65,
             strategy: getGoalStrategy(data.profile.goal)
           })
+          setIsPro(data.profile.isPro || false)
           generatePersonalizedPlan(data.profile)
         }
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error)
+    }
+  }
+
+  const handleManageSubscription = async () => {
+    setPortalLoading(true)
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const { url } = await response.json()
+        window.location.href = url
+      }
+    } catch (error) {
+      console.error('Failed to open portal:', error)
+    } finally {
+      setPortalLoading(false)
     }
   }
 
@@ -307,24 +328,81 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-4xl px-6 py-10 space-y-6">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-semibold text-primary">
-              {user?.firstName?.charAt(0) || user?.emailAddresses?.[0]?.emailAddress?.charAt(0) || 'U'}
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">
-                {user?.firstName || 'Profile'}
-              </h1>
-              <p className="text-sm text-muted-foreground">{user?.emailAddresses?.[0]?.emailAddress}</p>
+        {/* Header with User and Pro Status Side by Side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* User Card */}
+          <div className="bg-card rounded-2xl p-5 border border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-semibold text-primary">
+                  {user?.firstName?.charAt(0) || user?.emailAddresses?.[0]?.emailAddress?.charAt(0) || 'U'}
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">
+                    {user?.firstName || 'Profile'}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">{user?.emailAddresses?.[0]?.emailAddress}</p>
+                </div>
+              </div>
+              <SignOutButton>
+                <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Sign Out
+                </button>
+              </SignOutButton>
             </div>
           </div>
-          <SignOutButton>
-            <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Sign Out
+
+          {/* Pro Status Card */}
+          {isPro ? (
+            <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-2xl p-5 border border-amber-500/30">
+              <div className="flex items-center justify-between h-full">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                    <Crown className="h-7 w-7 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Rovia Pro</h2>
+                    <p className="text-sm text-muted-foreground">All features unlocked</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background/50 border border-amber-500/30 text-sm font-medium text-foreground hover:bg-background transition-colors disabled:opacity-50"
+                >
+                  {portalLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Settings className="h-4 w-4" />
+                      Manage
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => router.push('/pro')}
+              className="bg-gradient-to-br from-amber-500/15 to-orange-500/15 rounded-2xl p-5 border border-amber-500/40 hover:border-amber-500/60 hover:from-amber-500/20 hover:to-orange-500/20 transition-all text-left group"
+            >
+              <div className="flex items-center justify-between h-full">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-amber-500/30 to-orange-500/30 flex items-center justify-center group-hover:from-amber-500 group-hover:to-orange-500 transition-all">
+                    <Crown className="h-7 w-7 text-amber-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Upgrade to Pro</h2>
+                    <p className="text-sm text-amber-600/80">Unlock AI coach, insights & more</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-amber-600">$9.99/mo</span>
+                  <ChevronRight className="h-5 w-5 text-amber-500 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
             </button>
-          </SignOutButton>
+          )}
         </div>
 
         {/* Your Plan - Personalized Tips */}
@@ -488,6 +566,41 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Delete Account Section */}
+        <div className="pt-8 border-t border-border/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Delete account</p>
+              <p className="text-xs text-muted-foreground/60">Permanently remove your account and all data</p>
+            </div>
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Are you sure?</span>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => user?.delete()}
+                  className="px-3 py-1.5 rounded-lg text-xs text-white bg-red-500 hover:bg-red-600 transition-all"
+                >
+                  Yes, delete
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            )}
+          </div>
         </div>
 
       </main>

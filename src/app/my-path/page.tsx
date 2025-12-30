@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
 import {
-  Sparkles, ChevronRight, Zap, Brain, Trophy,
-  ArrowUpRight, BarChart3
+  Sparkles, Zap, Brain, Trophy,
+  ArrowUpRight, BarChart3, Crown, Lock
 } from "lucide-react"
 import { AnalyticsChat } from "@/components/analytics-chat"
 import { HealthAICard } from "@/components/health-ai-card"
@@ -290,18 +290,9 @@ export default function MyPathPage() {
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-            <p className="text-muted-foreground mt-1">Your personalized nutrition insights</p>
-          </div>
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-          >
-            Edit Profile
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground mt-1">Your personalized nutrition insights</p>
         </div>
 
         {/* Weekly Summary Hero */}
@@ -344,107 +335,7 @@ export default function MyPathPage() {
         {/* AI Insight Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* Ask AI Coach - Pro Feature */}
-          {user?.id && (
-            <AnalyticsChat userId={user.id} isPro={isPro} />
-          )}
-
-          {/* Health AI - Pro Feature */}
-          {user?.id && (
-            <HealthAICard userId={user.id} isPro={isPro} />
-          )}
-
-          {/* Your Strengths */}
-          <Link href="/insights/strengths" className="group">
-            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-green-500/30 hover:shadow-lg transition-all h-full">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                    <Trophy className="h-5 w-5 text-green-500" />
-                  </div>
-                  <h3 className="font-semibold text-foreground">Your Strengths</h3>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-green-500 transition-colors" />
-              </div>
-
-              {loadingPatterns ? (
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse" />
-                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
-                </div>
-              ) : strengthInsights.length > 0 ? (
-                <div className="space-y-2">
-                  {strengthInsights.map((insight, i) => (
-                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Keep logging to discover your strengths!</p>
-              )}
-            </div>
-          </Link>
-
-          {/* Areas to Explore */}
-          <Link href="/insights/opportunities" className="group">
-            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-amber-500/30 hover:shadow-lg transition-all h-full">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                    <Zap className="h-5 w-5 text-amber-500" />
-                  </div>
-                  <h3 className="font-semibold text-foreground">Areas to Explore</h3>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-amber-500 transition-colors" />
-              </div>
-
-              {loadingPatterns ? (
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse" />
-                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
-                </div>
-              ) : opportunityInsights.length > 0 ? (
-                <div className="space-y-2">
-                  {opportunityInsights.map((insight, i) => (
-                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Log more meals to find opportunities!</p>
-              )}
-            </div>
-          </Link>
-
-          {/* Your Patterns */}
-          <Link href="/insights/patterns" className="group">
-            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-sky-500/30 hover:shadow-lg transition-all h-full">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
-                    <Brain className="h-5 w-5 text-sky-500" />
-                  </div>
-                  <h3 className="font-semibold text-foreground">Your Patterns</h3>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-sky-500 transition-colors" />
-              </div>
-
-              {loadingPatterns ? (
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse" />
-                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
-                </div>
-              ) : patternCards.length > 0 ? (
-                <div className="space-y-2">
-                  {patternCards.map((insight, i) => (
-                    <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Patterns emerge after 3+ days of logging.</p>
-              )}
-            </div>
-          </Link>
-
-          {/* Weekly Breakdown */}
+          {/* Weekly Breakdown - Free, at the top */}
           <Link href="/insights/weekly" className="group">
             <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-blue-500/30 hover:shadow-lg transition-all h-full">
               <div className="flex items-center justify-between mb-4">
@@ -458,7 +349,7 @@ export default function MyPathPage() {
               </div>
 
               {/* Mini bar chart preview */}
-              <div className="flex items-end gap-1 h-12">
+              <div className="flex items-end gap-1 h-16">
                 {weeklyData.slice(0, 7).map((day, i) => {
                   const height = day.caloriesTarget > 0
                     ? Math.min(100, (day.calories / day.caloriesTarget) * 100)
@@ -475,6 +366,184 @@ export default function MyPathPage() {
                 })}
               </div>
               <p className="text-xs text-muted-foreground mt-2">Tap to see detailed breakdown</p>
+            </div>
+          </Link>
+
+          {/* Health AI / Ingredient Insights - Pro Feature */}
+          {user?.id && (
+            <HealthAICard userId={user.id} isPro={isPro} />
+          )}
+
+          {/* Ask AI Coach - Pro Feature */}
+          {user?.id && (
+            <AnalyticsChat userId={user.id} isPro={isPro} />
+          )}
+
+          {/* Your Strengths - Pro Feature */}
+          <Link href={isPro ? "/insights/strengths" : "/pro"} className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-green-500/30 hover:shadow-lg transition-all h-full relative overflow-hidden">
+              {/* Pro badge */}
+              {!isPro && (
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                  <Crown className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-600">PRO</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <Trophy className="h-5 w-5 text-green-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Your Strengths</h3>
+                </div>
+                {isPro && <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-green-500 transition-colors" />}
+              </div>
+
+              {isPro ? (
+                loadingPatterns ? (
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                  </div>
+                ) : strengthInsights.length > 0 ? (
+                  <div className="space-y-2">
+                    {strengthInsights.map((insight, i) => (
+                      <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Keep logging to discover your strengths!</p>
+                )
+              ) : (
+                <div className="relative">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Discover what you're doing well and build on your wins.
+                  </p>
+                  <div className="space-y-2 opacity-50 blur-[2px]">
+                    <p className="text-sm text-muted-foreground">• Consistent protein intake</p>
+                    <p className="text-sm text-muted-foreground">• Great meal timing</p>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center mt-8">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium shadow-lg">
+                      <Lock className="h-4 w-4" />
+                      Upgrade to Pro
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Link>
+
+          {/* Areas to Explore - Pro Feature */}
+          <Link href={isPro ? "/insights/opportunities" : "/pro"} className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-amber-500/30 hover:shadow-lg transition-all h-full relative overflow-hidden">
+              {/* Pro badge */}
+              {!isPro && (
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                  <Crown className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-600">PRO</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Zap className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Areas to Explore</h3>
+                </div>
+                {isPro && <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-amber-500 transition-colors" />}
+              </div>
+
+              {isPro ? (
+                loadingPatterns ? (
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                  </div>
+                ) : opportunityInsights.length > 0 ? (
+                  <div className="space-y-2">
+                    {opportunityInsights.map((insight, i) => (
+                      <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Log more meals to find opportunities!</p>
+                )
+              ) : (
+                <div className="relative">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Find personalized areas where small changes make big impact.
+                  </p>
+                  <div className="space-y-2 opacity-50 blur-[2px]">
+                    <p className="text-sm text-muted-foreground">• Add more fiber</p>
+                    <p className="text-sm text-muted-foreground">• Evening snacking</p>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center mt-8">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium shadow-lg">
+                      <Lock className="h-4 w-4" />
+                      Upgrade to Pro
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Link>
+
+          {/* Your Patterns - Pro Feature */}
+          <Link href={isPro ? "/insights/patterns" : "/pro"} className="group">
+            <div className="bg-card rounded-2xl p-5 border border-border/50 hover:border-sky-500/30 hover:shadow-lg transition-all h-full relative overflow-hidden">
+              {/* Pro badge */}
+              {!isPro && (
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                  <Crown className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-600">PRO</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
+                    <Brain className="h-5 w-5 text-sky-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Your Patterns</h3>
+                </div>
+                {isPro && <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-sky-500 transition-colors" />}
+              </div>
+
+              {isPro ? (
+                loadingPatterns ? (
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                    <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                  </div>
+                ) : patternCards.length > 0 ? (
+                  <div className="space-y-2">
+                    {patternCards.map((insight, i) => (
+                      <p key={i} className="text-sm text-muted-foreground">• {insight.headline}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Patterns emerge after 3+ days of logging.</p>
+                )
+              ) : (
+                <div className="relative">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    AI-detected eating patterns and behavioral insights.
+                  </p>
+                  <div className="space-y-2 opacity-50 blur-[2px]">
+                    <p className="text-sm text-muted-foreground">• Weekend vs weekday</p>
+                    <p className="text-sm text-muted-foreground">• Meal timing trends</p>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center mt-8">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium shadow-lg">
+                      <Lock className="h-4 w-4" />
+                      Upgrade to Pro
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Link>
 

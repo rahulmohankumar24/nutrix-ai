@@ -1,35 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function LandingPage() {
-  const [email, setEmail] = useState('')
-  const [submitted, setSubmitted] = useState(false)
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email.trim()) return
-
-    setLoading(true)
-    try {
-      const response = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() })
-      })
-
-      if (response.ok) {
-        setSubmitted(true)
-      }
-    } catch (error) {
-      console.error('Failed to join waitlist:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Background */}
@@ -52,17 +26,25 @@ export default function LandingPage() {
               />
               <span className="text-2xl font-semibold text-foreground tracking-tight leading-none">rovia</span>
             </div>
-            <a
-              href="/auth/signin"
-              className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              Log in
-            </a>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/auth/signin"
+                className="px-5 py-2.5 rounded-lg text-foreground text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Sign up
+              </Link>
+            </div>
           </div>
         </header>
 
         {/* Hero */}
-        <main className="px-6 pt-16 pb-32 md:pt-24 md:pb-40">
+        <main className="px-6 pt-16 pb-24 md:pt-24 md:pb-32 relative">
           <div className="max-w-6xl mx-auto text-center">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold text-foreground tracking-tight leading-[1.05] mb-6">
               AI that tells you
@@ -74,38 +56,38 @@ export default function LandingPage() {
               Stop guessing and tracking. Rovia's AI knows your body, your goals, and what you've eaten — and tells you precisely what to eat next.
             </p>
 
-            {!submitted ? (
-              <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  className="flex-1 px-5 py-4 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || !email.trim()}
-                  className="px-8 py-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all disabled:opacity-50"
-                >
-                  {loading ? 'Joining...' : 'Get Early Access'}
-                </button>
-              </div>
-            ) : (
-              <div className="inline-flex items-center px-6 py-4 rounded-xl bg-primary/10 border border-primary/20 text-primary">
-                <span className="text-lg font-medium">You're on the list!</span>
-              </div>
-            )}
-
-            <p className="mt-4 text-sm text-muted-foreground">
-              Join 500+ others on the waitlist
-            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/auth/signup"
+                className="px-8 py-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all"
+              >
+                Get Started Free
+              </Link>
+              <Link
+                href="/auth/signin"
+                className="px-8 py-4 rounded-xl bg-card border border-border text-foreground font-semibold hover:bg-muted transition-all"
+              >
+                Log in
+              </Link>
+            </div>
           </div>
+
+          {/* Scroll indicator */}
+          <button
+            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
+          >
+            <span className="text-xs font-medium">See how it works</span>
+            <div className="w-10 h-10 rounded-full border border-border bg-card flex items-center justify-center group-hover:border-primary/50 transition-colors shadow-sm">
+              <svg className="w-5 h-5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+          </button>
         </main>
 
         {/* Feature 1: AI Meal Recommendations */}
-        <section className="px-6 pt-8 pb-32">
+        <section id="features" className="px-6 pt-24 pb-32">
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
@@ -258,37 +240,94 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Feature 3: Goal-Based Personalization */}
+        {/* Feature 3: Ingredient Insights */}
         <section className="px-6 pb-32">
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-                  Goal-Based AI
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 text-sm font-medium mb-4">
+                  Ingredient Insights
                 </div>
                 <h2 className="text-3xl md:text-4xl font-semibold text-foreground mb-4">
-                  Every recommendation fits your goal
+                  Know what's really in your food
                 </h2>
                 <p className="text-lg text-muted-foreground mb-6">
-                  Building muscle needs different nutrition than cutting fat. AI calibrates every suggestion to your specific body composition goal.
+                  Restaurant meals hide a lot. AI breaks down every ingredient — sodium levels, seed oils, additives, and more — so you can make informed choices.
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <ul className="space-y-3">
                   {[
-                    { goal: "Lean Bulk", desc: "High protein, caloric surplus" },
-                    { goal: "Cut", desc: "Deficit while preserving muscle" },
-                    { goal: "Recomp", desc: "Build muscle, lose fat" },
-                    { goal: "Maintain", desc: "Steady weight, optimize energy" }
-                  ].map((g, i) => (
-                    <div key={i} className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all">
-                      <div className="font-medium text-foreground mb-1">{g.goal}</div>
-                      <div className="text-sm text-muted-foreground">{g.desc}</div>
-                    </div>
+                    "See sodium, sugar, and hidden ingredients",
+                    "Spot seed oils and inflammatory additives",
+                    "Compare healthier alternatives",
+                    "Make cleaner choices without guessing"
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      </div>
+                      <span className="text-foreground">{item}</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
 
-              {/* Visual: Goal Selection */}
+              {/* Visual: Ingredient Analysis Card */}
               <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 rounded-3xl blur-2xl" />
+                <div className="relative rounded-2xl border border-border bg-card overflow-hidden shadow-2xl">
+                  <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                      <span className="text-lg">🔍</span>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">Ingredient Analysis</div>
+                      <div className="text-sm text-muted-foreground">Chicken Bowl</div>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    {/* Ingredient warnings */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-500">⚠️</span>
+                          <span className="text-sm font-medium text-foreground">High Sodium</span>
+                        </div>
+                        <span className="text-sm text-amber-600 font-medium">1,850mg</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-500">✓</span>
+                          <span className="text-sm font-medium text-foreground">No Seed Oils</span>
+                        </div>
+                        <span className="text-sm text-emerald-600 font-medium">Clean</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-500">✓</span>
+                          <span className="text-sm font-medium text-foreground">No Added Sugar</span>
+                        </div>
+                        <span className="text-sm text-emerald-600 font-medium">0g added</span>
+                      </div>
+                    </div>
+
+                    {/* AI tip */}
+                    <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                      <div className="text-sm text-emerald-700 font-medium mb-1">💡 Pro tip</div>
+                      <div className="text-sm text-foreground">Skip the cheese and sour cream to reduce sodium by 400mg while keeping protein high.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Feature 4: Goal-Based Personalization */}
+        <section className="px-6 pb-32">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              {/* Visual: Goal Selection */}
+              <div className="relative order-2 lg:order-1">
                 <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-primary/5 rounded-3xl blur-2xl" />
                 <div className="relative rounded-2xl border border-border bg-card overflow-hidden shadow-2xl">
                   <div className="px-5 py-4 border-b border-border bg-muted/30">
@@ -335,11 +374,36 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+
+              <div className="order-1 lg:order-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                  Goal-Based AI
+                </div>
+                <h2 className="text-3xl md:text-4xl font-semibold text-foreground mb-4">
+                  Every recommendation fits your goal
+                </h2>
+                <p className="text-lg text-muted-foreground mb-6">
+                  Building muscle needs different nutrition than cutting fat. AI calibrates every suggestion to your specific body composition goal.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { goal: "Lean Bulk", desc: "High protein, caloric surplus" },
+                    { goal: "Cut", desc: "Deficit while preserving muscle" },
+                    { goal: "Recomp", desc: "Build muscle, lose fat" },
+                    { goal: "Maintain", desc: "Steady weight, optimize energy" }
+                  ].map((g, i) => (
+                    <div key={i} className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all">
+                      <div className="font-medium text-foreground mb-1">{g.goal}</div>
+                      <div className="text-sm text-muted-foreground">{g.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Feature 4: Natural Logging */}
+        {/* Feature 5: Natural Logging */}
         <section className="px-6 pb-24">
           <div className="max-w-6xl mx-auto">
             <div className="rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 p-8 md:p-12">
@@ -408,25 +472,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Stats */}
-        <section className="px-6 pb-24">
-          <div className="max-w-3xl mx-auto">
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { value: "10K+", label: "AI recommendations" },
-                { value: "50+", label: "Restaurants" },
-                { value: "99%", label: "Accuracy" },
-                { value: "<1s", label: "Response" }
-              ].map((stat, i) => (
-                <div key={i} className="text-center p-5 rounded-xl bg-card border border-border">
-                  <div className="text-2xl font-bold text-primary mb-1">{stat.value}</div>
-                  <div className="text-xs text-muted-foreground">{stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Final CTA */}
         <section className="px-6 pb-24">
           <div className="max-w-3xl mx-auto">
@@ -438,27 +483,20 @@ export default function LandingPage() {
                 Let AI tell you exactly what to eat based on your body and goals.
               </p>
 
-              {!submitted ? (
-                <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-sm mx-auto">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    required
-                    className="flex-1 px-5 py-3.5 rounded-xl bg-primary-foreground text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-3.5 rounded-xl bg-background text-foreground font-semibold hover:bg-background/90 transition-all disabled:opacity-50"
-                  >
-                    {loading ? 'Joining...' : 'Join'}
-                  </button>
-                </form>
-              ) : (
-                <p className="text-primary-foreground font-medium text-lg">You're on the list!</p>
-              )}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/auth/signup"
+                  className="px-8 py-4 rounded-xl bg-background text-foreground font-semibold hover:bg-background/90 transition-all"
+                >
+                  Get Started Free
+                </Link>
+                <Link
+                  href="/auth/signin"
+                  className="px-8 py-4 rounded-xl bg-primary-foreground/10 text-primary-foreground font-semibold hover:bg-primary-foreground/20 transition-all"
+                >
+                  Log in
+                </Link>
+              </div>
             </div>
           </div>
         </section>

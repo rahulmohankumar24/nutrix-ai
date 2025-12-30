@@ -2147,10 +2147,15 @@ export default function DashboardPage() {
                 </div>
               </Link>
             ) : (
-              <div className="flex-1 bg-card rounded-2xl border border-border relative overflow-hidden flex flex-col">
-                <div className="px-5 py-4 bg-gradient-to-r from-green-500/10 to-transparent flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-4xl font-bold text-green-500">B</span>
+              <Link
+                href="/pro"
+                className="flex-1 bg-card rounded-2xl border border-border relative overflow-hidden flex flex-col hover:border-amber-500/30 hover:shadow-lg transition-all cursor-pointer"
+              >
+                <div className="px-5 py-4 bg-gradient-to-r from-amber-500/10 to-transparent flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                      <Shield className="h-5 w-5 text-amber-500" />
+                    </div>
                     <p className="text-base font-medium text-foreground">Today's Health</p>
                   </div>
                   <span className="text-xs font-medium text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-full">Pro</span>
@@ -2168,7 +2173,7 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 </div>
-              </div>
+              </Link>
             )}
           </div>
 
