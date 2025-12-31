@@ -4,7 +4,54 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-import { Sparkles, MapPin, Check, Utensils, Home, ExternalLink, Clock, Target } from 'lucide-react'
+import { Sparkles, MapPin, Check, Utensils, Home, ExternalLink, Clock, Target, RefreshCw } from 'lucide-react'
+
+// Cache utilities
+const CACHE_TTL = 60 * 60 * 1000 // 1 hour - longer TTL for AI picks since they're meal-period based
+
+function getMealPeriod(): string {
+  const hour = new Date().getHours()
+  if (hour < 11) return 'breakfast'
+  if (hour < 16) return 'lunch'
+  return 'dinner'
+}
+
+function getCacheKey(type: string, userId: string): string {
+  const date = new Date().toISOString().split('T')[0]
+  const period = getMealPeriod()
+  return `rovia_aipicks_${type}_${userId}_${date}_${period}`
+}
+
+function getCache<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    const { data, timestamp } = JSON.parse(cached)
+    if (Date.now() - timestamp > CACHE_TTL) {
+      localStorage.removeItem(key)
+      return null
+    }
+    return data as T
+  } catch {
+    return null
+  }
+}
+
+function setCache(key: string, data: any): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }))
+  } catch {}
+}
+
+function invalidateUserCache(userId: string): void {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(`rovia_aipicks_`) && k.includes(userId))
+    keys.forEach(k => localStorage.removeItem(k))
+  } catch {}
+}
 
 interface MealSuggestion {
   id: string
@@ -53,7 +100,8 @@ export default function AIPicksPage() {
   const [homeMeals, setHomeMeals] = useState<HomeMeal[]>([])
   const [readyToEat, setReadyToEat] = useState<ReadyToEatItem[]>([])
   const [homeMessage, setHomeMessage] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [initialLoad, setInitialLoad] = useState(true)
   const [loggingMealId, setLoggingMealId] = useState<string | null>(null)
   const [loggedMealIds, setLoggedMealIds] = useState<Set<string>>(new Set())
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null)
@@ -82,6 +130,7 @@ export default function AIPicksPage() {
         hasFetchedHome.current = true
         loadHomeMeals(user.id)
       }
+      setInitialLoad(false)
     }
   }, [user?.id, isLoaded, isSignedIn, router, mealSource])
 
@@ -98,7 +147,25 @@ export default function AIPicksPage() {
     }
   }
 
-  const loadSuggestions = async (userId: string, finalResort: boolean = false) => {
+  const loadSuggestions = async (userId: string, finalResort: boolean = false, forceRefresh: boolean = false) => {
+    const cacheKey = getCacheKey(finalResort ? 'feast' : 'restaurant', userId)
+
+    // Check cache first (unless force refresh or switching to feast mode)
+    if (!forceRefresh && !finalResort) {
+      const cached = getCache<any>(cacheKey)
+      if (cached) {
+        setSuggestions(cached.suggestions || [])
+        setRemaining(cached.remaining || null)
+        setIsFinalResortMode(cached.isFinalResortMode || false)
+        setAgentType(cached.agentType || 'lunch')
+        setUrgencyLevel(cached.urgencyLevel || 'moderate')
+        setTargetForMeal(cached.targetForMeal || null)
+        setSuggestionMessage(cached.message || null)
+        setLoading(false)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -136,6 +203,19 @@ export default function AIPicksPage() {
         setUrgencyLevel(data.urgencyLevel || 'moderate')
         setTargetForMeal(data.targetForMeal || null)
         setSuggestionMessage(data.message || null)
+
+        // Cache the results (not for feast mode as it's temporary)
+        if (!finalResort) {
+          setCache(cacheKey, {
+            suggestions: data.suggestions || [],
+            remaining: data.remaining || null,
+            isFinalResortMode: data.isFinalResortMode || false,
+            agentType: data.agentType || 'lunch',
+            urgencyLevel: data.urgencyLevel || 'moderate',
+            targetForMeal: data.targetForMeal || null,
+            message: data.message || null
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to load suggestions:', error)
@@ -156,7 +236,34 @@ export default function AIPicksPage() {
     loadSuggestions(user.id, false)
   }
 
-  const loadHomeMeals = async (userId: string) => {
+  const handleRefresh = () => {
+    if (!user?.id || loading) return
+    setFlippedCardId(null)
+    // Force refresh - invalidate cache and reload
+    invalidateUserCache(user.id)
+    if (mealSource === 'restaurant') {
+      loadSuggestions(user.id, isFinalResortMode, true)
+    } else {
+      loadHomeMeals(user.id, true)
+    }
+  }
+
+  const loadHomeMeals = async (userId: string, forceRefresh: boolean = false) => {
+    const cacheKey = getCacheKey('home', userId)
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = getCache<any>(cacheKey)
+      if (cached) {
+        setHomeMeals(cached.meals || [])
+        setReadyToEat(cached.readyToEat || [])
+        setHomeMessage(cached.message || null)
+        setRemaining(cached.remaining || null)
+        setLoading(false)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const response = await fetch('/api/pantry/suggest-meals', {
@@ -164,19 +271,30 @@ export default function AIPicksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       })
+      let mealsData = { meals: [], readyToEat: [], message: null }
       if (response.ok) {
-        const data = await response.json()
-        setHomeMeals(data.meals || [])
-        setReadyToEat(data.readyToEat || [])
-        setHomeMessage(data.message || null)
+        mealsData = await response.json()
+        setHomeMeals(mealsData.meals || [])
+        setReadyToEat(mealsData.readyToEat || [])
+        setHomeMessage(mealsData.message || null)
       }
 
       // Also get remaining macros
       const macroResponse = await fetch(`/api/macro-progress?userId=${userId}`)
+      let remainingData = null
       if (macroResponse.ok) {
         const macroData = await macroResponse.json()
-        setRemaining(macroData.remaining || null)
+        remainingData = macroData.remaining || null
+        setRemaining(remainingData)
       }
+
+      // Cache the results
+      setCache(cacheKey, {
+        meals: mealsData.meals || [],
+        readyToEat: mealsData.readyToEat || [],
+        message: mealsData.message || null,
+        remaining: remainingData
+      })
     } catch (error) {
       console.error('Failed to load home meals:', error)
     } finally {
@@ -210,6 +328,8 @@ export default function AIPicksPage() {
 
       if (response.ok) {
         setLoggedMealIds(prev => new Set(prev).add(suggestion.id))
+        // Invalidate cache so next refresh shows updated remaining macros
+        invalidateUserCache(user.id)
       }
     } catch (error) {
       console.error('Failed to log meal:', error)
@@ -244,6 +364,8 @@ export default function AIPicksPage() {
 
       if (response.ok) {
         setLoggedMealIds(prev => new Set(prev).add(mealId))
+        // Invalidate cache so next refresh shows updated remaining macros
+        invalidateUserCache(user.id)
       }
     } catch (error) {
       console.error('Failed to log meal:', error)
@@ -268,8 +390,18 @@ export default function AIPicksPage() {
               </div>
             </div>
 
-            {/* Source Toggle & Feast */}
+            {/* Source Toggle, Refresh & Feast */}
             <div className="flex items-center gap-3">
+              {/* Refresh Button */}
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="h-10 w-10 rounded-xl bg-white/60 hover:bg-white flex items-center justify-center text-muted-foreground hover:text-foreground transition-all disabled:opacity-50"
+                title="Refresh suggestions"
+              >
+                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
               <div className="flex items-center bg-white/60 rounded-xl p-1">
                 <button
                   onClick={() => handleSourceChange('restaurant')}
@@ -364,7 +496,7 @@ export default function AIPicksPage() {
 
       {/* Content */}
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {loading ? (
+        {(loading || (initialLoad && suggestions.length === 0 && homeMeals.length === 0)) ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-4 ${
               isFinalResortMode ? 'bg-amber-500/10' : mealSource === 'restaurant' ? 'bg-sky-500/10' : 'bg-green-500/10'

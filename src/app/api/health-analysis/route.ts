@@ -51,6 +51,18 @@ interface HealthAnalysisResponse extends HealthAnalysisResult {
   hasVeggies: boolean
   hasFiber: boolean
   hasProbiotics: boolean
+  hasVitaminC: boolean
+  hasVitaminD: boolean
+  hasVitaminA: boolean
+  hasIron: boolean
+  hasCalcium: boolean
+  hasOmega3: boolean
+  hasAntioxidants: boolean
+  hasPotassium: boolean
+  hasMagnesium: boolean
+  hasZinc: boolean
+  hasBVitamins: boolean
+  nutrientScore: number
   dailySummary?: string
 }
 
@@ -350,6 +362,18 @@ export async function GET(request: NextRequest) {
       hasVeggies: nutritionAnalysis.hasVeggies,
       hasFiber: nutritionAnalysis.hasFiber,
       hasProbiotics: nutritionAnalysis.hasProbiotics,
+      hasVitaminC: nutritionAnalysis.hasVitaminC,
+      hasVitaminD: nutritionAnalysis.hasVitaminD,
+      hasVitaminA: nutritionAnalysis.hasVitaminA,
+      hasIron: nutritionAnalysis.hasIron,
+      hasCalcium: nutritionAnalysis.hasCalcium,
+      hasOmega3: nutritionAnalysis.hasOmega3,
+      hasAntioxidants: nutritionAnalysis.hasAntioxidants,
+      hasPotassium: nutritionAnalysis.hasPotassium,
+      hasMagnesium: nutritionAnalysis.hasMagnesium,
+      hasZinc: nutritionAnalysis.hasZinc,
+      hasBVitamins: nutritionAnalysis.hasBVitamins,
+      nutrientScore: nutritionAnalysis.nutrientScore,
       dailySummary
     }
 
@@ -498,7 +522,19 @@ export async function POST(request: NextRequest) {
       hasFruits: nutritionAnalysis.hasFruits,
       hasVeggies: nutritionAnalysis.hasVeggies,
       hasFiber: nutritionAnalysis.hasFiber,
-      hasProbiotics: nutritionAnalysis.hasProbiotics
+      hasProbiotics: nutritionAnalysis.hasProbiotics,
+      hasVitaminC: nutritionAnalysis.hasVitaminC,
+      hasVitaminD: nutritionAnalysis.hasVitaminD,
+      hasVitaminA: nutritionAnalysis.hasVitaminA,
+      hasIron: nutritionAnalysis.hasIron,
+      hasCalcium: nutritionAnalysis.hasCalcium,
+      hasOmega3: nutritionAnalysis.hasOmega3,
+      hasAntioxidants: nutritionAnalysis.hasAntioxidants,
+      hasPotassium: nutritionAnalysis.hasPotassium,
+      hasMagnesium: nutritionAnalysis.hasMagnesium,
+      hasZinc: nutritionAnalysis.hasZinc,
+      hasBVitamins: nutritionAnalysis.hasBVitamins,
+      nutrientScore: nutritionAnalysis.nutrientScore
     }
 
     return NextResponse.json(response)

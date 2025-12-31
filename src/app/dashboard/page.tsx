@@ -6,11 +6,11 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight, Target, Camera, Image as ImageIcon, Pencil } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight, Target, Camera, Image as ImageIcon, Pencil, Heart } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 // Cache utilities - avoid redundant AI calls
-const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+const CACHE_TTL = 60 * 60 * 1000 // 1 hour - suggestions are meal-period based
 
 function getTimePeriod(): string {
   const hour = new Date().getHours()
@@ -231,6 +231,78 @@ export default function DashboardPage() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false)
   const [editingMeal, setEditingMeal] = useState<{ id: string; calories: string; protein: string } | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
+
+  // Favorites state
+  const [favoritedMeals, setFavoritedMeals] = useState<Set<string>>(new Set())
+  const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null)
+
+  // Load favorites when user is available
+  useEffect(() => {
+    if (user?.id) {
+      loadFavorites(user.id)
+    }
+  }, [user?.id])
+
+  const loadFavorites = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/favorites?userId=${userId}`)
+      if (res.ok) {
+        const data = await res.json()
+        // Create a set of favorited meal names + restaurant combinations
+        const favSet = new Set<string>()
+        data.favorites.forEach((fav: any) => {
+          favSet.add(`${fav.name}|${fav.restaurant || ''}`)
+        })
+        setFavoritedMeals(favSet)
+      }
+    } catch (error) {
+      console.error('Failed to load favorites:', error)
+    }
+  }
+
+  const toggleFavorite = async (meal: { id: string; name: string; calories: number; protein: number; carbs?: number; fat?: number; restaurant?: string; source: string }) => {
+    if (!user?.id || togglingFavorite) return
+
+    const mealKey = `${meal.name}|${meal.restaurant || ''}`
+    const isFavorited = favoritedMeals.has(mealKey)
+
+    setTogglingFavorite(meal.id)
+
+    try {
+      if (isFavorited) {
+        // Remove from favorites
+        await fetch(`/api/favorites?userId=${user.id}&name=${encodeURIComponent(meal.name)}&restaurant=${encodeURIComponent(meal.restaurant || '')}`, {
+          method: 'DELETE'
+        })
+        setFavoritedMeals(prev => {
+          const next = new Set(prev)
+          next.delete(mealKey)
+          return next
+        })
+      } else {
+        // Add to favorites
+        await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            name: meal.name,
+            source: meal.source,
+            restaurant: meal.restaurant || null,
+            calories: meal.calories,
+            protein: meal.protein,
+            carbs: meal.carbs || 0,
+            fat: meal.fat || 0
+          })
+        })
+        setFavoritedMeals(prev => new Set([...prev, mealKey]))
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error)
+    } finally {
+      setTogglingFavorite(null)
+    }
+  }
 
   useEffect(() => {
     if (!isLoaded) return
@@ -824,15 +896,22 @@ export default function DashboardPage() {
     const meals = mealLogs.mealLogs.map(log => {
       const baseCalories = log.orderTemplate?.calories || log.foodCatalogItem?.calories || 0
       const baseProtein = log.orderTemplate?.protein || log.foodCatalogItem?.protein || 0
+      const baseCarbs = log.orderTemplate?.carbs || log.foodCatalogItem?.carbs || 0
+      const baseFat = log.orderTemplate?.fat || log.foodCatalogItem?.fat || 0
+      const isRestaurant = !!log.orderTemplate
       return {
         id: log.id,
         name: log.orderTemplate?.title || log.foodCatalogItem?.name || 'Unknown',
         source: log.orderTemplate?.restaurantBrand || log.foodCatalogItem?.source || '',
+        restaurant: isRestaurant ? log.orderTemplate?.restaurantBrand : null,
+        isRestaurant,
         baseCalories,
         baseProtein,
         servings: log.servings || 1,
         calories: Math.round(baseCalories * log.servings),
         protein: Math.round(baseProtein * log.servings),
+        carbs: Math.round(baseCarbs * log.servings),
+        fat: Math.round(baseFat * log.servings),
         mealType: log.mealType || 'dinner',
         datetime: log.datetime,
         foodCatalogItemId: log.foodCatalogItem?.id || null
@@ -1839,13 +1918,47 @@ export default function DashboardPage() {
                           {suggestion.aiReasoning}
                         </p>
                       )}
-                      {suggestion.score && suggestion.score >= 85 && (
-                        <div className="absolute top-2 right-2">
+                      {/* Favorite button + Top Pick badge */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                        {suggestion.score && suggestion.score >= 85 && (
                           <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                             Top Pick
                           </span>
-                        </div>
-                      )}
+                        )}
+                        {(() => {
+                          const mealKey = `${suggestion.name}|${suggestion.restaurant}`
+                          const isFavorited = favoritedMeals.has(mealKey)
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleFavorite({
+                                  id: suggestion.id || `suggestion-${index}`,
+                                  name: suggestion.name,
+                                  calories: suggestion.calories,
+                                  protein: suggestion.protein,
+                                  carbs: suggestion.carbs,
+                                  fat: suggestion.fat,
+                                  restaurant: suggestion.restaurant,
+                                  source: 'restaurant'
+                                })
+                              }}
+                              disabled={togglingFavorite === (suggestion.id || `suggestion-${index}`)}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                isFavorited
+                                  ? 'text-rose-500 hover:text-rose-600 bg-rose-500/10'
+                                  : 'text-muted-foreground/60 hover:text-rose-400 hover:bg-rose-500/10'
+                              } disabled:opacity-50`}
+                            >
+                              {togglingFavorite === (suggestion.id || `suggestion-${index}`) ? (
+                                <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current' : ''}`} />
+                              )}
+                            </button>
+                          )
+                        })()}
+                      </div>
                     </div>
 
                     {/* Back of card - click anywhere to flip back */}
@@ -2405,11 +2518,45 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                           <p className="text-sm font-medium text-foreground truncate flex-1">{meal.name}</p>
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5">
+                            {/* Favorite button - always visible when favorited */}
+                            {(() => {
+                              const mealKey = `${meal.name}|${meal.restaurant || ''}`
+                              const isFavorited = favoritedMeals.has(mealKey)
+                              return (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleFavorite({
+                                      id: meal.id,
+                                      name: meal.name,
+                                      calories: meal.baseCalories,
+                                      protein: meal.baseProtein,
+                                      carbs: meal.carbs,
+                                      fat: meal.fat,
+                                      restaurant: meal.restaurant || undefined,
+                                      source: meal.isRestaurant ? 'restaurant' : (meal.source || 'home')
+                                    })
+                                  }}
+                                  disabled={togglingFavorite === meal.id}
+                                  className={`p-1.5 rounded-lg transition-all ${
+                                    isFavorited
+                                      ? 'text-rose-500 hover:text-rose-600'
+                                      : 'text-muted-foreground/50 hover:text-rose-400'
+                                  } disabled:opacity-50`}
+                                >
+                                  {togglingFavorite === meal.id ? (
+                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current' : ''}`} />
+                                  )}
+                                </button>
+                              )
+                            })()}
                             {canEdit && (
                               <button
                                 onClick={() => setEditingMeal({ id: meal.id, calories: String(meal.calories), protein: String(meal.protein) })}
-                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all opacity-0 group-hover:opacity-100"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
@@ -2417,7 +2564,7 @@ export default function DashboardPage() {
                             <button
                               onClick={() => deleteMeal(meal.id)}
                               disabled={deletingMealId === meal.id}
-                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
                             >
                               {deletingMealId === meal.id ? (
                                 <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />

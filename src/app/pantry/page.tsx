@@ -23,7 +23,9 @@ import {
   Salad,
   Droplet,
   ExternalLink,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Send,
+  MessageSquare
 } from 'lucide-react'
 
 interface PantryItem {
@@ -114,6 +116,12 @@ export default function PantryPage() {
   const [loggingId, setLoggingId] = useState<string | null>(null)
   const [loggedIds, setLoggedIds] = useState<Set<string>>(new Set())
 
+  // Recipe request state (for recipes without needing pantry ingredients)
+  const [recipeRequest, setRecipeRequest] = useState('')
+  const [requestedRecipes, setRequestedRecipes] = useState<MealSuggestion[]>([])
+  const [loadingRecipeRequest, setLoadingRecipeRequest] = useState(false)
+  const [recipeRequestMessage, setRecipeRequestMessage] = useState<string | null>(null)
+
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) {
@@ -125,7 +133,7 @@ export default function PantryPage() {
     }
   }, [isLoaded, isSignedIn, user?.id, router])
 
-  const loadPantryItems = async (autoSuggest = true) => {
+  const loadPantryItems = async () => {
     if (!user?.id) return
     setLoading(true)
     try {
@@ -134,11 +142,6 @@ export default function PantryPage() {
         const data = await response.json()
         setItems(data.items || [])
         setGroupedItems(data.grouped || {})
-
-        // Auto-generate suggestions if there are items in stock
-        if (autoSuggest && data.inStockCount > 0) {
-          loadSuggestions()
-        }
       }
     } catch (error) {
       console.error('Failed to load pantry:', error)
@@ -166,6 +169,33 @@ export default function PantryPage() {
       console.error('Failed to get suggestions:', error)
     } finally {
       setLoadingSuggestions(false)
+    }
+  }
+
+  const handleRecipeRequest = async () => {
+    if (!user?.id || !recipeRequest.trim()) return
+    setLoadingRecipeRequest(true)
+    setRecipeRequestMessage(null)
+    try {
+      const response = await fetch('/api/pantry/request-recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          request: recipeRequest.trim()
+        })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setRequestedRecipes(data.meals || [])
+        setRecipeRequestMessage(data.message || null)
+        setRecipeRequest('')
+      }
+    } catch (error) {
+      console.error('Failed to get recipe ideas:', error)
+      setRecipeRequestMessage('Something went wrong. Please try again.')
+    } finally {
+      setLoadingRecipeRequest(false)
     }
   }
 
@@ -325,7 +355,7 @@ export default function PantryPage() {
         await reduceInventory(ingredients)
 
         // Refresh pantry items
-        loadPantryItems(false) // Don't auto-suggest again
+        loadPantryItems()
       }
     } catch (error) {
       console.error('Failed to log meal:', error)
@@ -372,7 +402,7 @@ export default function PantryPage() {
           await handleToggleStock(matchingItem)
         }
 
-        loadPantryItems(false)
+        loadPantryItems()
       }
     } catch (error) {
       console.error('Failed to log snack:', error)
@@ -571,7 +601,138 @@ export default function PantryPage() {
           </div>
         )}
 
-        {/* AI Meal Suggestions */}
+        {/* Ask for Recipe Ideas - regardless of pantry */}
+        <div className="bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent rounded-2xl p-5 border border-violet-500/20">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
+              <MessageSquare className="h-5 w-5 text-violet-500" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">Ask for Recipe Ideas</h2>
+              <p className="text-xs text-muted-foreground">Get recipes that fit your goals - no ingredients needed</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={recipeRequest}
+              onChange={(e) => setRecipeRequest(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRecipeRequest()}
+              placeholder="e.g., high protein dinner under 500 cal, quick breakfast..."
+              className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
+            <button
+              onClick={handleRecipeRequest}
+              disabled={loadingRecipeRequest || !recipeRequest.trim()}
+              className="px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {loadingRecipeRequest ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          {recipeRequestMessage && (
+            <p className="text-sm text-muted-foreground mb-4 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              {recipeRequestMessage}
+            </p>
+          )}
+
+          {requestedRecipes.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {requestedRecipes.map((meal, index) => {
+                const cardId = `request-${index}`
+                const isFlipped = flippedCard === cardId
+                const isLogging = loggingId === cardId
+                const isLogged = loggedIds.has(cardId)
+
+                return (
+                  <div
+                    key={index}
+                    className="relative h-48 cursor-pointer [perspective:1000px]"
+                    onClick={() => !isLogged && setFlippedCard(isFlipped ? null : cardId)}
+                  >
+                    <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+                      {/* Front of card */}
+                      <div className="absolute inset-0 bg-card rounded-xl p-4 border border-border/50 [backface-visibility:hidden]">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <UtensilsCrossed className="h-4 w-4 text-violet-500" />
+                              <h3 className="font-medium text-foreground">{meal.name}</h3>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{meal.description}</p>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {meal.prepTime}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          <span className="px-2 py-0.5 rounded-full bg-muted text-xs">{meal.calories} cal</span>
+                          <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 text-xs font-medium">{meal.protein}g protein</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-3">Tap to see details</p>
+                      </div>
+
+                      {/* Back of card */}
+                      <div className="absolute inset-0 bg-card rounded-xl p-4 border border-violet-500/30 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col">
+                        <h3 className="font-medium text-foreground text-sm mb-2">{meal.name}</h3>
+                        <p className="text-xs text-muted-foreground flex-1 overflow-y-auto">
+                          {meal.instructions || meal.description}
+                        </p>
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
+                          <a
+                            href={getRecipeSearchUrl(meal.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Recipe
+                          </a>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleLogMeal(cardId, meal.name, meal.calories, meal.protein, meal.carbs, meal.fat, meal.ingredients || [])
+                            }}
+                            disabled={isLogging || isLogged}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                              isLogged
+                                ? 'bg-green-500 text-white'
+                                : 'bg-violet-500 text-white hover:opacity-90'
+                            }`}
+                          >
+                            {isLogging ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : isLogged ? (
+                              <><Check className="h-3.5 w-3.5" /> Logged</>
+                            ) : (
+                              <><Plus className="h-3.5 w-3.5" /> Log Meal</>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {requestedRecipes.length === 0 && !loadingRecipeRequest && (
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              <p>Try asking for: "high protein lunch", "quick breakfast under 400 cal", "vegetarian dinner"</p>
+            </div>
+          )}
+        </div>
+
+        {/* AI Meal Suggestions from Pantry */}
         <div className="bg-gradient-to-br from-sky-500/10 via-blue-500/5 to-transparent rounded-2xl p-5 border border-sky-500/20">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -580,7 +741,7 @@ export default function PantryPage() {
               </div>
               <div>
                 <h2 className="font-semibold text-foreground">What Can I Make?</h2>
-                <p className="text-xs text-muted-foreground">AI-powered meal ideas from your pantry</p>
+                <p className="text-xs text-muted-foreground">Meal ideas using your pantry items</p>
               </div>
             </div>
             <button

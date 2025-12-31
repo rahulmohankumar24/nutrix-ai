@@ -54,6 +54,23 @@ interface HealthAnalysis {
   topConcerns: TopConcern[]
   restaurantBreakdown: RestaurantBreakdown[]
   recommendations: Recommendation[]
+  // Nutrient tracking
+  hasFruits?: boolean
+  hasVeggies?: boolean
+  hasFiber?: boolean
+  hasProbiotics?: boolean
+  hasVitaminC?: boolean
+  hasVitaminD?: boolean
+  hasVitaminA?: boolean
+  hasIron?: boolean
+  hasCalcium?: boolean
+  hasOmega3?: boolean
+  hasAntioxidants?: boolean
+  hasPotassium?: boolean
+  hasMagnesium?: boolean
+  hasZinc?: boolean
+  hasBVitamins?: boolean
+  nutrientScore?: number
 }
 
 // Detailed explanations for ingredient categories - educational, not fear-based
@@ -439,6 +456,177 @@ export default function HealthInsightsPage() {
                   )}
                 </p>
               </div>
+            </div>
+
+            {/* Vitamins & Nutrients Grid */}
+            <div className="bg-card rounded-2xl border border-border/50 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
+                    <Leaf className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-foreground">Vitamins & Nutrients</h2>
+                    <p className="text-sm text-muted-foreground">What you're getting from your meals</p>
+                  </div>
+                </div>
+                {analysis.nutrientScore !== undefined && (
+                  <div className="text-right">
+                    <p className={cn(
+                      "text-2xl font-bold",
+                      analysis.nutrientScore >= 60 ? "text-emerald-500" :
+                      analysis.nutrientScore >= 40 ? "text-amber-500" : "text-orange-500"
+                    )}>
+                      {analysis.nutrientScore}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">Nutrient variety</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                {/* Vitamins */}
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasVitaminC ? "bg-orange-500/10 border-orange-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🍊</span>
+                  <span className={cn("text-xs font-medium", analysis.hasVitaminC ? "text-orange-600" : "text-muted-foreground")}>Vit C</span>
+                  {analysis.hasVitaminC && <Check className="h-3 w-3 text-orange-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasVitaminD ? "bg-yellow-500/10 border-yellow-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">☀️</span>
+                  <span className={cn("text-xs font-medium", analysis.hasVitaminD ? "text-yellow-600" : "text-muted-foreground")}>Vit D</span>
+                  {analysis.hasVitaminD && <Check className="h-3 w-3 text-yellow-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasVitaminA ? "bg-orange-500/10 border-orange-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🥕</span>
+                  <span className={cn("text-xs font-medium", analysis.hasVitaminA ? "text-orange-600" : "text-muted-foreground")}>Vit A</span>
+                  {analysis.hasVitaminA && <Check className="h-3 w-3 text-orange-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasBVitamins ? "bg-purple-500/10 border-purple-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">⚡</span>
+                  <span className={cn("text-xs font-medium", analysis.hasBVitamins ? "text-purple-600" : "text-muted-foreground")}>B Vits</span>
+                  {analysis.hasBVitamins && <Check className="h-3 w-3 text-purple-500 mt-1" />}
+                </div>
+
+                {/* Minerals */}
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasIron ? "bg-red-500/10 border-red-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🩸</span>
+                  <span className={cn("text-xs font-medium", analysis.hasIron ? "text-red-600" : "text-muted-foreground")}>Iron</span>
+                  {analysis.hasIron && <Check className="h-3 w-3 text-red-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasCalcium ? "bg-sky-500/10 border-sky-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🦴</span>
+                  <span className={cn("text-xs font-medium", analysis.hasCalcium ? "text-sky-600" : "text-muted-foreground")}>Calcium</span>
+                  {analysis.hasCalcium && <Check className="h-3 w-3 text-sky-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasMagnesium ? "bg-indigo-500/10 border-indigo-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">✨</span>
+                  <span className={cn("text-xs font-medium", analysis.hasMagnesium ? "text-indigo-600" : "text-muted-foreground")}>Mag</span>
+                  {analysis.hasMagnesium && <Check className="h-3 w-3 text-indigo-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasZinc ? "bg-slate-500/10 border-slate-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🛡️</span>
+                  <span className={cn("text-xs font-medium", analysis.hasZinc ? "text-slate-600" : "text-muted-foreground")}>Zinc</span>
+                  {analysis.hasZinc && <Check className="h-3 w-3 text-slate-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasPotassium ? "bg-yellow-500/10 border-yellow-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🍌</span>
+                  <span className={cn("text-xs font-medium", analysis.hasPotassium ? "text-yellow-600" : "text-muted-foreground")}>Potass</span>
+                  {analysis.hasPotassium && <Check className="h-3 w-3 text-yellow-500 mt-1" />}
+                </div>
+
+                {/* Other nutrients */}
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasOmega3 ? "bg-blue-500/10 border-blue-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🐟</span>
+                  <span className={cn("text-xs font-medium", analysis.hasOmega3 ? "text-blue-600" : "text-muted-foreground")}>Omega-3</span>
+                  {analysis.hasOmega3 && <Check className="h-3 w-3 text-blue-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasAntioxidants ? "bg-purple-500/10 border-purple-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🫐</span>
+                  <span className={cn("text-xs font-medium", analysis.hasAntioxidants ? "text-purple-600" : "text-muted-foreground")}>Antiox</span>
+                  {analysis.hasAntioxidants && <Check className="h-3 w-3 text-purple-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasFiber ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🌾</span>
+                  <span className={cn("text-xs font-medium", analysis.hasFiber ? "text-amber-600" : "text-muted-foreground")}>Fiber</span>
+                  {analysis.hasFiber && <Check className="h-3 w-3 text-amber-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasProbiotics ? "bg-green-500/10 border-green-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🦠</span>
+                  <span className={cn("text-xs font-medium", analysis.hasProbiotics ? "text-green-600" : "text-muted-foreground")}>Probio</span>
+                  {analysis.hasProbiotics && <Check className="h-3 w-3 text-green-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasFruits ? "bg-pink-500/10 border-pink-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🍎</span>
+                  <span className={cn("text-xs font-medium", analysis.hasFruits ? "text-pink-600" : "text-muted-foreground")}>Fruits</span>
+                  {analysis.hasFruits && <Check className="h-3 w-3 text-pink-500 mt-1" />}
+                </div>
+
+                <div className={cn(
+                  "flex flex-col items-center p-3 rounded-xl border transition-all",
+                  analysis.hasVeggies ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30 border-border/50"
+                )}>
+                  <span className="text-2xl mb-1">🥬</span>
+                  <span className={cn("text-xs font-medium", analysis.hasVeggies ? "text-emerald-600" : "text-muted-foreground")}>Veggies</span>
+                  {analysis.hasVeggies && <Check className="h-3 w-3 text-emerald-500 mt-1" />}
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                Based on meal names - actual nutrient content may vary
+              </p>
             </div>
 
             {/* Ingredient Awareness - Educational Section */}

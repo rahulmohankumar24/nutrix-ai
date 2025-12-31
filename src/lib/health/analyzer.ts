@@ -29,6 +29,44 @@ const PROTEIN_KEYWORDS = ['chicken', 'beef', 'fish', 'salmon', 'tuna', 'shrimp',
 const PROBIOTIC_KEYWORDS = ['yogurt', 'kefir', 'kimchi', 'sauerkraut', 'kombucha', 'miso', 'tempeh', 'pickles', 'fermented', 'probiotic', 'greek yogurt', 'skyr']
 const PROCESSED_KEYWORDS = ['fried', 'fries', 'chips', 'soda', 'candy', 'cookie', 'cake', 'donut', 'pastry', 'ice cream', 'nuggets', 'hot dog', 'bacon', 'sausage']
 
+// Vitamin and mineral keywords
+const VITAMIN_C_KEYWORDS = ['orange', 'lemon', 'lime', 'grapefruit', 'citrus', 'strawberry', 'kiwi', 'bell pepper', 'pepper', 'broccoli', 'tomato', 'papaya', 'guava']
+const VITAMIN_D_KEYWORDS = ['salmon', 'tuna', 'mackerel', 'sardine', 'egg', 'mushroom', 'fortified milk', 'fortified cereal']
+const VITAMIN_A_KEYWORDS = ['carrot', 'sweet potato', 'spinach', 'kale', 'butternut', 'squash', 'mango', 'cantaloupe', 'apricot', 'liver']
+const IRON_KEYWORDS = ['beef', 'steak', 'liver', 'spinach', 'lentils', 'beans', 'tofu', 'chickpea', 'quinoa', 'dark chocolate', 'pumpkin seeds']
+const CALCIUM_KEYWORDS = ['milk', 'cheese', 'yogurt', 'kale', 'broccoli', 'almonds', 'sardine', 'tofu', 'fortified', 'cottage cheese']
+const OMEGA3_KEYWORDS = ['salmon', 'mackerel', 'sardine', 'tuna', 'trout', 'herring', 'walnuts', 'flaxseed', 'chia', 'hemp seeds', 'fish oil']
+const ANTIOXIDANT_KEYWORDS = ['blueberry', 'berry', 'berries', 'dark chocolate', 'green tea', 'matcha', 'spinach', 'kale', 'beet', 'pomegranate', 'acai', 'goji', 'artichoke']
+const POTASSIUM_KEYWORDS = ['banana', 'potato', 'sweet potato', 'avocado', 'spinach', 'coconut water', 'beans', 'lentils', 'salmon', 'yogurt']
+const MAGNESIUM_KEYWORDS = ['almonds', 'spinach', 'cashews', 'peanuts', 'avocado', 'dark chocolate', 'quinoa', 'black beans', 'edamame', 'pumpkin seeds']
+const ZINC_KEYWORDS = ['beef', 'oyster', 'crab', 'lobster', 'pork', 'chicken', 'beans', 'nuts', 'seeds', 'cheese', 'oats']
+const B_VITAMIN_KEYWORDS = ['whole grain', 'egg', 'chicken', 'beef', 'salmon', 'tuna', 'spinach', 'avocado', 'lentils', 'nutritional yeast', 'fortified cereal']
+const HYDRATION_KEYWORDS = ['water', 'coconut water', 'herbal tea', 'green tea', 'cucumber', 'watermelon', 'celery', 'lettuce', 'soup', 'broth']
+
+// Nutrient tracking result
+export interface NutrientTracking {
+  hasFruits: boolean
+  hasVeggies: boolean
+  hasFiber: boolean
+  hasProtein: boolean
+  hasProbiotics: boolean
+  hasProcessed: boolean
+  hasVitaminC: boolean
+  hasVitaminD: boolean
+  hasVitaminA: boolean
+  hasIron: boolean
+  hasCalcium: boolean
+  hasOmega3: boolean
+  hasAntioxidants: boolean
+  hasPotassium: boolean
+  hasMagnesium: boolean
+  hasZinc: boolean
+  hasBVitamins: boolean
+  hasHydration: boolean
+  fruitVeggieCount: number
+  nutrientScore: number
+}
+
 // Analyze nutritional aspects of meals
 export function analyzeNutrition(meals: Array<{ name: string; calories: number; protein: number; carbs: number; fat: number }>): {
   insights: NutritionInsight[]
@@ -38,16 +76,44 @@ export function analyzeNutrition(meals: Array<{ name: string; calories: number; 
   hasProtein: boolean
   hasProbiotics: boolean
   hasProcessed: boolean
+  hasVitaminC: boolean
+  hasVitaminD: boolean
+  hasVitaminA: boolean
+  hasIron: boolean
+  hasCalcium: boolean
+  hasOmega3: boolean
+  hasAntioxidants: boolean
+  hasPotassium: boolean
+  hasMagnesium: boolean
+  hasZinc: boolean
+  hasBVitamins: boolean
+  hasHydration: boolean
   fruitVeggieCount: number
+  nutrientScore: number
 } {
   const allMealText = meals.map(m => m.name.toLowerCase()).join(' ')
 
+  // Basic categories
   const hasFruits = FRUIT_KEYWORDS.some(kw => allMealText.includes(kw))
   const hasVeggies = VEGGIE_KEYWORDS.some(kw => allMealText.includes(kw))
   const hasFiber = FIBER_KEYWORDS.some(kw => allMealText.includes(kw))
   const hasProtein = PROTEIN_KEYWORDS.some(kw => allMealText.includes(kw))
   const hasProbiotics = PROBIOTIC_KEYWORDS.some(kw => allMealText.includes(kw))
   const hasProcessed = PROCESSED_KEYWORDS.some(kw => allMealText.includes(kw))
+
+  // Vitamins and minerals
+  const hasVitaminC = VITAMIN_C_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasVitaminD = VITAMIN_D_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasVitaminA = VITAMIN_A_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasIron = IRON_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasCalcium = CALCIUM_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasOmega3 = OMEGA3_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasAntioxidants = ANTIOXIDANT_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasPotassium = POTASSIUM_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasMagnesium = MAGNESIUM_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasZinc = ZINC_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasBVitamins = B_VITAMIN_KEYWORDS.some(kw => allMealText.includes(kw))
+  const hasHydration = HYDRATION_KEYWORDS.some(kw => allMealText.includes(kw))
 
   // Count fruit/veggie servings (rough estimate)
   let fruitVeggieCount = 0
@@ -57,9 +123,17 @@ export function analyzeNutrition(meals: Array<{ name: string; calories: number; 
     if (VEGGIE_KEYWORDS.some(kw => mealLower.includes(kw))) fruitVeggieCount++
   }
 
+  // Calculate nutrient score (0-100 based on variety)
+  const nutrientChecks = [
+    hasFruits, hasVeggies, hasFiber, hasProtein, hasProbiotics,
+    hasVitaminC, hasVitaminD, hasVitaminA, hasIron, hasCalcium,
+    hasOmega3, hasAntioxidants, hasPotassium, hasMagnesium, hasZinc, hasBVitamins
+  ]
+  const nutrientScore = Math.round((nutrientChecks.filter(Boolean).length / nutrientChecks.length) * 100)
+
   const insights: NutritionInsight[] = []
 
-  // Positive insights
+  // Positive insights - Basic nutrition
   if (hasFruits && hasVeggies) {
     insights.push({
       category: 'positive',
@@ -103,6 +177,107 @@ export function analyzeNutrition(meals: Array<{ name: string; calories: number; 
     })
   }
 
+  // Vitamin insights
+  if (hasVitaminC) {
+    insights.push({
+      category: 'positive',
+      title: 'Vitamin C',
+      description: 'Immune support from citrus or peppers',
+      icon: '🍊'
+    })
+  }
+
+  if (hasVitaminD) {
+    insights.push({
+      category: 'positive',
+      title: 'Vitamin D',
+      description: 'Good for bones and immune function',
+      icon: '☀️'
+    })
+  }
+
+  if (hasVitaminA) {
+    insights.push({
+      category: 'positive',
+      title: 'Vitamin A',
+      description: 'Supports vision and skin health',
+      icon: '🥕'
+    })
+  }
+
+  // Mineral insights
+  if (hasIron) {
+    insights.push({
+      category: 'positive',
+      title: 'Iron intake',
+      description: 'Essential for energy and oxygen transport',
+      icon: '🩸'
+    })
+  }
+
+  if (hasCalcium) {
+    insights.push({
+      category: 'positive',
+      title: 'Calcium',
+      description: 'Building strong bones and teeth',
+      icon: '🦴'
+    })
+  }
+
+  if (hasOmega3) {
+    insights.push({
+      category: 'positive',
+      title: 'Omega-3s',
+      description: 'Heart and brain healthy fats',
+      icon: '🐟'
+    })
+  }
+
+  if (hasAntioxidants) {
+    insights.push({
+      category: 'positive',
+      title: 'Antioxidants',
+      description: 'Fighting oxidative stress',
+      icon: '🫐'
+    })
+  }
+
+  if (hasMagnesium) {
+    insights.push({
+      category: 'positive',
+      title: 'Magnesium',
+      description: 'Supports muscle and nerve function',
+      icon: '✨'
+    })
+  }
+
+  if (hasPotassium) {
+    insights.push({
+      category: 'positive',
+      title: 'Potassium',
+      description: 'Helps regulate blood pressure',
+      icon: '🍌'
+    })
+  }
+
+  if (hasZinc) {
+    insights.push({
+      category: 'positive',
+      title: 'Zinc',
+      description: 'Immune support and wound healing',
+      icon: '🛡️'
+    })
+  }
+
+  if (hasBVitamins) {
+    insights.push({
+      category: 'positive',
+      title: 'B Vitamins',
+      description: 'Energy metabolism support',
+      icon: '⚡'
+    })
+  }
+
   // Warning insights
   if (!hasFruits && !hasVeggies) {
     insights.push({
@@ -110,6 +285,42 @@ export function analyzeNutrition(meals: Array<{ name: string; calories: number; 
       title: 'Missing greens',
       description: 'Try adding some fruits or vegetables',
       icon: '🥗'
+    })
+  }
+
+  if (!hasVitaminC && !hasVitaminA && meals.length >= 2) {
+    insights.push({
+      category: 'warning',
+      title: 'Low vitamins',
+      description: 'Add citrus, peppers, or carrots for vitamins',
+      icon: '💊'
+    })
+  }
+
+  if (!hasOmega3 && meals.length >= 3) {
+    insights.push({
+      category: 'info',
+      title: 'No omega-3s today',
+      description: 'Consider salmon, walnuts, or chia seeds',
+      icon: '🐟'
+    })
+  }
+
+  if (!hasCalcium && meals.length >= 2) {
+    insights.push({
+      category: 'info',
+      title: 'Calcium opportunity',
+      description: 'Dairy, leafy greens, or fortified foods help',
+      icon: '🦴'
+    })
+  }
+
+  if (!hasIron && meals.length >= 3) {
+    insights.push({
+      category: 'info',
+      title: 'Iron check',
+      description: 'Red meat, spinach, or beans boost iron',
+      icon: '🩸'
     })
   }
 
@@ -141,7 +352,20 @@ export function analyzeNutrition(meals: Array<{ name: string; calories: number; 
     hasProtein,
     hasProbiotics,
     hasProcessed,
-    fruitVeggieCount
+    hasVitaminC,
+    hasVitaminD,
+    hasVitaminA,
+    hasIron,
+    hasCalcium,
+    hasOmega3,
+    hasAntioxidants,
+    hasPotassium,
+    hasMagnesium,
+    hasZinc,
+    hasBVitamins,
+    hasHydration,
+    fruitVeggieCount,
+    nutrientScore
   }
 }
 
