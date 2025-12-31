@@ -519,6 +519,7 @@ export default function DashboardPage() {
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
     }
     loadInsights(user.id, true)
+    if (isPro) loadHealthAnalysis(user.id)
   }
 
   const handleFinalResort = () => {
@@ -684,39 +685,42 @@ export default function DashboardPage() {
 
         // If Pro, fetch today's health analysis
         if (pro) {
-          try {
-            const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
-            const healthResponse = await fetch(`/api/health-analysis?userId=${userId}&today=true&timezone=${tz}`)
-            if (healthResponse.ok) {
-              const healthData = await healthResponse.json()
-              if (healthData.allMealsCount > 0 || healthData.mealsAnalyzed > 0) {
-                // Check for protein in insights
-                const hasProtein = healthData.nutritionInsights?.some(
-                  (i: { title: string }) => i.title.toLowerCase().includes('protein')
-                ) || false
-
-                setTodayHealth({
-                  grade: healthData.grade,
-                  score: healthData.overallScore,
-                  mealsAnalyzed: healthData.mealsAnalyzed,
-                  allMealsCount: healthData.allMealsCount || 0,
-                  summary: healthData.dailySummary || null,
-                  hasFruits: healthData.hasFruits || false,
-                  hasVeggies: healthData.hasVeggies || false,
-                  hasFiber: healthData.hasFiber || false,
-                  hasProtein,
-                  hasProbiotics: healthData.hasProbiotics || false
-                })
-              }
-            }
-          } catch (healthError) {
-            console.error('Failed to fetch health analysis:', healthError)
-            // Silently fail - health analysis is optional
-          }
+          loadHealthAnalysis(userId)
         }
       }
     } catch (error) {
       console.error('Failed to load pro status:', error)
+    }
+  }
+
+  const loadHealthAnalysis = async (userId: string) => {
+    try {
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const healthResponse = await fetch(`/api/health-analysis?userId=${userId}&today=true&timezone=${tz}`, { cache: 'no-store' })
+      if (healthResponse.ok) {
+        const healthData = await healthResponse.json()
+        if (healthData.allMealsCount > 0 || healthData.mealsAnalyzed > 0) {
+          // Check for protein in insights
+          const hasProtein = healthData.nutritionInsights?.some(
+            (i: { title: string }) => i.title.toLowerCase().includes('protein')
+          ) || false
+
+          setTodayHealth({
+            grade: healthData.grade,
+            score: healthData.overallScore,
+            mealsAnalyzed: healthData.mealsAnalyzed,
+            allMealsCount: healthData.allMealsCount || 0,
+            summary: healthData.dailySummary || null,
+            hasFruits: healthData.hasFruits || false,
+            hasVeggies: healthData.hasVeggies || false,
+            hasFiber: healthData.hasFiber || false,
+            hasProtein,
+            hasProbiotics: healthData.hasProbiotics || false
+          })
+        }
+      }
+    } catch (healthError) {
+      console.error('Failed to fetch health analysis:', healthError)
     }
   }
 
@@ -1011,6 +1015,7 @@ export default function DashboardPage() {
       await loadDashboardData(user.id)
       loadInsights(user.id, true)
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      if (isPro) loadHealthAnalysis(user.id)
       setPendingMeal(null)
       setChatInput('')
       setFoodImage(null)
@@ -1093,10 +1098,11 @@ export default function DashboardPage() {
       setIsNearGoal(false)
       setSuggestionMessage(null)
 
-      // Refresh data, insights, and suggestions
+      // Refresh data, insights, suggestions, and health analysis
       await loadDashboardData(user.id)
       loadInsights(user.id, true) // Force refresh
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      if (isPro) loadHealthAnalysis(user.id) // Refresh health analysis
     } catch (error) {
       console.error('Failed to delete meal:', error)
     } finally {
@@ -1132,10 +1138,11 @@ export default function DashboardPage() {
       setIsNearGoal(false)
       setSuggestionMessage(null)
 
-      // Refresh data, insights, and suggestions
+      // Refresh data, insights, suggestions, and health analysis
       await loadDashboardData(user.id)
       loadInsights(user.id, true)
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      if (isPro) loadHealthAnalysis(user.id)
     } catch (error) {
       console.error('Failed to update meal:', error)
     } finally {
@@ -1164,10 +1171,11 @@ export default function DashboardPage() {
       // Invalidate all caches to force recalculation
       invalidateCache(user.id)
 
-      // Refresh data and suggestions
+      // Refresh data, suggestions, and health analysis
       await loadDashboardData(user.id)
       loadInsights(user.id, true)
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      if (isPro) loadHealthAnalysis(user.id)
     } catch (error) {
       console.error('Failed to update meal type:', error)
     } finally {
@@ -1211,6 +1219,7 @@ export default function DashboardPage() {
       await loadDashboardData(user.id)
       loadInsights(user.id, true)
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      if (isPro) loadHealthAnalysis(user.id)
       setEditingMeal(null)
     } catch (error) {
       console.error('Failed to save edited meal:', error)
@@ -1668,6 +1677,7 @@ export default function DashboardPage() {
                                       await loadDashboardData(user.id)
                                       loadInsights(user.id, true)
                                       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+                                      if (isPro) loadHealthAnalysis(user.id)
                                     }
                                   } catch (error) {
                                     console.error('Failed to log:', error)
@@ -1780,6 +1790,7 @@ export default function DashboardPage() {
                                         await loadDashboardData(user.id)
                                         loadInsights(user.id, true)
                                         loadHomeMeals(user.id, true)
+                                        if (isPro) loadHealthAnalysis(user.id)
                                       }
                                     } catch (error) {
                                       console.error('Failed to log meal:', error)
@@ -2020,6 +2031,7 @@ export default function DashboardPage() {
                               await loadDashboardData(user.id)
                               loadInsights(user.id, true)
                               loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+                              if (isPro) loadHealthAnalysis(user.id)
                             }
                           } catch (error) {
                             console.error('Failed to log meal:', error)
