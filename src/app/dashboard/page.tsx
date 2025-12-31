@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { MacroProgress } from '@/lib/types'
 import { PathwayVisualization } from '@/components/pathway-visualization'
 import Link from 'next/link'
-import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight, Target } from 'lucide-react'
+import { Utensils, MessageCircle, TrendingUp, Plus, Minus, Send, Check, X, Trash2, Sparkles, ChevronRight, MapPin, DollarSign, Home, ExternalLink, RefreshCw, Car, Footprints, GripVertical, Shield, ArrowUpRight, Target, Camera, Image as ImageIcon, Pencil } from 'lucide-react'
 import { ChatWidget } from '@/components/chat-widget'
 
 // Cache utilities - avoid redundant AI calls
@@ -66,7 +66,10 @@ interface MealLogEntry {
   datetime: string
   servings: number
   mealType?: string
+  foodCatalogItemId?: string
+  orderTemplateId?: string
   orderTemplate?: {
+    id: string
     title: string
     restaurantBrand: string
     calories: number
@@ -75,6 +78,7 @@ interface MealLogEntry {
     fat: number
   }
   foodCatalogItem?: {
+    id: string
     name: string
     source: string
     calories: number
@@ -223,6 +227,10 @@ export default function DashboardPage() {
   })
   const [isLogging, setIsLogging] = useState(false)
   const [deletingMealId, setDeletingMealId] = useState<string | null>(null)
+  const [foodImage, setFoodImage] = useState<string | null>(null)
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false)
+  const [editingMeal, setEditingMeal] = useState<{ id: string; calories: string; protein: string } | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -826,7 +834,8 @@ export default function DashboardPage() {
         calories: Math.round(baseCalories * log.servings),
         protein: Math.round(baseProtein * log.servings),
         mealType: log.mealType || 'dinner',
-        datetime: log.datetime
+        datetime: log.datetime,
+        foodCatalogItemId: log.foodCatalogItem?.id || null
       }
     })
 
@@ -925,6 +934,7 @@ export default function DashboardPage() {
       loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
       setPendingMeal(null)
       setChatInput('')
+      setFoodImage(null)
     } catch (error) {
       console.error('Failed to log meal:', error)
     } finally {
@@ -935,6 +945,53 @@ export default function DashboardPage() {
   const cancelMeal = () => {
     setPendingMeal(null)
     setChatInput('')
+    setFoodImage(null)
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Convert to base64
+    const reader = new FileReader()
+    reader.onloadend = async () => {
+      const base64 = reader.result as string
+      setFoodImage(base64)
+      setIsAnalyzingImage(true)
+
+      try {
+        const response = await fetch('/api/analyze-food-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: base64,
+            context: chatInput.trim() || null
+          })
+        })
+
+        if (!response.ok) throw new Error('Failed to analyze')
+
+        const data = await response.json()
+
+        if (data.success && data.meal) {
+          setPendingMeal({
+            name: data.meal.name,
+            calories: data.meal.calories,
+            protein: data.meal.protein,
+            carbs: data.meal.carbs,
+            fat: data.meal.fat,
+            servings: 1
+          })
+          setChatInput('')
+        }
+      } catch (error) {
+        console.error('Failed to analyze image:', error)
+        setFoodImage(null)
+      } finally {
+        setIsAnalyzingImage(false)
+      }
+    }
+    reader.readAsDataURL(file)
   }
 
   const deleteMeal = async (mealId: string) => {
@@ -1039,6 +1096,50 @@ export default function DashboardPage() {
     }
   }
 
+  const saveEditedMeal = async () => {
+    if (!editingMeal || !user?.id) return
+
+    setIsSavingEdit(true)
+
+    try {
+      // Find the meal to get the foodCatalogItemId
+      const meal = mealLogs?.mealLogs.find(m => m.id === editingMeal.id)
+      const foodCatalogItemId = meal?.foodCatalogItem?.id
+      if (!foodCatalogItemId) {
+        console.error('No food catalog item to edit')
+        setEditingMeal(null)
+        return
+      }
+
+      const response = await fetch('/api/food-catalog', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          foodCatalogItemId,
+          calories: editingMeal.calories === '' ? 0 : parseInt(editingMeal.calories) || 0,
+          protein: editingMeal.protein === '' ? 0 : parseInt(editingMeal.protein) || 0
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to update meal')
+
+      // Invalidate cache and refresh
+      invalidateCache(user.id)
+      setGoalAchieved(false)
+      setIsNearGoal(false)
+      setSuggestionMessage(null)
+
+      await loadDashboardData(user.id)
+      loadInsights(user.id, true)
+      loadSuggestions(user.id, userLocation, mealSize, diningMode, travelMode, scheduledMealTime, true)
+      setEditingMeal(null)
+    } catch (error) {
+      console.error('Failed to save edited meal:', error)
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
   // Drag and drop state
   const [draggedMeal, setDraggedMeal] = useState<{ id: string; mealType: string } | null>(null)
   const [dragOverType, setDragOverType] = useState<string | null>(null)
@@ -1107,102 +1208,19 @@ export default function DashboardPage() {
 
       <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
 
-        {/* Header with Chat Bar */}
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Greeting + Refresh */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <h1 className="text-2xl font-semibold text-foreground whitespace-nowrap">
-                {getGreeting()}, {userName}
-              </h1>
-              <button
-                onClick={handleRefreshSuggestions}
-                disabled={loadingSuggestions}
-                className="flex items-center gap-2 py-2 px-3 rounded-lg bg-sky-500/10 text-sky-600 text-xs font-medium hover:bg-sky-500/20 transition-all disabled:opacity-50"
-              >
-                <Sparkles className={`h-3.5 w-3.5 ${loadingSuggestions ? 'animate-pulse' : ''}`} />
-                {loadingSuggestions ? 'Generating...' : 'Refresh AI'}
-              </button>
-            </div>
-
-            {/* Chat Bar - Right aligned, above meal suggestions */}
-            {!pendingMeal ? (
-              <form onSubmit={handleChatSubmit} className="w-full lg:w-[calc(50%-10px)]">
-                <div className="flex items-center gap-3 bg-card rounded-2xl border border-border shadow-sm px-4 py-3.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
-                  <MessageCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Log a meal..."
-                    className="flex-1 min-w-0 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/50"
-                  />
-                  {chatInput.trim() && (
-                    <button
-                      type="submit"
-                      disabled={isProcessing}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {isProcessing ? (
-                        <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </form>
-            ) : (
-              <div className="w-full lg:w-[calc(50%-10px)] bg-card rounded-2xl border border-primary/30 px-4 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{pendingMeal.name}</p>
-                    <div className="flex gap-2 text-xs text-muted-foreground">
-                      <span>{pendingMeal.calories} cal</span>
-                      <span className="text-primary font-medium">{pendingMeal.protein}g pro</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1.5 flex-shrink-0">
-                    {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setSelectedMealType(type)}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all capitalize ${
-                          selectedMealType === type
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={confirmMeal}
-                      disabled={isLogging}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-                    >
-                      {isLogging ? (
-                        <div className="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Check className="h-3 w-3" />
-                      )}
-                      Log
-                    </button>
-                    <button
-                      onClick={cancelMeal}
-                      disabled={isLogging}
-                      className="p-1 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors disabled:opacity-50"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-foreground">
+            {getGreeting()}, {userName}
+          </h1>
+          <button
+            onClick={handleRefreshSuggestions}
+            disabled={loadingSuggestions}
+            className="flex items-center gap-2 py-2 px-3 rounded-lg bg-sky-500/10 text-sky-600 text-xs font-medium hover:bg-sky-500/20 transition-all disabled:opacity-50"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${loadingSuggestions ? 'animate-pulse' : ''}`} />
+            {loadingSuggestions ? 'Generating...' : 'Refresh AI'}
+          </button>
         </div>
 
         {/* Pathway + Suggestions Side by Side */}
@@ -1928,9 +1946,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Left: Today's Total + Ingredient Health (stacked squares) | Right: Meals Logged */}
+        {/* Left: Today's Total + Health | Right: Log Meal + Meals Logged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Left Column: Two equal squares stacked */}
+          {/* Left Column: Stacked squares */}
           <div className="flex flex-col gap-5">
             {/* Today's Total - Square */}
             <div className="flex-1 bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col">
@@ -2177,66 +2195,268 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Right Column: Meals Logged */}
-          <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col">
-            <p className="text-sm font-medium text-muted-foreground mb-4">Meals Logged</p>
+          {/* Right Column: Log Meal + Meals Logged */}
+          <div className="flex flex-col gap-5">
+            {/* Log Meal Card */}
+            <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-2xl border border-primary/20 p-6 min-h-[180px] flex flex-col justify-center">
+              {isAnalyzingImage ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                      <Camera className="h-5 w-5 text-primary animate-pulse" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Analyzing photo...</p>
+                      <p className="text-xs text-muted-foreground">AI is detecting your meal</p>
+                    </div>
+                  </div>
+                  {foodImage && (
+                    <div className="relative rounded-xl overflow-hidden">
+                      <img src={foodImage} alt="Food" className="w-full h-32 object-cover opacity-50" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : !pendingMeal ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                      <MessageCircle className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Log a meal</p>
+                      <p className="text-xs text-muted-foreground">Type or snap a photo</p>
+                    </div>
+                  </div>
+                  <form onSubmit={handleChatSubmit} className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 bg-card rounded-xl border border-border px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="I had a chicken salad..."
+                        className="flex-1 min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isProcessing || !chatInput.trim()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {isProcessing ? (
+                          <div className="h-3.5 w-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                    <label className="flex items-center justify-center h-10 w-10 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all">
+                      <Camera className="h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </form>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Confirm meal</p>
+                      <p className="text-xs text-muted-foreground">Select when you had this</p>
+                    </div>
+                  </div>
+                  <div className="bg-card rounded-xl border border-border p-3 space-y-3">
+                    <div className="flex gap-3">
+                      {foodImage && (
+                        <img src={foodImage} alt="Food" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm">{pendingMeal.name}</p>
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-0.5">
+                          <span>{pendingMeal.calories} cal</span>
+                          <span className="text-primary font-medium">{pendingMeal.protein}g pro</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setSelectedMealType(type)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all capitalize ${
+                            selectedMealType === type
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={cancelMeal}
+                        disabled={isLogging}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 text-xs font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmMeal}
+                        disabled={isLogging}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                      >
+                        {isLogging ? (
+                          <div className="h-3.5 w-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            Log
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Meals Logged */}
+            <div className="flex-1 bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col">
+              <p className="text-sm font-medium text-muted-foreground mb-4">Meals Logged</p>
 
             {(() => {
               const mealsByType = getMealsByType()
               const MAX_VISIBLE = 3
 
-              const renderMealItem = (meal: typeof mealsByType.breakfast[0]) => (
-                <div
-                  key={meal.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, meal.id, meal.mealType)}
-                  onDragEnd={handleDragEnd}
-                  className={`bg-muted/30 rounded-xl p-3 group cursor-grab active:cursor-grabbing transition-all hover:bg-muted/50 ${
-                    draggedMeal?.id === meal.id ? 'opacity-50 scale-95' : ''
-                  } ${updatingMealId === meal.id ? 'opacity-70' : ''}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <p className="text-sm font-medium text-foreground truncate flex-1">{meal.name}</p>
-                    <button
-                      onClick={() => deleteMeal(meal.id)}
-                      disabled={deletingMealId === meal.id}
-                      className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
-                    >
-                      {deletingMealId === meal.id ? (
-                        <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </button>
+              const renderMealItem = (meal: typeof mealsByType.breakfast[0]) => {
+                const isEditing = editingMeal?.id === meal.id
+                const canEdit = !!meal.foodCatalogItemId // Only editable if it's from food catalog
+
+                return (
+                  <div
+                    key={meal.id}
+                    draggable={!isEditing}
+                    onDragStart={(e) => !isEditing && handleDragStart(e, meal.id, meal.mealType)}
+                    onDragEnd={handleDragEnd}
+                    className={`bg-muted/30 rounded-xl p-3 group transition-all hover:bg-muted/50 ${
+                      isEditing ? '' : 'cursor-grab active:cursor-grabbing'
+                    } ${draggedMeal?.id === meal.id ? 'opacity-50 scale-95' : ''} ${updatingMealId === meal.id ? 'opacity-70' : ''}`}
+                  >
+                    {isEditing ? (
+                      // Edit mode
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-foreground">{meal.name}</p>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="text-xs text-muted-foreground">Calories</label>
+                            <input
+                              type="number"
+                              value={editingMeal.calories}
+                              onChange={(e) => setEditingMeal({ ...editingMeal, calories: e.target.value })}
+                              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-xs text-muted-foreground">Protein (g)</label>
+                            <input
+                              type="number"
+                              value={editingMeal.protein}
+                              onChange={(e) => setEditingMeal({ ...editingMeal, protein: e.target.value })}
+                              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingMeal(null)}
+                            disabled={isSavingEdit}
+                            className="flex-1 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveEditedMeal}
+                            disabled={isSavingEdit}
+                            className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                          >
+                            {isSavingEdit ? (
+                              <div className="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3" />
+                            )}
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Normal view
+                      <>
+                        <div className="flex items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <p className="text-sm font-medium text-foreground truncate flex-1">{meal.name}</p>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {canEdit && (
+                              <button
+                                onClick={() => setEditingMeal({ id: meal.id, calories: String(meal.calories), protein: String(meal.protein) })}
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteMeal(meal.id)}
+                              disabled={deletingMealId === meal.id}
+                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all disabled:opacity-50"
+                            >
+                              {deletingMealId === meal.id ? (
+                                <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pl-6">
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-muted-foreground">{meal.calories} cal</span>
+                            <span className="text-primary font-medium">{meal.protein}g protein</span>
+                          </div>
+                          <div className="flex items-center gap-1 bg-background/50 rounded-lg px-1 py-0.5">
+                            <button
+                              onClick={() => updateMealServings(meal.id, meal.servings - 0.5)}
+                              disabled={updatingMealId === meal.id || meal.servings <= 0.5}
+                              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="text-sm font-medium text-foreground w-8 text-center">
+                              {meal.servings % 1 === 0 ? meal.servings : meal.servings.toFixed(1)}x
+                            </span>
+                            <button
+                              onClick={() => updateMealServings(meal.id, meal.servings + 0.5)}
+                              disabled={updatingMealId === meal.id}
+                              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between mt-2 pl-6">
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-muted-foreground">{meal.calories} cal</span>
-                      <span className="text-primary font-medium">{meal.protein}g protein</span>
-                    </div>
-                    <div className="flex items-center gap-1 bg-background/50 rounded-lg px-1 py-0.5">
-                      <button
-                        onClick={() => updateMealServings(meal.id, meal.servings - 0.5)}
-                        disabled={updatingMealId === meal.id || meal.servings <= 0.5}
-                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
-                      <span className="text-sm font-medium text-foreground w-8 text-center">
-                        {meal.servings % 1 === 0 ? meal.servings : meal.servings.toFixed(1)}x
-                      </span>
-                      <button
-                        onClick={() => updateMealServings(meal.id, meal.servings + 0.5)}
-                        disabled={updatingMealId === meal.id}
-                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
+                )
+              }
 
               const renderMealSection = (type: 'breakfast' | 'lunch' | 'dinner', label: string, meals: typeof mealsByType.breakfast) => (
                 <div
@@ -2282,6 +2502,7 @@ export default function DashboardPage() {
                 </div>
               )
             })()}
+            </div>
           </div>
         </div>
 

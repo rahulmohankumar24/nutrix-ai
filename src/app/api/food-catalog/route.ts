@@ -103,3 +103,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch food items' }, { status: 500 })
   }
 }
+
+// Update a food catalog item's nutrition values
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { foodCatalogItemId, calories, protein, carbs, fat } = body
+
+    if (!foodCatalogItemId) {
+      return NextResponse.json({ error: 'Food catalog item ID required' }, { status: 400 })
+    }
+
+    // Build update data - only update provided fields
+    const updateData: { calories?: number; protein?: number; carbs?: number; fat?: number } = {}
+    if (calories !== undefined) updateData.calories = Math.round(calories)
+    if (protein !== undefined) updateData.protein = Math.round(protein)
+    if (carbs !== undefined) updateData.carbs = Math.round(carbs)
+    if (fat !== undefined) updateData.fat = Math.round(fat)
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'At least one nutrition field required' }, { status: 400 })
+    }
+
+    const updatedItem = await prisma.foodCatalogItem.update({
+      where: { id: foodCatalogItemId },
+      data: updateData
+    })
+
+    return NextResponse.json({ success: true, food: updatedItem })
+  } catch (error) {
+    console.error('Failed to update food catalog item:', error)
+    return NextResponse.json({ error: 'Failed to update food item' }, { status: 500 })
+  }
+}
